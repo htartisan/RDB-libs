@@ -1,6 +1,9 @@
 //****************************************************************************
 // FILE:    CFileIO.h
+//
 // DESC:    C++ file input/output class 
+//
+// AUTHOR:  Russ Barker
 //
 
 

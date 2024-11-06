@@ -1,7 +1,10 @@
 //****************************************************************************
 // FILE:    AudioBufferCls.h
+//
 // DESC:    An audio buffer handler class, that supports getting audio data 
 //          from, or writing daata to an audio file.
+//
+// AUTHOR:  Russ Barker
 //
 
 #ifndef _AUDIO_BUFFER_CLASS_H
@@ -16,15 +19,15 @@
 
 template <class T> class CSimpleAudioBuffer : public std::vector<T>
 {
-    unsigned int  m_numChannels;  ///< number of channels to buffer
-    unsigned int  m_blockSize;    ///< if interleaved, number of frames per block, if not, number of samples per channel
-    unsigned int  m_arraySize;    ///< arraySize = total numner of samples in a block
+    unsigned int  m_numChannels;  // number of channels to buffer
+    unsigned int  m_blockSize;    // if interleaved, number of frames per block, if not, number of samples per channel
+    unsigned int  m_arraySize;    // arraySize = total numner of samples in a block
 
-    unsigned long m_readIdx;      ///< current frame/sample read offset
-    unsigned long m_writeIdx;     ///< current frame/sample write offset
+    unsigned long m_readIdx;      // current frame/sample read offset
+    unsigned long m_writeIdx;     // current frame/sample write offset
 
-    bool          m_bInterleaved; ///< whether sample data is interleaved in the buffer
-    bool          m_bAllocated;   ///< whether the sample data buffer is allocated
+    bool          m_bInterleaved; // whether sample data is interleaved in the buffer
+    bool          m_bAllocated;   // whether the sample data buffer is allocated
 
     std::mutex    m_ioLock;
 
@@ -46,9 +49,9 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer already allocated");
             return;
         }
+        
         m_numChannels = numChls;
     }
 
@@ -61,9 +64,9 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer already allocated");
             return;
         }
+
         m_blockSize = blockSize;
     }
 
@@ -76,9 +79,9 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer already allocated");
             return;
         }
+
         m_numChannels = numChls;
         m_blockSize   = blockSize;
     }
@@ -87,7 +90,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer already allocated");
             return false;
         }
 
@@ -103,13 +105,11 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (m_blockSize < 1)
         {
-            SPDLOG_DEBUG("invalid blockSize");
-            return false;
+             return false;
         }
 
         if (m_numChannels < 1)
         {
-            SPDLOG_DEBUG("invalid numChannels");
             return false;
         }
 
@@ -118,9 +118,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (this->size() < m_arraySize)
         {
-            SPDLOG_DEBUG("size={} < m_arraySize={}, m_numChannels={}, m_blockSize={}", this->size(), m_arraySize,
-                         m_numChannels, m_blockSize);
             m_arraySize = 0;
+
             return false;
         }
 
@@ -141,7 +140,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
     void free()
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         this->clear();
@@ -155,24 +153,20 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
     void clear()
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
-        {
-            SPDLOG_DEBUG("buffer not yet allocated");
+        {            
             return;
         }
 
         if (m_arraySize < 1)
         {
-            SPDLOG_DEBUG("invalid arraySize");
             return;
         }
 
         if (m_arraySize > this->size())
         {
-            SPDLOG_DEBUG("m_arraySize > size", m_arraySize, this->size());
             return;
         }
 
@@ -186,18 +180,17 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer not allocated");
             return nullptr;
         }
 
         return ((T *)this->data());
     }
 
-    /**
-    this function gets a pointer to the start of a frame
-    or the start of a channel, depending on whether the
-    data is interleaved ir not
-    */
+
+    // This function gets a pointer to the start 
+    // of a frame or the start of a channel, 
+    // depending on whether the data
+    // is interleaved or not.
     T *getDataPtr(const unsigned index)
     {
         unsigned int offset;
@@ -209,8 +202,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (offset >= m_arraySize)
         {
-            SPDLOG_DEBUG("offset={} >= m_arraySize={}, m_numChannels={}, m_blockSize={}", offset, m_arraySize,
-                         m_numChannels, m_blockSize);
             return nullptr;
         }
 
@@ -221,19 +212,16 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer not allocated");
             return nullptr;
         }
 
         if (m_bInterleaved)
         {
-            SPDLOG_DEBUG("buffer is interleaved");
             return nullptr;
         }
 
         if (chan >= m_numChannels)
         {
-            SPDLOG_DEBUG("chan={} >= m_numChannels={}", chan, m_numChannels);
             return nullptr;
         }
 
@@ -241,8 +229,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (offset >= this->size())
         {
-            SPDLOG_DEBUG("offset={} >= size={}, chan={}, numChans={}, m_blockSize={}, interleaved={}", offset,
-                         this->size(), chan, m_numChannels, m_blockSize, m_bInterleaved);
             return nullptr;
         }
 
@@ -253,19 +239,16 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
     {
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("buffer not allocated");
             return nullptr;
         }
 
         if (!m_bInterleaved)
         {
-            SPDLOG_DEBUG("buffer is NOT interleaved");
             return nullptr;
         }
 
         if (frame >= m_blockSize)
         {
-            SPDLOG_DEBUG("frame={} >= m_numSamplesPerChl={}", frame, m_blockSize);
             return nullptr;
         }
 
@@ -273,8 +256,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (offset >= this->size())
         {
-            SPDLOG_DEBUG("offset={} >= size={}, frame={}, numChans={}, m_blockSize={}, interleaved={}", offset,
-                         this->size(), frame, m_numChannels, m_blockSize, m_bInterleaved);
             return nullptr;
         }
 
@@ -296,9 +277,7 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (m_numChannels < 1 || chan > m_numChannels || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
-        {
-            SPDLOG_DEBUG("bad params numChans={}, chan={}, blockSize={}, frame={}, m_bAllocated={}", m_numChannels,
-                         chan, m_blockSize, frame, m_bAllocated);
+        {            
             return 0;
         }
 
@@ -311,8 +290,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (offset >= this->size())
         {
-            SPDLOG_DEBUG("offset={} >= size={}, chan={}, frame={}, numChans={}, blockSize={}, interleaved={}", offset,
-                         this->size(), chan, frame, m_numChannels, m_blockSize, m_bInterleaved);
             return 0;
         }
 
@@ -325,8 +302,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (m_numChannels < 1 || chan > m_numChannels || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
         {
-            SPDLOG_DEBUG("bad params numChans={}, chan={}, blockSize={}, frame={}, m_bAllocated={}", m_numChannels,
-                         chan, m_blockSize, frame, m_bAllocated);
             return;
         }
 
@@ -338,8 +313,6 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (offset >= this->size())
         {
-            SPDLOG_DEBUG("offset={} >= size={}, chan={}, frame={}, numChans={}, blockSize={}, interleaved={}", offset,
-                         this->size(), frame, m_numChannels, m_blockSize, m_bInterleaved);
             return;
         }
         this->at(offset) = value;
@@ -355,10 +328,9 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         m_writeIdx = 0;
     }
 
-    /**
-    read a single sample at the current read offset and then increment the offset.
-    return the sample value at that offset
-    */
+    // read a single sample at the current read offset 
+    // and then increment the offset.
+    // return: the sample value at that offset
     T readSample()
     {
         // make sure multiple functions are not modifying the buffer at the same time
@@ -366,23 +338,19 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if (m_readIdx >= this->size())
         {
-            SPDLOG_DEBUG("m_readIdx={} >= size={}", m_readIdx, this->size());
             return 0;
         }
 
         return (this->at(m_readIdx++));
     }
 
-    /**
-    read a single sample at 'index' offset.
-    return the sample value at that offset
-    */
+    // read a single sample at 'index' offset.
+    // return: the sample value at that offset
     T readSample(const unsigned long index)
     {
         // make sure multiple functions are not modifying the buffer at the same time
@@ -390,33 +358,29 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
-
             // return zero sample
             T out;
-            /// @todo why are we clearing 2, maybe 4, bytes? A quick check would be more optimal
+
             memset(&out, 0, sizeof(T));
+
             return out;
         }
 
         if (index >= m_arraySize)
         {
-            SPDLOG_DEBUG("invalid sample index");
-
             // return zeros
             T out;
-            /// @todo why are we clearing 2, maybe 4, bytes? A quick check would be more optimal
+
             memset(&out, 0, sizeof(T));
+
             return out;
         }
 
         return (this->at(index));
     }
 
-    /**
-    read a block of size 'count' (samples) starting at the current read offset,
-    and then update the current read offset. return the updated read offset
-    */
+    // read a block of size 'count' (samples) starting at the current read offset,
+    // and then update the current read offset. return the updated read offset
     unsigned long readSamples(T buf[], const unsigned int count)
     {
         // make sure multiple functions are not modifying the buffer at the same time
@@ -424,13 +388,11 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if ((m_readIdx + count) >= m_arraySize)
         {
-            SPDLOG_DEBUG("(m_readIdx={} + count={}) >= m_arraySize={}", m_readIdx, count, m_arraySize);
             return 0;
         }
 
@@ -442,25 +404,20 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         return m_readIdx;
     }
 
-    /**
-    read a block of size 'numSamples' (samples)
-    starting at the 'startPos' read offset.
-    return (start offset + number of samples read)
-    */
+    // read a block of size 'numSamples' (samples)
+    // starting at the 'startPos' read offset.
+    // return: start offset + number of samples read
     unsigned long readSampleBlock(T buf[], const unsigned int startPos, const unsigned int numSamples)
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if ((startPos + numSamples) >= m_arraySize)
         {
-            SPDLOG_DEBUG("(startPos={} + numSamples={}) >= m_arraySize={}", startPos, numSamples, m_arraySize);
             return 0;
         }
 
@@ -470,24 +427,19 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         return startPos + numSamples;
     }
 
-    /**
-    write a single sample at the current write offset,
-    and then increment the offset, return the updated write offset.
-    */
+    // write a single sample at the current write offset, and
+    // then increment the offset, return the updated write offset.
     unsigned long writeSample(const T value)
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if (m_writeIdx >= (unsigned long)m_arraySize)
         {
-            SPDLOG_DEBUG("m_writeIdx={} >= m_arraySize={}", m_writeIdx, m_arraySize);
             return 0;
         }
 
@@ -496,24 +448,19 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         return m_writeIdx;
     }
 
-    /**
-    write a single sample at 'index' write offset.
-    return the write offset
-    */
+    // write a single sample at 'index' write offset.
+    // return: the write offset    
     unsigned long writeSample(unsigned long index, const T value)
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if (index >= (unsigned long)m_arraySize)
         {
-            SPDLOG_DEBUG("index={} >= arraySize={}", index, m_arraySize);
             return 0;
         }
 
@@ -522,26 +469,21 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         return index;
     }
 
-    /**
-    write a block of size 'count' (samples)
-    starting at the current write offset,
-    and then update the current write offset.
-    return the updated write offset.
-    */
+    // write a block of size 'count' (samples)
+    // starting at the current write offset,
+    // and then update the current write offset.
+    // return:  the updated write offset.
     unsigned long writeSamples(const T buf[], const unsigned int count)
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if ((m_writeIdx + count) >= m_arraySize)
         {
-            SPDLOG_DEBUG("(m_writeIdx={} + count={}) >= m_arraySize={}", m_writeIdx, count, m_arraySize);
             return 0;
         }
 
@@ -553,25 +495,20 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>
         return m_writeIdx;
     }
 
-    /**
-    write a block of size 'numSamples' (samples)
-    starting at the 'startPos' write offset.
-    return (start offset + number of samples written).
-    */
+    // write a block of size 'numSamples' (samples)
+    // starting at the 'startPos' write offset
+    // return: start offset + number of samples written
     unsigned long writeSampleBlock(T buf[], const unsigned int startPos, const unsigned int numSamples)
     {
-        // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            SPDLOG_DEBUG("not yet allocated");
             return 0;
         }
 
         if ((startPos + numSamples) >= m_arraySize)
         {
-            SPDLOG_DEBUG("(startPos={} + numSamples={}) >= m_arraySize={}", startPos, numSamples, m_arraySize);
             return 0;
         }
 
@@ -608,7 +545,6 @@ template <class T> class CAudioBufferBase
     {
         if (m_numChls == 0 || m_samplesPerBlock == 0)
         {
-            SPDLOG_ERROR("numChls || samplesPerBlock = 0");
             return;
         }
 
@@ -621,8 +557,8 @@ template <class T> class CAudioBufferBase
 
         if (m_pBuff == nullptr)
         {
-            SPDLOG_ERROR("calloc returned invalid buffer pointer ");
             m_totalNumSamples = 0;
+
             return;
         }
 
@@ -791,13 +727,11 @@ template <class T> class CAudioBufferBase
     {
         if (m_numChls < 1 || m_samplesPerBlock < 1 || m_totalNumSamples < 1)
         {
-            SPDLOG_ERROR("numChls || samplesPerBlock = 0");
             return;
         }
 
         if (m_pBuff == nullptr)
         {
-            SPDLOG_ERROR("invalid buffer pointer");
             return;
         }
 
@@ -809,9 +743,8 @@ template <class T> class CAudioBufferBase
     }
 
 #ifdef SUPPORT_FILE_IO
-    /** This method enables/disables reading from an input file
-    NOTE: File input & file output can't be used at the same time on the same buffer.
-    */
+    // This method enables/disables reading from an input file
+    // NOTE: File input & file output can't be used at the same time on the same buffer.
     bool readFromInputFile(const bool val)
     {
         if (m_pFileWriter != nullptr)
@@ -828,7 +761,7 @@ template <class T> class CAudioBufferBase
             {
                 case eFileType_raw:
                     {
-                        m_pFileReader = (CAudioFileIO *)new CRawFileIO(m_numChls);
+                        m_pFileReader = (CAudioFileIO *) new CRawFileIO(m_numChls);
                         if (m_pFileReader == nullptr)
                             return false;
                     }
@@ -836,7 +769,7 @@ template <class T> class CAudioBufferBase
 
                 case eFileType_wav:
                     {
-                        m_pFileReader = (CAudioFileIO *)new CWavFileIO(m_numChls);
+                        m_pFileReader = (CAudioFileIO *) new CWavFileIO(m_numChls);
                         if (m_pFileReader == nullptr)
                             return false;
 
@@ -862,9 +795,8 @@ template <class T> class CAudioBufferBase
         return true;
     }
 
-    /** This method enables/disables writing to an output file
-    NOTE: File input & file output can't be used at the same time on the same buffer.
-    */
+    // This method enables/disables writing to an output file
+    // NOTE: File input & file output can't be used at the same time on the same buffer.
     bool writeToOutputFile(const bool val)
     {
         if (m_pFileReader != nullptr)
@@ -953,7 +885,6 @@ template <class T> class CInterleavedBuffer : public CAudioBufferBase<T>
     {
         if (!CAudioBufferBase<T>::initialized())
         {
-            SPDLOG_ERROR("buffer not yet initialized");
             return;
         }
 
@@ -969,7 +900,6 @@ template <class T> class CInterleavedBuffer : public CAudioBufferBase<T>
     {
         if (!CAudioBufferBase<T>::initialized())
         {
-            SPDLOG_ERROR("buffer not yet initialized");
             return 0;
         }
 
@@ -1009,14 +939,12 @@ template <class T> class CNonInterleavedBuffer : public CAudioBufferBase<T>
     {
         if (!CAudioBufferBase<T>::initialized())
         {
-            SPDLOG_ERROR("buffer not yet initialized");
             return;
         }
 
 #ifdef SUPPORT_FILE_IO
         if (CAudioBufferBase<T>::m_eInputType == eAudioFileType_def::eFileType_raw)
         {
-            SPDLOG_ERROR("raw input files can NOT be used with NonInterleavedBuffer");
             return;
         }
 
@@ -1032,14 +960,12 @@ template <class T> class CNonInterleavedBuffer : public CAudioBufferBase<T>
     {
         if (!CAudioBufferBase<T>::initialized())
         {
-            SPDLOG_ERROR("buffer not yet initialized");
-            return 0;
+             return 0;
         }
 
 #ifdef SUPPORT_FILE_IO
         if (CAudioBufferBase<T>::m_eInputType == eAudioFileType_def::eFileType_raw)
         {
-            SPDLOG_ERROR("raw input files can NOT be used with NonInterleavedBuffer");
             return 0;
         }
 
@@ -1047,6 +973,7 @@ template <class T> class CNonInterleavedBuffer : public CAudioBufferBase<T>
         {
             int16_t value = 0;
             CAudioBufferBase<T>::m_pFileReader->readSample(value, chan);
+
             return value;
         }
 #endif

@@ -1,6 +1,10 @@
 //****************************************************************************
-// FILE:
-// DEESC:
+// FILE:    CVectorBuffeer.h
+//
+// DEESC:   Buffer class with configurable data type, 
+//          derrived from Std::Vector.
+//
+// AUTHOR:  Russ Barker
 //
 
 
@@ -156,7 +160,6 @@ template <typename T> class CVectorBuffer
         auto                        bufSize = m_dataBuffer.size();
         if ((bufSize + blockSize) > m_maxSize)
         {
-	        fprintf(stdout, "CVectorBuffer writeBlock failed \r\n");
             return false;
         }
 

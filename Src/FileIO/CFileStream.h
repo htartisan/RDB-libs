@@ -1,9 +1,12 @@
 //****************************************************************************
 // FILE:    CFileStream.h
+//
 // DESC:    The class defined in this header
 //          allows access to data if type "T"
 //          to be read from or written to a
 //          std file stream.
+//
+// AUTHOR:  Russ Barker
 //
 
 
