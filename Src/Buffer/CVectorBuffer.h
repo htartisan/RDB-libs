@@ -2,7 +2,7 @@
 // FILE:    CVectorBuffeer.h
 //
 // DEESC:   Buffer class with configurable data type, 
-//          derrived from Std::Vector.
+//          derrived from std::vector.
 //
 // AUTHOR:  Russ Barker
 //
@@ -15,8 +15,10 @@
 #include <string>
 #include <vector>
 
+#include "../Error/CError.h"
 
-template <typename T> class CVectorBuffer
+
+template <typename T> class CVectorBuffer: public CErrorHandler
 {
     std::vector<T> m_dataBuffer;
     size_t         m_maxSize;

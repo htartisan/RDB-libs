@@ -1,8 +1,7 @@
 //****************************************************************************
 // FILE:    AudioBufferCls.h
 //
-// DESC:    An audio buffer handler class, that supports getting audio data 
-//          from, or writing daata to an audio file.
+// DESC:    An audio buffer handler class.
 //
 // AUTHOR:  Russ Barker
 //
@@ -16,8 +15,10 @@
 #include <string>
 #include <vector>
 
+#include "../Error/CError.h"
 
-template <class T> class CSimpleAudioBuffer : public std::vector<T>
+
+template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErrorHandler
 {
     unsigned int  m_numChannels;  // number of channels to buffer
     unsigned int  m_blockSize;    // if interleaved, number of frames per block, if not, number of samples per channel
@@ -524,16 +525,20 @@ template <class T> class CAudioBufferBase
   protected:
 
     T           *m_pBuff;
+
     unsigned int m_numChls;
     unsigned int m_samplesPerBlock;
     unsigned int m_totalNumSamples;
+
     bool         m_bAllocated;
 
 #ifdef SUPPORT_FILE_IO
     std::string        m_sInputFile;
     std::string        m_sOutputFile;
+
     eAudioFileType_def m_eInputType;
     eAudioFileType_def m_eOutputType;
+    
     CAudioFileIO      *m_pFileReader;
     CAudioFileIO      *m_pFileWriter;
 #endif
