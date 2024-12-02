@@ -116,17 +116,33 @@ public:
             m_sFilePath = sPath;  
         }
 
-        void *pLib = dlopen(m_sFilePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
-        if (pLib == void)
-        {
-            auto message = dlerror();
+#ifdef WINDOWS
 
-            SetErrorText("Failed to load lib at specified path - " + message);
+        HINSTANCE hLib = LoadLibrary(m_sFilePath.c_str());
+        if (hLib == NULL)
+        {
+            SetErrorText("Failed to load lib at specified path");
             return false;
         }
 
-        auto createPluginInterface = (CreatePluginInterface)dlsym(pLib, "CreatePluginInterface");
-        if (createPluginInterface)
+        auto createPluginInterface = (CreatePluginInterface) GetProcAddress(hDll, "CreatePluginInterface");
+
+#else
+
+        void *pLib = dlopen(m_sFilePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
+        if (pLib == nullptr)
+        {
+            auto message = dlerror();
+
+            SetErrorText("Failed to load lib at specified path " + message);
+            return false;
+        }
+
+        auto createPluginInterface = (CreatePluginInterface) dlsym(pLib, "CreatePluginInterface");
+
+#endif
+
+        if (createPluginInterface != nullptr)
         {
             m_pPluginInterface = createPluginInterface();
         }
