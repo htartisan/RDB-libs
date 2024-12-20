@@ -1,7 +1,7 @@
 //****************************************************************************
 // FILE:    CPluginMgr.h
 //
-// DEESC:   Plugin (lib) manager class def
+// DEESC:   Plugin (lib) interface manager class def
 //
 // AUTHOR:  Russ Barker
 //
@@ -14,150 +14,55 @@
 #include <string>
 #include <vector>
 
+#ifdef WINDOWS
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 #include <memory>
+#include <vector>
 
 #include "../Error/CError.h"
 
 
-enum eFunctionArgType
-{
-    eFunctionArgType_void,
-    eFunctionArgType_voidPtr,
-    eFunctionArgType_int,
-    eFunctionArgType_intPtr,
-    eFunctionArgType_bool,
-    eFunctionArgType_char,
-    eFunctionArgType_charPtr,
-    eFunctionArgType_string
 
-};
 
-typedef std::vector<eFunctionArgType>   m_eArgList_def;
-
-struct PluginFunctionInfo_def
-{
-    std::string         m_sFunctionName;
-
-    m_eArgList_def      m_eArgList;
-
-    void                *m_pFunction;
-};
-
-typedef std::vector<PluginFunctionInfo_def>  m_FunctionList_def;
-
-class IPluginInterfaceBase
+template <typename T> class IPluginMgrInterfaceBase
 {
 private:
 
+    std::string         m_sPluginModuleName;
+
     std::string         m_sPluginDescription;
 
-    m_FunctionList_def  m_FunctionList;
+    int                 m_nPluginType;
 
 public:
+
+    IPluginMgrInterfaceBase()
+    {
+        m_nPluginType = 0;
+    }
+
+    std::string GetPluginModuleName()
+    {
+        return m_sPluginName;
+    }
 
     std::string GetPluginDescription()
     {
         return m_sPluginDescription;
     }
 
-    m_FunctionList_def GetFunctionList()
+    int GetPluginType()
     {
-        return m_FunctionList;
+        return m_nPluginType;
     }
+
+    std::shared_ptr<T> (*CreatePluginInstance)();
 };
 
-typedef IPluginInterfaceBase *(*CreatePluginInterface)();
-
-
-
-class CPluginMgr : public CErrorHandler
-{
-private:
-
-    std::string         m_sFilePath;
-
-    bool                m_bLoaded;
-
-    IPluginInterfaceBase *m_pPluginInterface;
-
-public:
-
-    CPluginMgr(std::string sPath = "")
-    {
-        m_sFilePath = sPath;  
-
-        m_bLoaded = false;
-
-        m_pPluginInterface = void;
-    }
-
-    ~CPluginMgr();
-
-    bool SetFilePath(std::string sPath)
-    {
-        if (sPath == "")
-        {
-            SetErrorText("Invalid lib path");
-            return false;
-        }
-
-        m_sFilePath = sPath;  
-
-        ClearError();
-        return true;
-    }
-
-    bool Load(std::string sPath)
-    {
-        if (sPath != "")
-        {
-            m_sFilePath = sPath;  
-        }
-
-#ifdef WINDOWS
-
-        HINSTANCE hLib = LoadLibrary(m_sFilePath.c_str());
-        if (hLib == NULL)
-        {
-            SetErrorText("Failed to load lib at specified path");
-            return false;
-        }
-
-        auto createPluginInterface = (CreatePluginInterface) GetProcAddress(hDll, "CreatePluginInterface");
-
-#else
-
-        void *pLib = dlopen(m_sFilePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
-        if (pLib == nullptr)
-        {
-            auto message = dlerror();
-
-            SetErrorText("Failed to load lib at specified path " + message);
-            return false;
-        }
-
-        auto createPluginInterface = (CreatePluginInterface) dlsym(pLib, "CreatePluginInterface");
-
-#endif
-
-        if (createPluginInterface != nullptr)
-        {
-            m_pPluginInterface = createPluginInterface();
-        }
-
-        if (m_pPluginInterface != void)
-        {
-            ClearError();
-            return true;
-        }
-
-        SetErrorText("Failed to create pligin interface");
-        return false;
-    }
-
-};
 
 
 

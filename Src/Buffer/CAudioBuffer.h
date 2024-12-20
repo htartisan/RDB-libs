@@ -18,7 +18,13 @@
 #include "../Error/CError.h"
 
 
-template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErrorHandler
+#define interleavedAudioBufferOffset(ptr, chl, frm, nc)      *(ptr + (frm * nc) + chl)
+
+#define noninterleavedAudioBufferOffset(ptr, chl, smpl, fs)   *(ptr + (chl + fs) + smpl)
+
+
+//template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErrorHandler
+template <class T> class CSimpleAudioBuffer : public CErrorHandler
 {
     unsigned int  m_numChannels;  // number of channels to buffer
     unsigned int  m_blockSize;    // if interleaved, number of frames per block, if not, number of samples per channel
@@ -30,6 +36,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
     bool          m_bInterleaved; // whether sample data is interleaved in the buffer
     bool          m_bAllocated;   // whether the sample data buffer is allocated
 
+    T*            m_pBuffer;
+
     std::mutex    m_ioLock;
 
   public:
@@ -38,12 +46,14 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         m_numChannels(1),
         m_bAllocated(false)
     {
-        m_bInterleaved = bInterleaved;
-        m_blockSize    = 0;
-        m_arraySize    = 0;
+        m_bInterleaved  = bInterleaved;
+        m_blockSize     = 0;
+        m_arraySize     = 0;
 
-        m_readIdx      = 0;
-        m_writeIdx     = 0;
+        m_readIdx       = 0;
+        m_writeIdx      = 0;
+
+        m_pBuffer       = nullptr;
     }
 
     void setNumChannels(unsigned int numChls)
@@ -114,10 +124,20 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return false;
         }
 
-        m_arraySize = (m_blockSize * m_numChannels); // arraySize = total numner of samples in a block
-        this->resize(m_arraySize);
+        m_arraySize = (m_blockSize * m_numChannels); // arraySize = total numner of samples in the buffer
 
-        if (this->size() < m_arraySize)
+        // this->resize(m_arraySize);
+
+        // if (this->size() < m_arraySize)
+        // {
+        //     m_arraySize = 0;
+
+        //     return false;
+        // }
+
+        m_pBuffer = calloc(m_arraySize, sizeof(T));
+
+        if (m_pBuffer == nullptr)
         {
             m_arraySize = 0;
 
@@ -143,7 +163,12 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        this->clear();
+        //this->clear();
+
+        free(m_pBuffer);
+
+        m_pBuffer = nullptr;
+
         m_bAllocated = false;
     }
 
@@ -171,7 +196,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return;
         }
 
-        memset((this->data()), 0, (sizeof(T) * m_arraySize));
+        //memset((this->data()), 0, (sizeof(T) * m_arraySize));
+        memset(m_pBuffer, 0, (sizeof(T) * m_arraySize));
 
         m_readIdx  = 0;
         m_writeIdx = 0;
@@ -184,7 +210,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return nullptr;
         }
 
-        return ((T *)this->data());
+        //return ((T *)this->data());
+        return m_pBuffer;
     }
 
 
@@ -197,16 +224,17 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         unsigned int offset;
 
         if (m_bInterleaved)
-            offset = index * m_numChannels; // sample offset = index (frame number) * size of a frame
+            offset = index * m_numChannels; // interleaved offset = frame_number = (index * size_of_a_frame)   
         else
-            offset = index * m_blockSize;   // sample offset = index (channel number) * size of a channel block
+            offset = index * m_blockSize;   // non-interleaved offset = channel_number = (index * size_of_a_channel_block)
 
         if (offset >= m_arraySize)
         {
             return nullptr;
         }
 
-        return ((T *)(this->data() + (offset * sizeof(T))));
+        //return ((T *)(this->data() + (offset * sizeof(T))));
+        return (m_pBuffer + offset);
     }
 
     inline T *getChannelPtr(const unsigned int chan)
@@ -226,14 +254,16 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return nullptr;
         }
 
-        auto offset = chan * m_blockSize; // sample offset = channel number * size of a channel block
+        auto offset = chan * m_blockSize; // channel offset = (channel_number * size_of_a_channel_block)
 
-        if (offset >= this->size())
+        //if (offset >= this->size())
+        if (offset >= m_arraySize)
         {
             return nullptr;
         }
 
-        return (((T *)(this->data())) + offset);
+        //return (((T *)(this->data())) + offset);
+        return (m_pBuffer + offset);
     }
 
     inline T *getFramePtr(const unsigned int frame)
@@ -253,14 +283,16 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return nullptr;
         }
 
-        auto offset = frame * m_numChannels; // sample offset = frame number * size of a frame
+        auto offset = frame * m_numChannels; // frame offset = (frame_number * size_of_a_frame)
 
-        if (offset >= this->size())
+        //if (offset >= this->size())
+        if (offset >= m_arraySize)
         {
             return nullptr;
         }
 
-        return (((T *)(this->data())) + offset);
+        //return (((T *)(this->data())) + offset);
+        return (m_pBuffer + offset);
     }
 
     void lockBuffer()
@@ -285,16 +317,18 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         unsigned int offset;
 
         if (m_bInterleaved)
-            offset = (frame * m_numChannels) + chan; // sample offset = (frame * size of a frame) + channel
+            offset = (frame * m_numChannels) + chan; // interleaved offset = (frame_number * size_of_a_frame) + channel_number
         else
-            offset = (chan * m_blockSize) + frame;   // sample offset = (channel * size of channel block) + frame
+            offset = (chan * m_blockSize) + frame;   // non-interleaved offset = (channel_number * size_of_channel_block) + frame_number
 
-        if (offset >= this->size())
+        //if (offset >= this->size())
+        if (offset >= m_arraySize)
         {
             return 0;
         }
 
-        return (this->at(offset));
+        //return (this->at(offset));
+        return *(m_pBuffer + offset);
     }
 
     void setSample(unsigned int chan, unsigned int frame, T value)
@@ -308,15 +342,18 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
 
         unsigned int offset;
         if (m_bInterleaved)
-            offset = (frame * m_numChannels) + chan; // sample offset = (frame * size of frame) + channel
+            offset = (frame * m_numChannels) + chan; // interleaved offset = (frame_number * size_of_a_frame) + channel_number
         else
-            offset = (chan * m_blockSize) + frame;   // sample offset = (channel * size of channel block) + frame
+            offset = (chan * m_blockSize) + frame;   // non-interleaved offset = (channel_number * size_of_channel_block) + frame_number
 
-        if (offset >= this->size())
+        //if (offset >= this->size())
+        if (offset >= m_arraySize)
         {
-            return;
+            return 0;
         }
-        this->at(offset) = value;
+
+        //this->at(offset) = value;
+        *(m_pBuffer + offset) = value;
     }
 
     void resetReadIndex()
@@ -342,12 +379,14 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return 0;
         }
 
-        if (m_readIdx >= this->size())
+        //if (m_readIdx >= this->size())
+        if (m_readIdx >= m_arraySize)
         {
             return 0;
         }
 
-        return (this->at(m_readIdx++));
+        //return (this->at(m_readIdx++));
+        return *(m_pBuffer + (m_readIdx++));
     }
 
     // read a single sample at 'index' offset.
@@ -377,7 +416,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return out;
         }
 
-        return (this->at(index));
+        //return (this->at(index));
+        return *(m_pBuffer + index);
     }
 
     // read a block of size 'count' (samples) starting at the current read offset,
@@ -398,7 +438,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         }
 
         for (unsigned int x = 0; x < count; x++)
-            buf[x] = this->at(m_readIdx + x);
+            //buf[x] = this->at(m_readIdx + x);
+            buf[x] = *(m_pBuffer + x);
 
         m_readIdx += count;
 
@@ -423,7 +464,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         }
 
         for (unsigned int x = 0; x < numSamples; x++)
-            buf[x] = this->at(startPos + x);
+            //buf[x] = this->at(startPos + x);
+            buf[x] = *(m_pBuffer + (startPos + x));
 
         return startPos + numSamples;
     }
@@ -439,12 +481,13 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return 0;
         }
 
-        if (m_writeIdx >= (unsigned long)m_arraySize)
+        if (m_writeIdx >= (unsigned long) m_arraySize)
         {
             return 0;
         }
 
-        this->at(m_writeIdx++) = value;
+        //this->at(m_writeIdx++) = value;
+        *(m_pBuffer + (m_writeIdx++)) = value;
 
         return m_writeIdx;
     }
@@ -465,7 +508,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
             return 0;
         }
 
-        this->at(index++) = value;
+        //this->at(index++) = value;
+        *(m_pBuffer + (index++)) = value;
 
         return index;
     }
@@ -489,7 +533,8 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         }
 
         for (unsigned int x = 0; x < count; x++)
-            this->at(m_writeIdx + x) = buf[x];
+            //this->at(m_writeIdx + x) = buf[x];
+            *(m_pBuffer +  (m_writeIdx + x)) = buf[x];
 
         m_writeIdx += count;
 
@@ -514,7 +559,7 @@ template <class T> class CSimpleAudioBuffer : public std::vector<T>, public CErr
         }
 
         for (unsigned int x = 0; x < numSamples; x++)
-            this->at(startPos + x) = buf[x];
+            *(m_pBuffer +  (startPos + x)) = buf[x];
 
         return startPos + numSamples;
     }
