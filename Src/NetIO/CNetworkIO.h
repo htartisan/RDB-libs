@@ -17,18 +17,77 @@
 
 #define DEFAULT_TCP_BUFFER_SIZE             4096
 
+#define NET_STREAM_TYPE_LEN                 12
 
-struct NetworkDataIoHeader_def
+
+struct NetworkDataHeaderInfo_def
 {
-    char            m_StreamType[10];
+    char        m_StreamType[NET_STREAM_TYPE_LEN];
 
-    unsigned int    m_nDataLen;
+    uint32_t    m_nDataLen;
+};
 
-    NetworkDataIoHeader_def()
+
+class CNetworkDataIoHeader
+{
+  protected:
+
+    NetworkDataHeaderInfo_def   m_data;
+
+  public:
+
+    CNetworkDataIoHeader()
     {
-        memset(&m_StreamType, 0, sizeof(m_StreamType));
+        clear();
+    }
 
-        m_nDataLen = 0;
+    CNetworkDataIoHeader(const std::string &sType, const unsigned int nLen = 0)
+    {
+        clear();
+
+        setType(sType);
+
+        setLen(nLen);
+    }
+
+    void clear()
+    {
+        memset(&m_data, 0, sizeof(m_data));
+    }
+
+    void setType(const std::string &sType)
+    {
+        for (unsigned int x = 0; x < NET_STREAM_TYPE_LEN; x++)
+        {
+            if (x >= (unsigned int) sType.length())
+                break;
+
+            m_data.m_StreamType[x] = sType[x];
+        }
+    }
+
+    std::string getType()
+    {
+        std::string sOut = "";
+
+        sOut.assign(m_data.m_StreamType, NET_STREAM_TYPE_LEN);
+
+        return sOut;
+    }
+
+    void setLen(const unsigned int nLen)
+    {
+        m_data.m_nDataLen = nLen;
+    }
+
+    unsigned int getLen()
+    {
+        return m_data.m_nDataLen;
+    }
+
+    char * getdataPtr()
+    {
+        return (char *) &m_data;
     }
 };
 
@@ -53,6 +112,8 @@ class CNetworkIO
 
     unsigned int                                    m_nBufferSize;
 
+    unsigned int                                    m_nCurrBufLen;
+
     std::string                                     m_sLastError;
 
   public:
@@ -63,7 +124,8 @@ class CNetworkIO
         m_bConnected(false),
         m_netSocket(m_ioContext),
         m_pDataBuffer(nullptr),
-        m_nBufferSize(0)
+        m_nBufferSize(0),
+        m_nCurrBufLen(0)
     {
         m_sURI = "";
 
@@ -82,12 +144,20 @@ class CNetworkIO
         if (nSize < 2)
             return false;
 
+        if (m_pDataBuffer != nullptr)
+        {
+            free(m_pDataBuffer);
+            m_pDataBuffer = nullptr;
+        }
+
         m_pDataBuffer = (char *) calloc(1, nSize);
 
         if (m_pDataBuffer == nullptr)
             return false;
 
-        m_nBufferSize - nSize;
+        m_nBufferSize = nSize;
+
+        m_nCurrBufLen = 0;
 
         return true;
     }
@@ -102,6 +172,7 @@ class CNetworkIO
         m_pDataBuffer = nullptr;
 
         m_nBufferSize = 0;
+        m_nCurrBufLen = 0;
 
         return true;
     }
@@ -112,6 +183,34 @@ class CNetworkIO
             return false;
 
         memset(&m_pDataBuffer, 0, sizeof(m_nBufferSize));
+
+        m_nCurrBufLen = 0;
+
+        return true;
+    }
+
+    bool appendBuffer(const void *pSource, const unsigned int nLen)
+    {
+        if (pSource == nullptr || nLen < 1)
+            return false;
+
+        if ((nLen + m_nCurrBufLen)  > m_nBufferSize)
+            return false;
+
+        memcpy((m_pDataBuffer + m_nCurrBufLen), pSource, nLen);
+
+        return true;
+    }
+
+    bool getBuffer(void *pTarget, const unsigned int nLen, const unsigned int nStartingAt = 0)
+    {
+        if (pTarget == nullptr || nLen < 1)
+            return false;
+
+        if (nLen > m_nBufferSize)
+            return false;
+
+        memcpy(pTarget, (m_pDataBuffer + nStartingAt), nLen);
 
         return true;
     }
@@ -138,41 +237,41 @@ class CNetworkIO
 
     bool open()
     {
-        if (setUri == "")
+        if (m_sURI == "")
             return false;
 
         if (m_nPort < 1)
             return false;
 
-        if (m_bConnected == true || m_pTcpEndPoint != nullptr)
+        if (m_bConnected == true || m_pNetEndPoint != nullptr)
         {
             try
             {
-                m_tcpSocket.close();
+                m_netSocket.close();
             }
             catch (...)
             { }
 
-            if (m_pTcpEndPoint != nullptr)
+            if (m_pNetEndPoint != nullptr)
             {
-                delete m_pTcpEndPoint;
+                delete m_pNetEndPoint;
 
-                m_pTcpEndPoint = nullptr;
+                m_pNetEndPoint = nullptr;
             }
 
             m_bConnected = false;
         }
 
-        m_pTcpEndPoint = new asio::ip::tcp::endpoint(asio::ip::address::from_string(m_sURI), m_nPort);
+        m_pNetEndPoint = new asio::ip::tcp::endpoint(asio::ip::address::from_string(m_sURI), m_nPort);
 
-        if (m_pTcpEndPoint == nullptr)
+        if (m_pNetEndPoint == nullptr)
         {
             return false;
         }
 
         try
         {
-            m_tcpSocket.connect(*m_pTcpEndPoint);
+            m_netSocket.connect(*m_pNetEndPoint);
         }
         catch (...)
         {
@@ -188,17 +287,17 @@ class CNetworkIO
     {
         try
         {
-            m_tcpSocket.close();
+            m_netSocket.close();
         }
         catch (...)
         {
         }
 
-        if (m_pTcpEndPoint != nullptr)
+        if (m_pNetEndPoint != nullptr)
         {
-            delete m_pTcpEndPoint;
+            delete m_pNetEndPoint;
 
-            m_pTcpEndPoint = nullptr;
+            m_pNetEndPoint = nullptr;
         }
 
         m_bConnected = false;
@@ -211,16 +310,15 @@ class CNetworkIO
         return m_bConnected;
     }
 
-    int read(void *pTarget, const unsigned int nLen)
+    int read(void *pTarget = nullptr, const unsigned int nLen = 0)
     {
-        if (pTarget == nullptr)
+        if (m_pDataBuffer == nullptr && (pTarget == nullptr || nLen < 1))
             return -1;
 
-        if (nLen < 2)
+        if (nLen > m_nBufferSize)
             return -2;
 
-        if (m_pTcpBuffer == nullptr)
-            return -3;
+        clearBuffer();
 
         int readSize = 0;
 
@@ -228,7 +326,7 @@ class CNetworkIO
         {
             asio::error_code error;
 
-            readSize = (int) asio::read(m_tcpSocket, asio::buffer(m_pTcpBuffer, nLen), error);
+            readSize = (int) asio::read(m_netSocket, asio::buffer(m_pDataBuffer, m_nBufferSize), error);
 
             m_sLastError = error.message();
         }
@@ -237,28 +335,48 @@ class CNetworkIO
             return -5;
         }
 
-        return readSize
+        if (pTarget != nullptr && nLen > 0)
+        {
+            memcpy(pTarget, m_pDataBuffer, readSize);
+        }
+
+        return readSize;
     }
 
-    int write(const void *pSource, const unsigned int nLen)
+    int write(const void *pSource = nullptr, const unsigned int nLen = 0)
     {
-        if (pSource == nullptr)
+        if (m_pDataBuffer == nullptr && (pSource == nullptr || nLen < 1))
             return -1;
 
-        if (nLen < 2)
-            return -2;
+        if (nLen > m_nBufferSize)
+            return -2;        
+
+        if (pSource != nullptr && nLen > 0)
+        {
+            memcpy(m_pDataBuffer, pSource, nLen);
+        }
 
         int nWriteSize = 0;
 
         try
         {
-            void* pData = cmdList.data();
+            void *pData = nullptr;
 
-            std::size_t dataSize = (std::size_t) nLen;
+            if (pSource != nullptr)
+                pData = (void *) pSource;
+            else
+                pData = (void *) m_pDataBuffer;
 
-            asio::const_buffer send_buffer = asio::buffer(pSource, dataSize);
+            std::size_t dataSize = 0;
 
-            nWriteSize = (int) asio::write(m_tcpSocket, send_buffer);
+            if (nLen > 0)
+                dataSize = (std::size_t) nLen;
+            else
+                dataSize = (std::size_t) m_nBufferSize;
+
+            asio::const_buffer send_buffer = asio::buffer(pData, dataSize);
+
+            nWriteSize = (int) asio::write(m_netSocket, send_buffer);
         }
         catch (...)
         {
