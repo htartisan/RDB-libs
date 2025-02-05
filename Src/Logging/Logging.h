@@ -23,11 +23,11 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/rotating_file_sink.h"
 
-
 #include <string>
 #include <cstdarg>
+#include <cstdio>
 #include <filesystem>
-
+#include <iostream>
 
 
 #define MAX_LOG_FILE_SIZE           ((size_t) (100000 * 1024))
@@ -78,13 +78,33 @@ class CLogger
     std::shared_ptr <spdlog::sinks::stdout_color_sink_mt>       m_consoleSink;
     std::shared_ptr <spdlog::sinks::rotating_file_sink_mt>      m_fileSink;
 
-    spdlog::level::level_enum   getSpdlogLevel(int level)
+    spdlog::level::level_enum getSpdlogLevel(int level)
     {
-        return ((spdlog::level::level_enum) ((int) spdlog::level::off - level));
+        spdlog::level::level_enum spdLogLvl;
+
+        if (level <= LogLevel_useDefault)
+        {
+            spdLogLvl = spdlog::level::info;
+        }
+        else if (level > LogLevel_trace)
+        {
+            spdLogLvl = spdlog::level::trace;
+        }
+        else
+        {
+            spdLogLvl = (spdlog::level::level_enum)
+                ((int) spdlog::level::off - level);
+        }
+
+        return spdLogLvl;
     }
 
     void clearOldLogger()
     {
+#ifdef DEBUG
+        std::cout << "DEBUG: Clearing old main logger (if any) " << " \n";
+#endif
+
         try
         {
             spdlog::drop_all();
@@ -118,7 +138,6 @@ class CLogger
 
         if (m_mainLogger == nullptr)
         {
-            SPDLOG_ERROR("Failed to create mainLogger");
             return false;
         }
 
@@ -132,7 +151,7 @@ class CLogger
         }
         catch (...)
         {
-            SPDLOG_WARN("logger already registered");
+            std::cout << "WARNING: logger already registered " << " \n";
         }
 
         return true;
@@ -142,11 +161,12 @@ class CLogger
     {
         if (m_mainLogger == nullptr)
         {
-            // main logger not yet created
-            // so just exit this function
-
             return false;
         }
+
+#ifdef DEBUG
+        std::cout << "DEBUG: Initializing console sink " << " \n";
+#endif
 
         try
         {
@@ -160,7 +180,7 @@ class CLogger
 
         if (m_consoleSink == nullptr)
         {
-            SPDLOG_ERROR("Failed to create console log sink");
+            std::cout << "ERROR: Failed to create logger console sink " << " \n";
             return false;
         }
 
@@ -173,16 +193,15 @@ class CLogger
     {
         if (m_mainLogger == nullptr)
         {
-            // main logger not yet created
-            // so just exit this function
-
+#ifdef DEBUG
+            std::cout << "DEBUG: main logger not yet created " << " \n";
+#endif
             return false;
         }
 
-        if (m_sLogFile == "")
-        {
-            SPDLOG_ERROR("Tried to create logfile sink, but log filename not yet set");
-        }
+#ifdef DEBUG
+        std::cout << "DEBUG: Initializing file sink " << " \n";
+#endif
 
         std::string sLogFilePath = "";
 
@@ -198,7 +217,9 @@ class CLogger
             sLogFilePath = getLogFilePath(m_sLogDir);
         }
 
-        SPDLOG_INFO("Opening log file: {}", sLogFilePath);
+#ifdef DEBUG
+        std::cout << "DEBUG: Opening log file: " << sLogFilePath << " \n";
+#endif
 
         if (m_fileSink != nullptr)
         {
@@ -240,7 +261,7 @@ class CLogger
 
         if (m_fileSink == nullptr)
         {
-            SPDLOG_ERROR("Failed to create file log sink");
+            std::cout << "ERROR: Failed to create logger file sink " << " \n";
             return false;
         }
 
@@ -270,6 +291,13 @@ class CLogger
         m_fileSink = nullptr;
 
         m_sLogName.clear();
+
+        if (logLevel != LogLevel_warning)
+        {
+            auto spdLogLvl = getSpdlogLevel(logLevel);
+
+            spdlog::set_level(spdLogLvl);
+        }
     }
 
     ~CLogger()
@@ -300,7 +328,9 @@ class CLogger
         auto pLogger = spdlog::get(m_sLogName);
         if (pLogger != nullptr)
         {
-            spdlog::drop_all();
+#ifdef DEBUG
+            std::cout << "DEBUG: Old logger still active " << " \n";
+#endif
         }
 
         bool status = false;
@@ -309,6 +339,9 @@ class CLogger
 
         if (status == false)
         {
+#ifdef DEBUG
+            std::cout << "DEBUG: Failed to init main logger " << " \n";
+#endif
             return false;
         }
 
@@ -320,14 +353,28 @@ class CLogger
             {
                 m_sLogDir = sLogDir;
             }
+        }
 
+        if (m_sLogFile != "")
+        {
             status = initializeFileSink();
+
+            if (status == false)
+            {
+#ifdef DEBUG
+                std::cout << "DEBUG: Failed to init logger file sink " << " \n";
+#endif
+                return false;
+            }
         }
 
         status = initializeConsoleSink();
 
         if (status == false)
         {
+#ifdef DEBUG
+            std::cout << "DEBUG: Failed to init logger console sink " << " \n";
+#endif
             return false;
         }
 
@@ -343,18 +390,20 @@ class CLogger
             m_nConsoleLogLevel = logLevel;
         }
 
+        auto spdLogLvl = getSpdlogLevel(logLevel);
+
         if (m_consoleSink != nullptr)
         {
-            m_consoleSink->set_level(getSpdlogLevel(m_nConsoleLogLevel));
+            m_consoleSink->set_level(spdLogLvl);
         }
 
         if (m_mainLogger == nullptr)
         {
-            spdlog::set_level(getSpdlogLevel(m_nConsoleLogLevel));
+            spdlog::set_level(spdLogLvl);
         }
         else
         {
-            m_mainLogger->set_level(getSpdlogLevel(m_nConsoleLogLevel));
+            m_mainLogger->set_level(spdLogLvl);
         }
     }
 
@@ -373,7 +422,9 @@ class CLogger
 
         if (m_fileSink != nullptr)
         {
-            m_fileSink->set_level(getSpdlogLevel(m_nFileLogLevel));
+            auto spdLogLvl = getSpdlogLevel(m_nFileLogLevel);
+
+            m_fileSink->set_level(spdLogLvl);
 #ifdef DEBUG
             //m_fileSink->set_pattern("[%H:%M:%S] [%f : %L] %v");
 #else
@@ -383,7 +434,9 @@ class CLogger
 
         if (m_consoleSink != nullptr)
         {
-            m_consoleSink->set_level(getSpdlogLevel(m_nConsoleLogLevel));
+            auto spdLogLvl = getSpdlogLevel(m_nConsoleLogLevel);
+
+            m_consoleSink->set_level(spdLogLvl);
 #ifdef DEBUG
             //m_consoleSink->set_pattern("[%H:%M:%S] [%f : %L] %v");
 #else
@@ -402,13 +455,15 @@ class CLogger
             logLevel = m_nFileLogLevel;
         }
 
+        auto spdLogLvl = getSpdlogLevel(logLevel);
+
         if (m_mainLogger == nullptr)
         {
-            spdlog::set_level(getSpdlogLevel(logLevel));
+            spdlog::set_level(spdLogLvl);
         }
         else
         {
-            m_mainLogger->set_level(getSpdlogLevel(logLevel));
+            m_mainLogger->set_level(spdLogLvl);
         }
     }
 
