@@ -80,7 +80,7 @@ public:
 
     ~CPluginLibLoader()
     {
-        clear();
+        //clear();
 
         if (m_hLib != nullptr)
         {

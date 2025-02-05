@@ -50,7 +50,7 @@ public:
 
     ~CPluginFileInfoMgrBase()
     {
-        clear();
+        //clear();
     }
 
     void clear()

@@ -23,7 +23,8 @@
 #define noninterleavedAudioBufferOffset(ptr, chl, smpl, fs)   *(ptr + (chl + fs) + smpl)
 
 
-template <class T> class CSimpleAudioBuffer : public CErrorHandler
+template <class T> 
+class CSimpleAudioBuffer : public CErrorHandler
 {
     unsigned int  m_numChannels;  // number of channels to buffer
     unsigned int  m_blockSize;    // if interleaved, number of frames per block, if not, number of samples per channel
@@ -230,7 +231,7 @@ template <class T> class CSimpleAudioBuffer : public CErrorHandler
         return (m_pBuffer + offset);
     }
 
-    inline T *getChannelPtr(const unsigned int chan)
+    T *getChannelPtr(const unsigned int chan)
     {
         if (!m_bAllocated)
         {
@@ -257,7 +258,7 @@ template <class T> class CSimpleAudioBuffer : public CErrorHandler
         return (m_pBuffer + offset);
     }
 
-    inline T *getFramePtr(const unsigned int frame)
+    T * getFramePtr(const unsigned int frame)
     {
         if (!m_bAllocated)
         {
@@ -281,7 +282,7 @@ template <class T> class CSimpleAudioBuffer : public CErrorHandler
             return nullptr;
         }
 
-        return (m_pBuffer + offset);
+        return ((T *) m_pBuffer + offset);
     }
 
     void lockBuffer()
@@ -474,7 +475,7 @@ template <class T> class CSimpleAudioBuffer : public CErrorHandler
 
         unsigned int frameOffset = (frameNum * m_numChannels);
 
-        T * pFrame = (m_pBuffer + frameOffset);
+        T * pFrame = ((T*) m_pBuffer + frameOffset);
 
         for (unsigned int x = 0; x < m_numChannels; x++)
             buf[x] = *(pFrame + x);
