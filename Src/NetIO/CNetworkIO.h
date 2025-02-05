@@ -85,7 +85,7 @@ class CNetworkDataIoHeader
         return m_data.m_nDataLen;
     }
 
-    char * getdataPtr()
+    char * getDataPtr()
     {
         return (char *) &m_data;
     }
@@ -389,5 +389,4 @@ class CNetworkIO
 };
 
 
-
-C_NETWORK_IO_H
+#endif  //  C_NETWORK_IO_H
