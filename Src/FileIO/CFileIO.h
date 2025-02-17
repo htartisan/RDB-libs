@@ -176,7 +176,6 @@ class CFileIO
             if (pFile == nullptr)
             {
                 m_sLastErrorStr = "File open operation faild";
-                // m_nLastErrorNum = ferror(pFile);
 
                 return false;
             }

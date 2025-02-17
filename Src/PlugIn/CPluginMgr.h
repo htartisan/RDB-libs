@@ -82,6 +82,4 @@ public:
 };
 
 
-
-
 #endif  //  _PLUGIN_MANAGER_CLASS_H

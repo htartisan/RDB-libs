@@ -37,7 +37,6 @@ ERROR_MESSAGE("Unicode NOT supported.  Multi byte compile type must be set.")
 //class CPluginLoader;
 
 
-
 template <typename T> 
 class CPluginLoader : public CErrorHandler
 {

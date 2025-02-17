@@ -109,7 +109,6 @@ class CThreadBase
 #if defined(WINDOWS)
         // Windows - set thread name
         SetThreadDescription(m_threadHandle.get(), (PCWSTR) m_sName.c_str());
-        //Std::setStdThreadName(m_sName, m_threadHandle.get());
 #elif defined(__QNX__)
         // QNX - set thread name
         pthread_setname_np(pthread_self(), m_sName.c_str());
@@ -124,7 +123,6 @@ class CThreadBase
 #if (defined(__QNX__) || defined(Linux))
         // set pthread priority
         pthread_t threadID = pthread_self();
-        //int newPri = 20; 
         // Set the desired priority (higher value = higher priority)
         int result = pthread_setschedprio(threadID, newPri);
 #endif
@@ -167,7 +165,6 @@ class CThreadBase
 
         if (m_running)
         {
-            //LogDebug("already active");
             return false;
         }
 

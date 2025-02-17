@@ -24,7 +24,6 @@
 // All plugins MUST provide a root class 
 // derived from this  
 
-//class PLUGIN_LIB_API CPluginFileInfoMgrBase
 class CPluginFileInfoMgrBase
 {
 

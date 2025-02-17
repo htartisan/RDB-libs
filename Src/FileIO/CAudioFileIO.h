@@ -124,10 +124,8 @@ class CAudioFileIO
             int bitsPerSasmple = 16
         );
 
-    //explicit CAudioFileIO();
     CAudioFileIO();
 
-    //explicit CAudioFileIO(unsigned int numChannels);
     CAudioFileIO(unsigned int numChannels);
 
     CAudioFileIO(unsigned int numChannels, const std::string &sFilePath);
