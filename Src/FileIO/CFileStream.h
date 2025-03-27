@@ -51,7 +51,9 @@ template <class T> class CFileStream
 
   public:
 
-    //Create a buffer on a specific file
+    /**
+    Create a buffer on a specific file
+    */
     CFileStream(std::string filepath) :
         _filepath(filepath)
     {
@@ -63,7 +65,9 @@ template <class T> class CFileStream
         closeFile();
     }
 
-    // return the maximum number elements in the file
+    /**
+    Tell us the maximum number elements in the file
+    */
     size_t capacity()
     {
         std::lock_guard<std::mutex> lock(this->_access);
@@ -84,7 +88,9 @@ template <class T> class CFileStream
         return cap / sizeof(T);
     }
 
-    //return the amount of unread elements in the file
+    /**
+    Tells us the amount of unread elements in the file
+    */
     size_t remaining()
     {
         std::lock_guard<std::mutex> lock(this->_access);
@@ -96,13 +102,18 @@ template <class T> class CFileStream
         return result;
     }
 
-    // return true if the file is empty:
+    /**
+    Tells us if the file is empty:
+    Not terribly important for a file, but satisfies a more general interface need
+    */
     bool empty()
     {
         return capacity() <= 0;
     }
 
-    // Writes an object into the file at the current file location and increments internal indecies
+    /**
+    Writes an object into the file at the current file location and increments internal indecies
+    */
     void write(T value)
     {
         std::lock_guard<std::mutex> lock(this->_access);
@@ -110,7 +121,9 @@ template <class T> class CFileStream
         _writestream.write((char *)&value, sizeof(T));
     }
 
-    // Reads an object from the file at the current location and updates internal indecies
+    /**
+    Reads an object from the file at the current location and updates internal indecies
+    */
     bool read(T *val, int &err)
     {
         bool                        result = true;
@@ -131,14 +144,18 @@ template <class T> class CFileStream
         return result;
     }
 
-    // Clears file buffer and resets internal indecies
+    /**
+    Clears file buffer and resets internal indecies
+    */
     void reset()
     {
         closeFile();
         openFile();
     }
 
-    // Flush the write stream...
+    /**
+    Flush the write stream...
+    */
     void flush()
     {
         std::lock_guard<std::mutex> lock(this->_access);

@@ -176,6 +176,7 @@ class CFileIO
             if (pFile == nullptr)
             {
                 m_sLastErrorStr = "File open operation faild";
+                // m_nLastErrorNum = ferror(pFile);
 
                 return false;
             }
@@ -443,9 +444,9 @@ class CFileIO
 
             char *pInputBuffer = (char *) calloc(sizeof(char), nReadSize);
 
-           ::fgets(pInputBuffer, nReadSize, m_pFileHandle);
+           auto status = ::fgets(pInputBuffer, nReadSize, m_pFileHandle);
 
-            if (nReadSize > 0)
+            if (status != nullptr && nReadSize > 0)
                 m_nLastIoSize = (unsigned int) nReadSize;
             else
                 m_nLastIoSize = (unsigned int) 0;
