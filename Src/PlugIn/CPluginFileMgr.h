@@ -80,6 +80,17 @@ class CPluginFileMgr
 
         std::filesystem::path dirPath = m_sDirPath;
 
+        if (std::filesystem::exists(dirPath) == false)
+        {
+            std::string sCWD = (std::filesystem::current_path().string() + "\\");
+
+            auto sTmp = (sCWD + m_sDirPath);
+
+            LogError("findPluginFiles called with invalid path {}", sTmp);
+
+            return -2;
+        }
+
         for (const auto & entry : std::filesystem::directory_iterator(dirPath)) 
         {
             if (std::filesystem::is_directory(entry) == false) 
