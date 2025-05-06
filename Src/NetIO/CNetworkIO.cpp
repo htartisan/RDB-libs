@@ -520,6 +520,30 @@ void CNetMessage::setBodyLength(const std::size_t nLen)
 }
 
 
+int CNetMessage::setDataType(const char* pType, const unsigned int nLen)
+{
+    if (pType == nullptr || nLen < 1)
+    {
+        return -1;
+    }
+
+    int nCpyLen = nLen;
+
+    if (nCpyLen > NET_STREAM_TYPE_LEN)
+    { 
+        nCpyLen = NET_STREAM_TYPE_LEN;
+    }
+    else if (nCpyLen < NET_STREAM_TYPE_LEN)
+    { 
+        memset(m_StreamType, 0, NET_STREAM_TYPE_LEN);
+    }
+
+    memcpy(m_StreamType, pType, nCpyLen);
+
+    return true;
+}
+
+
 bool CNetMessage::decodeMsgHeader()
 {
     m_nDatLength = 0;
@@ -560,10 +584,12 @@ CTcpSession::CTcpSession
     (
         CTcpAcceptor *pParent,
         eNetIoDirection eDir,
+        const std::string& sType,
         asio::ip::tcp::socket socket,
         const unsigned int nBufSize
     ) :
     m_pParent(pParent),
+    m_sDataType(sType),
     m_socket(std::move(socket)),
     m_nBufferize(nBufSize)
 {
@@ -596,11 +622,13 @@ bool CTcpSession::initialize(const unsigned int nBufize)
         break;
 
     case eNetIoDirection::eNetIoDirection_output:
+        m_outputMsg.setDataType(m_sDataType.c_str(), (unsigned int)m_sDataType.length());
         if (m_outputMsg.allocBuffer(nBufize) == false)
             return false;
         break;
 
     case eNetIoDirection::eNetIoDirection_IO:
+        m_outputMsg.setDataType(m_sDataType.c_str(), (unsigned int)m_sDataType.length());
         if (m_inputMsg.allocBuffer(nBufize) == false)
             return false;
         if (m_outputMsg.allocBuffer(nBufize) == false)
@@ -682,7 +710,7 @@ int CTcpSession::readInputData(void* pBuff, const unsigned int nMax)
 }
 
 
-int CTcpSession::writeOutputData(void* pBuff, const unsigned int nLen)
+int CTcpSession::writeOutputData(const void* pBuff, const unsigned int nLen)
 {
     if (pBuff == nullptr || nLen < 1)
         return -1;
@@ -699,7 +727,7 @@ int CTcpSession::writeOutputData(void* pBuff, const unsigned int nLen)
     if (pData == nullptr)
         return false;
 
-    memcpy(pBuff, pData, nCopyLen);
+    memcpy(pData, pBuff, nCopyLen);
 
     m_outputMsg.setBodyLength(nCopyLen);
 
@@ -786,13 +814,17 @@ bool CTcpSession::writeMsgData()
 
 CTcpAcceptor::CTcpAcceptor
     (
+        CTcpServer* pParent,
         eNetIoDirection eDir,
         const unsigned int nBufSize,
+        const std::string& sType,
         asio::io_context& io_context,
         const asio::ip::tcp::endpoint& endpoint
     ) :
+    m_pParent(pParent),
     m_eIoDirection(eDir),
     m_nBufSize(nBufSize),
+    m_sDataType(sType),
     m_ioContext(io_context), 
     m_acceptor(io_context, endpoint),
     m_bExit(false)
@@ -808,6 +840,11 @@ CTcpAcceptor::~CTcpAcceptor()
     m_bExit = true;
 
     m_sessionList.clear();
+
+    if (m_pParent != nullptr)
+    {
+        m_pParent->setRunning(false);
+    }
 }
 
 
@@ -832,7 +869,7 @@ int CTcpAcceptor::readInputData(void* pBuff, const unsigned int nMax)
 }
 
 
-int CTcpAcceptor::writeOutputData(void* pBuff, const unsigned int nLen)
+int CTcpAcceptor::writeOutputData(const void* pBuff, const unsigned int nLen)
 {
     if (pBuff == nullptr || nLen < 0)
         return -1;
@@ -886,7 +923,7 @@ void CTcpAcceptor::acceptConnection()
         {
             if (!error) 
             {
-                auto pSession = std::make_shared<CTcpSession>(this, m_eIoDirection, std::move(socket), m_nBufSize);
+                auto pSession = std::make_shared<CTcpSession>(this, m_eIoDirection, m_sDataType, std::move(socket), m_nBufSize);
 
                 if (pSession == nullptr)
                     return;
@@ -916,7 +953,8 @@ CTcpServer::CTcpServer(eNetIoDirection eDir, const unsigned int nPort, const uns
     m_port(nPort),
     m_bufferSize(nSize),
     m_eIoDirection(eDir),
-    m_pAcceptor(nullptr)
+    m_pAcceptor(nullptr),
+    m_bRunning(false)
 {
 
 }
@@ -943,13 +981,19 @@ void CTcpServer::setBufferSize(const unsigned int nSize)
 }
 
 
+void CTcpServer::setDataType(const std::string& sType)
+{
+    m_sDataType = sType;
+}
+
+
 bool CTcpServer::run()
 {
     try 
     {
         asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), m_port);
 
-        m_pAcceptor = new CTcpAcceptor(m_eIoDirection, m_bufferSize, m_ioContext, endpoint);
+        m_pAcceptor = new CTcpAcceptor(this, m_eIoDirection, m_bufferSize, m_sDataType, m_ioContext, endpoint);
 
         m_ioContext.run();
     }
@@ -964,7 +1008,41 @@ bool CTcpServer::run()
     if (m_pAcceptor != nullptr)
         delete m_pAcceptor;
 
+    m_bRunning = true;
+
     return true;
 }
 
+
+bool CTcpServer::isRunning()
+{
+    return m_bRunning;
+}
+
+
+void CTcpServer::setRunning(bool bVal)
+{
+    m_bRunning = false;
+}
+
+
+int CTcpServer::setOutputBuffer(const void* pBuf, unsigned int nLen)
+{
+    if (pBuf == nullptr || nLen < 1)
+    {
+        return -1;
+    }
+
+    if (m_bRunning == false)
+    {
+        return -2;
+    }
+
+    if (m_pAcceptor == nullptr)
+    {
+        return -3;
+    }
+
+    return m_pAcceptor->writeOutputData(pBuf, nLen);
+}
 

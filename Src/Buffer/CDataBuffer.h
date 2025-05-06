@@ -36,7 +36,7 @@ template <class T> class CSimpleDataBuffer : public CErrorHandler
   public:
 
     CSimpleDataBuffer(bool bInterleaved = false) :
-        m_numChannels(1),
+        m_frameSize(1),
         m_bAllocated(false)
     {
         m_blockSize     = 0;
@@ -243,7 +243,7 @@ template <class T> class CSimpleDataBuffer : public CErrorHandler
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_numChannels < 1 || chan > m_numChannels || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_frameSize < 1 || frame > m_frameSize || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
         {            
             return 0;
         }
@@ -458,6 +458,32 @@ template <class T> class CSimpleDataBuffer : public CErrorHandler
         return m_writeIdx;
     }
 
+    // write a block of size 'count' (items)
+    // starting at the current write offset,
+    // and then update the current write offset.
+    // return:  the updated write offset.
+    unsigned long writeDataBlock(const void *pBuf, const unsigned int count)
+    {
+        std::lock_guard<std::mutex> lock(m_ioLock);
+
+        if (!m_bAllocated)
+        {
+            return 0;
+        }
+
+        if ((m_writeIdx + count) >= m_arraySize)
+        {
+            return 0;
+        }
+
+        memcpy((m_pBuffer + m_writeIdx), pBuf, (count * sizeof(T)));
+
+        m_writeIdx += count;
+
+        return m_writeIdx;
+    }
+
+
     // write a block of size 'numItems' (data items)
     // starting at the 'startPos' write offset
     // return: start offset + number of items written
@@ -480,6 +506,7 @@ template <class T> class CSimpleDataBuffer : public CErrorHandler
 
         return startPos + numItems;
     }
+
 };
 
 

@@ -193,6 +193,8 @@ struct CNetMessage
 
     void setBodyLength(const std::size_t nLen);
 
+    int setDataType(const char *pType, const unsigned int nLen);
+
     bool decodeMsgHeader();
 
     bool encodeMsgHeader();
@@ -207,6 +209,8 @@ class CTcpSession :
     public std::enable_shared_from_this<CTcpSession>
 {
     CTcpAcceptor                *m_pParent;
+
+    std::string                 m_sDataType;
 
     asio::ip::tcp::socket       m_socket;
 
@@ -223,6 +227,7 @@ public:
         (
             CTcpAcceptor *pParent,
             eNetIoDirection eDir,
+            const std::string &sType,
             asio::ip::tcp::socket socket,
             const unsigned int nBufSize = 0
         );
@@ -235,7 +240,7 @@ public:
 
     int readInputData(void* pBuff, const unsigned int nMax);
 
-    int writeOutputData(void* pBuff, const unsigned int nLen);
+    int writeOutputData(const void* pBuff, const unsigned int nLen);
 
 private:
 
@@ -253,11 +258,18 @@ typedef std::shared_ptr<CTcpSession>                TcpSessionPtr_def;
 typedef std::vector<TcpSessionPtr_def>              TcpSessionList_def;
 
 
+class CTcpServer;
+
+
 class CTcpAcceptor 
 {
+    CTcpServer                      *m_pParent;
+
     eNetIoDirection                 m_eIoDirection;
 
     unsigned int                    m_nBufSize;
+
+    std::string                     m_sDataType;
 
     asio::io_context&               m_ioContext;
 
@@ -270,8 +282,10 @@ class CTcpAcceptor
 public:
     CTcpAcceptor
         (
+            CTcpServer *pParent,
             eNetIoDirection eDir,
             const unsigned int nBufSize,
+            const std::string &sType,
             asio::io_context& io_context,
             const asio::ip::tcp::endpoint& endpoint
         );
@@ -280,7 +294,7 @@ public:
 
     int readInputData(void* pBuff, const unsigned int nMax);
 
-    int writeOutputData(void* pBuff, const unsigned int nLen);
+    int writeOutputData(const void* pBuff, const unsigned int nLen);
 
     void removeSession(CTcpSession* pSession);
 
@@ -301,10 +315,13 @@ class CTcpServer
 
     eNetIoDirection             m_eIoDirection;
 
+    std::string                 m_sDataType;
+
     CTcpAcceptor                *m_pAcceptor;
 
     asio::io_context            m_ioContext;
 
+    bool                        m_bRunning;
 
 public:
 
@@ -316,7 +333,15 @@ public:
 
     void setBufferSize(const unsigned int nSize);
 
+    void setDataType(const std::string &sType);
+
     bool run();
+
+    bool isRunning();
+
+    void setRunning(bool bVal);
+
+    int setOutputBuffer(const void *pBuf, unsigned int nLen);
 
 };
 
