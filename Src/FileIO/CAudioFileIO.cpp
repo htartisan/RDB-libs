@@ -5,7 +5,7 @@
 ///
 
 
-#include "Common/Utilities/Logging/Logging.h"
+#include "../Logging/Logging.h"
 
 #include "CAudioFileIO.h"
 
@@ -14,7 +14,7 @@
 #include <filesystem>
 #include <optional>
 
-#include "Common/Utilities/String/StrUtils.h"
+#include "../String/StrUtils.h"
 
 
 #ifdef  USE_DR_WAV

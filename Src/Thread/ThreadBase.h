@@ -64,8 +64,40 @@ class CThreadBase
 
     std::mutex                    m_exitMutex;
 
+#ifdef USE_STATIC_THREAD_EXEC
+    static void newThread(CThreadBase* pThisClass)
+    {
+        if (pThisClass == nullptr)
+            return;
+
+        std::string sName = "";
+
+        try
+        {
+            pThisClass->m_running = true;
+
+            sName = pThisClass->m_sName;
+
+            // Set thread name
+            std::string sThreadName = (sName + "_thread");
+
+            pThisClass->setThreadName(sThreadName);
+
+            pThisClass->setThreadPriority(20);
+
+            pThisClass->threadProc();
+        }
+        catch (std::exception& e)
+        {
+            LogCritical("Unhandled exception: {}", e.what());
+}
+        catch (...)
+        {
+            LogCritical("Unhandled unknown exception");
+        }
+    }
+#else
     void newThread()
-    //void newThread(CThreadBase * pThisClass)
     {
         try
         {
@@ -80,7 +112,7 @@ class CThreadBase
 
             threadProc();
         }
-        catch (std::exception &e)
+        catch (std::exception& e)
         {
             LogCritical("Unhandled exception: {}", e.what());
         }
@@ -89,6 +121,7 @@ class CThreadBase
             LogCritical("Unhandled unknown exception");
         }
     }
+#endif
 
     void joinThread()
     {
@@ -102,32 +135,54 @@ class CThreadBase
         m_running = false;
     }
 
-    void setThreadName(const std::string &sName)
+    bool setThreadName(std::string &sName)
     {
-        m_sName =  sName;
+        if (sName == "")
+            return false;
 
+        try
+        {
 #if defined(WINDOWS)
-        // Windows - set thread name
-        SetThreadDescription(m_threadHandle.get(), (PCWSTR) m_sName.c_str());
-        //Std::setStdThreadName(m_sName, m_threadHandle.get());
+            // Windows - set thread name
+            SetThreadDescription(m_threadHandle.get(), (PCWSTR)sName.c_str());
+            //Std::setStdThreadName(m_sName, m_threadHandle.get());
 #elif defined(__QNX__)
-        // QNX - set thread name
-        pthread_setname_np(pthread_self(), m_sName.c_str());
+            // QNX - set thread name
+            pthread_setname_np(pthread_self(), sName.c_str());
 #else
-        // Linux - set pthread name
-        pthread_setname_np(pthread_self(), m_sName.c_str());
+            // Linux - set pthread name
+            pthread_setname_np(pthread_self(), sName.c_str());
 #endif
+        }
+        catch (...)
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    void setThreadPriority(int newPri)
+    bool setThreadPriority(int newPri)
     {
+        try
+        {
 #if (defined(__QNX__) || defined(Linux))
-        // set pthread priority
-        pthread_t threadID = pthread_self();
-        //int newPri = 20; 
-        // Set the desired priority (higher value = higher priority)
-        int result = pthread_setschedprio(threadID, newPri);
+            // set pthread priority
+            pthread_t threadID = pthread_self();
+            //int newPri = 20; 
+            // Set the desired priority (higher value = higher priority)
+            int result = pthread_setschedprio(threadID, newPri);
+
+            if (result != 0)
+                return false;
 #endif
+        }
+        catch (...)
+        {
+            return false;
+        }
+
+        return true;
     }
 
   public:
@@ -136,7 +191,7 @@ class CThreadBase
     {
         m_sName.clear();
 
-        m_priority =        0;
+        m_priority =        20;
 
         m_threadHandle =    nullptr;
 
@@ -144,11 +199,11 @@ class CThreadBase
         m_bThreadExitFlag = false;;
     }
 
-    CThreadBase(const std::string &sName, int pri = 0)
+    CThreadBase(const std::string &sName, const int nPrio = 20)
     {
         m_sName =           sName;
 
-        m_priority =        pri;
+        m_priority =        nPrio;
 
         m_threadHandle =    nullptr;
 
@@ -159,6 +214,26 @@ class CThreadBase
     ~CThreadBase()
     {
         stopThread(true);
+    }
+
+    void setName(const std::string& sName)
+    {
+        m_sName = sName;
+
+        if (m_running == true)
+        {
+            setThreadName(m_sName);
+        }
+    }
+
+    void setPriority(const int nPrio)
+    {
+        m_priority = nPrio;
+
+        if (m_running == true)
+        {
+            setThreadPriority(m_priority);
+        }
     }
 
     bool createThread()     // This function = start thread
@@ -172,7 +247,11 @@ class CThreadBase
         }
 
         // Start the AWE audio I/O pump thread
+#ifdef USE_STATIC_THREAD_EXEC
         m_threadHandle = std::make_unique<std::thread>(&CThreadBase::newThread, this);
+#else
+        m_threadHandle = std::make_unique<std::thread>(&CThreadBase::newThread, this);
+#endif
 
         if (m_threadHandle == nullptr)
         {

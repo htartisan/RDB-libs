@@ -97,7 +97,7 @@ inline std::string toLower(const std::string &sIn)
 
     for(std::string::size_type x = 0; x < nLen; ++x)
     {
-        sOut += ((isalpha((int) (sIn[x])) != 0) ? tolower(sIn[x]) : sIn[x]);
+        sOut += (char) ((isalpha((int) (sIn[x])) != (int) 0) ? tolower(sIn[x]) : sIn[x]);
     }
 
     return sOut;
