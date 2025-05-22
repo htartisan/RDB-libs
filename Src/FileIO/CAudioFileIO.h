@@ -183,6 +183,8 @@ class CAudioFileIO
     int          getCurrentFrame() const;
 
     int          getCurrentFrameIndex() const;
+
+    bool         resetPlayPosition();
 };
 
 

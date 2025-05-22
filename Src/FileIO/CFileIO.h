@@ -582,10 +582,14 @@ class CFileIO
 
         try
         {
-            auto length = fputs(sOutput.c_str(), m_pFileHandle);
+            unsigned int bloclSize = (unsigned int) sOutput.length();
+
+            //auto length = fputs(sOutput.c_str(), m_pFileHandle);
+            auto length = fwrite((const void *) sOutput.data(), bloclSize, 1, m_pFileHandle);
 
             if (length > 0)
-                m_nLastIoSize = (unsigned int) length;
+                //m_nLastIoSize = (unsigned int) length;
+                m_nLastIoSize = (unsigned int) bloclSize;
             else
                 m_nLastIoSize = 0;
 

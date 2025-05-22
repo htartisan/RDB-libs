@@ -25,7 +25,10 @@
 
 #define NET_STREAM_TYPE_LEN                 10
 
-#define ASYNC_ASIO_ACCEPTOR
+//#define ASYNC_ASIO_ACCEPTOR
+
+//#define USE_ASIO_ASYNC_READ
+//#define USE_ASIO_ASYNC_WRIRE
 
 
 namespace CNetworkIO
@@ -118,6 +121,8 @@ class CTcpClient
 
     std::string                                     m_sLastError;
 
+    std::mutex                                      m_ioLock;
+
   public:
 
     CTcpClient();
@@ -147,6 +152,8 @@ class CTcpClient
     bool getBuffer(void *pTarget, const unsigned int nLen, const unsigned int nStartingAt = 0);
 
     DataBytePtr_def getDataPtr();
+
+    void releasePtr();
 
     bool setDataSize(const unsigned int nLen);
 
@@ -219,7 +226,7 @@ public:
 
 // CNetMessageData class
 
-struct CNetMessageData
+class CNetMessageData
 {
     char                    *m_pData;
 
@@ -231,29 +238,37 @@ struct CNetMessageData
 
     bool                    m_bUpdated;
 
+    std::mutex              m_dataLock;
+
+public:
+
     CNetMessageData(unsigned int nHeaderLength);
 
-    bool allocBuffer(unsigned int nBufSize);
+    bool allocBuffer(unsigned int nMaxDataSize);
 
-    void clear();
+    bool isBufferAllocated();
 
-    const char* getDataPtr() const;
+    int getMaxDataLen();
+
+    int getCurDataLen();
+
+    void clearAll();
+
+    void clearMsgBody();
 
     char* getDataPtr();
 
-    std::size_t getDataMax() const;
-
-    std::size_t getMsgLength() const;
-
-    const char* getBodyPtr() const;
-
     char* getBodyPtr();
 
-    std::size_t getBodyMax() const;
+    void releasePtr();
 
-    std::size_t getBodyLength() const;
+    void setHeaderLength(const std::size_t nLen);
+
+    int getHeaderLength();
 
     void setBodyLength(const std::size_t nLen);
+
+    int getBodyLength();
 
     int setDataType(const char* pType, const unsigned int nLen);
 
@@ -265,9 +280,11 @@ struct CNetMessageData
 
 // CNetMessageHandler class
 
-struct CNetMessageHandler
+class CNetMessageHandler
 {
     CNetMessageData &m_msgData;
+
+public:
 
     CNetMessageHandler(CNetMessageData& msgData);
 
@@ -289,6 +306,10 @@ class CTcpSession :
     asio::ip::tcp::socket       &m_socket;
 
     std::string                 &m_sMsgType;
+
+    std::string                 m_sLastError;
+
+    std::mutex                  m_mutex;
 
 public:
 
@@ -341,6 +362,7 @@ class CTcpServer
     CNetMessageData             m_inputMsg;
     CNetMessageData             m_outputMsg;
 
+    bool                        m_bInitialized;
     bool                        m_bRunning;
 
 public:
@@ -349,15 +371,15 @@ public:
 
     ~CTcpServer();
 
-    void setPort(const unsigned int nPort);
+    bool setPort(const unsigned int nPort);
 
-    void setBufferSize(const unsigned int nSize);
+    bool setBufferSize(const unsigned int nSize);
 
-    void setDataType(const std::string &sType);
+    bool setDataType(const std::string &sType);
 
-    void setName(const std::string &sName);
+    bool setName(const std::string &sName);
 
-    bool initialize(const unsigned int nBufize);
+    bool initialize(const unsigned int nBufize = 0);
 
     bool acceptConnection();
 
@@ -394,7 +416,7 @@ public:
 
 // Utility functions
 
-bool parseServerAndPort(const std::string &sUri, std::string &sServer, std::string sPort);
+bool parseServerAndPort(const std::string &sUri, std::string &sServer, std::string &sPort, std::string &sProtocol);
 
 
 };  //  namespace CNetworkIO

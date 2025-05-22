@@ -45,7 +45,7 @@ void CTcpClient::setDataType(const std::string& sType)
 {
     for (unsigned int x = 0; x < NET_STREAM_TYPE_LEN; x++)
     {
-        if (x >= (unsigned int)sType.length())
+        if (x >= (unsigned int) sType.length())
             break;
 
         m_pBufferHeader->m_StreamType[x] = sType[x];
@@ -102,13 +102,23 @@ bool CTcpClient::allocBuffer(const unsigned nSize, bool bAllocBufHeader)
             return false;
     }
 
-    if (m_pDataBuffer != nullptr)
-    {
-        free(m_pDataBuffer);
-        m_pDataBuffer = nullptr;
-    }
+    //std::scoped_lock lock(m_ioLock);
 
-    m_pDataBuffer = (DataBytePtr_def) calloc(1, nSize);
+    try
+    {
+        if (m_pDataBuffer != nullptr)
+        {
+            free(m_pDataBuffer);
+            m_pDataBuffer = nullptr;
+        }
+
+        m_pDataBuffer = (DataBytePtr_def) calloc(1, nSize);
+    }
+    catch (...)
+    {
+        m_pDataBuffer = nullptr;
+        return false;
+    }
 
     if (m_pDataBuffer == nullptr)
         return false;
@@ -132,6 +142,8 @@ bool CTcpClient::allocBuffer(const unsigned nSize, bool bAllocBufHeader)
 
 bool CTcpClient::freeBuffer()
 {
+    //std::scoped_lock lock(m_ioLock);
+
     m_pBufferHeader = nullptr;
 
     m_nHeaderSize = 0;
@@ -139,7 +151,14 @@ bool CTcpClient::freeBuffer()
     if (m_pDataBuffer == nullptr)
         return false;
 
-    delete m_pDataBuffer;
+    try
+    {
+        delete m_pDataBuffer;
+    }
+    catch (...)
+    {
+        
+    }
 
     m_pDataBuffer = nullptr;
 
@@ -155,7 +174,16 @@ bool CTcpClient::clearBuffer()
     if (m_pDataBuffer == nullptr)
         return false;
 
-    memset((m_pDataBuffer + m_nHeaderSize), 0, (m_nBufferSize - m_nHeaderSize));
+    try
+    {
+        //std::scoped_lock lock(m_ioLock);
+
+        memset((m_pDataBuffer + m_nHeaderSize), 0, (m_nBufferSize - m_nHeaderSize));
+    }
+    catch (...)
+    {
+        return false;
+    }
 
     m_nCurrDataLen = 0;
 
@@ -171,15 +199,24 @@ bool CTcpClient::setBuffer(const void* pSource, const unsigned int nLen)
     if ((nLen + m_nHeaderSize) > m_nBufferSize)
         return false;
 
-    memcpy((m_pDataBuffer + m_nHeaderSize), pSource, nLen);
-
-    m_nCurrDataLen = nLen;
-
-    int nFillLen = (m_nBufferSize - nLen);
-
-    if (nFillLen > 0)
+    try
     {
-        memset((m_pDataBuffer + (m_nHeaderSize + nLen)), 0, nFillLen);
+        //std::scoped_lock lock(m_ioLock);
+
+        memcpy((m_pDataBuffer + m_nHeaderSize), pSource, nLen);
+
+        m_nCurrDataLen = nLen;
+
+        int nFillLen = (m_nBufferSize - nLen);
+
+        if (nFillLen > 0)
+        {
+            memset((m_pDataBuffer + (m_nHeaderSize + nLen)), 0, nFillLen);
+        }
+    }
+    catch (...)
+    {
+        return false;
     }
 
     return true;
@@ -191,10 +228,19 @@ bool CTcpClient::appendBuffer(const void *pSource, const unsigned int nLen)
     if (pSource == nullptr || nLen < 1)
         return false;
 
-    if ((nLen + (m_nHeaderSize + m_nCurrDataLen))  > m_nBufferSize)
+    if ((nLen + (m_nHeaderSize + m_nCurrDataLen)) > m_nBufferSize)
         return false;
 
-    memcpy((m_pDataBuffer + (m_nHeaderSize + m_nCurrDataLen)), pSource, nLen);
+    //std::scoped_lock lock(m_ioLock);
+
+    try
+    {
+        memcpy((m_pDataBuffer + (m_nHeaderSize + m_nCurrDataLen)), pSource, nLen);
+    }
+    catch (...)
+    {
+        return false;
+    }
 
     m_nCurrDataLen += nLen;
 
@@ -210,6 +256,8 @@ unsigned int CTcpClient::getCurrdataLen()
 
 bool CTcpClient::getBuffer(void *pTarget, const unsigned int nLen, const unsigned int nStartingAt)
 {
+    //std::scoped_lock lock(m_ioLock);
+
     if (pTarget == nullptr || nLen < 1)
         return false;
 
@@ -227,12 +275,22 @@ DataBytePtr_def CTcpClient::getDataPtr()
     if (m_pDataBuffer == nullptr)
         return nullptr;
 
+    //m_ioLock.lock();
+
     return (m_pDataBuffer + m_nHeaderSize);
+}
+
+
+void CTcpClient::releasePtr()
+{
+    //m_ioLock.unlock();
 }
 
 
 bool CTcpClient::setDataSize(const unsigned int nLen)
 {
+    //std::scoped_lock lock(m_ioLock);
+
     if (nLen > (m_nBufferSize - m_nHeaderSize))
         return false;
 
@@ -283,6 +341,7 @@ bool CTcpClient::open()
     if (m_sPort == "")
         return false;
 
+#if 0
     if (m_bConnected == true || m_pNetResolver != nullptr)
     {
         try
@@ -301,6 +360,12 @@ bool CTcpClient::open()
 
         m_bConnected = false;
     }
+#else
+    if (m_bConnected == true)
+    {
+        return true;
+    }
+#endif
 
     try
     {
@@ -308,20 +373,33 @@ bool CTcpClient::open()
     }
     catch (...)
     {
+        m_bConnected = false;
+
         return false;
     }
 
     if (m_pNetResolver == nullptr)
     {
+        m_bConnected = false;
+
         return false;
     }
 
     try
     {
         m_netEndPoints = m_pNetResolver->resolve(m_sURI.c_str(), m_sPort.c_str());
+
+        if (m_netEndPoints.empty())
+        {
+            m_bConnected = false;
+
+            return false;
+        }
     }
     catch (...)
     {
+        m_bConnected = false;
+
         return false;
     }
 
@@ -334,6 +412,8 @@ bool CTcpClient::open()
         delete m_pNetResolver;
 
         m_pNetResolver = nullptr;
+
+        m_bConnected = false;
 
         return false;
     }
@@ -369,7 +449,17 @@ bool CTcpClient::close()
 
 bool CTcpClient::isConnected()
 {
-    m_bConnected = m_netSocket.is_open();
+    if (m_bConnected == false)
+        return false;
+
+    try
+    { 
+        m_bConnected = m_netSocket.is_open();
+    }
+    catch (...)
+    {
+        return false;
+    }
 
     return m_bConnected;
 }
@@ -387,37 +477,43 @@ int CTcpClient::read(void *pTarget, const unsigned int nLen)
 
     int readSize = 0;
 
-    try
+    int nPayloadSize = 0;
+
     {
-        asio::error_code error;
+        //std::scoped_lock lock(m_ioLock);
 
-        readSize = (int) asio::read(m_netSocket, asio::buffer(m_pDataBuffer, m_nBufferSize), error);
+        try
+        {
+            asio::error_code error;
 
-        m_sLastError = error.message();
+            readSize = (int) asio::read(m_netSocket, asio::buffer(m_pDataBuffer, m_nBufferSize), error);
 
-        if (readSize > 0)
-            m_nCurrDataLen = (unsigned int) readSize;
-        else
-            m_nCurrDataLen = 0;
-    }
-    catch (...)
-    {
-        return -5;
-    }
+            m_sLastError = error.message();
 
-    if (readSize < 1)
-    {
-        return readSize;
-    }
+            if (readSize > 0)
+                m_nCurrDataLen = (unsigned int) readSize;
+            else
+                m_nCurrDataLen = 0;
+        }
+        catch (...)
+        {
+            return -5;
+        }
 
-    unsigned int nPayloadSize = (readSize - m_nHeaderSize);
+        if (readSize < 1)
+        {
+            return readSize;
+        }
 
-    if (pTarget != nullptr && nLen > 0)
-    {
-        if (nPayloadSize < nLen)
-            memcpy(pTarget, (m_pDataBuffer + m_nHeaderSize), nPayloadSize);
-        else
-            memcpy(pTarget, (m_pDataBuffer + m_nHeaderSize), nLen);
+        nPayloadSize = (readSize - m_nHeaderSize);
+
+        if (pTarget != nullptr && nLen > 0)
+        {
+            if (nPayloadSize < (int) nLen)
+                memcpy(pTarget, (m_pDataBuffer + m_nHeaderSize), nPayloadSize);
+            else
+                memcpy(pTarget, (m_pDataBuffer + m_nHeaderSize), nLen);
+        }
     }
 
     return nPayloadSize;
@@ -440,27 +536,31 @@ int CTcpClient::write(const void *pSource, const unsigned int nLen)
 
         std::size_t dataSize = 0;
 
-        if (pSource != nullptr)
-        { 
-            pData = (void *) pSource;
+        {
+            //std::scoped_lock lock(m_ioLock);
 
-            dataSize = (std::size_t) nLen;
-        }
-        else
-        { 
-            pData = (void *) m_pDataBuffer;
+            if (pSource != nullptr)
+            { 
+                pData = (void *) pSource;
 
-            dataSize = (std::size_t) (m_nHeaderSize + m_nCurrDataLen);
-
-            if (m_nHeaderSize == sizeof(NetworkDataHeaderInfo_def))
-            {
-                m_pBufferHeader->m_nDataLen = (uint32_t) dataSize;
+                dataSize = (std::size_t) nLen;
             }
+            else
+            { 
+                pData = (void *) m_pDataBuffer;
+
+                dataSize = (std::size_t) (m_nHeaderSize + m_nCurrDataLen);
+
+                if (m_nHeaderSize == sizeof(NetworkDataHeaderInfo_def))
+                {
+                    m_pBufferHeader->m_nDataLen = (uint32_t) dataSize;
+                }
+            }
+
+            asio::const_buffer send_buffer = asio::buffer(pData, dataSize);
+
+            nWriteSize = (int) asio::write(m_netSocket, send_buffer);
         }
-
-        asio::const_buffer send_buffer = asio::buffer(m_pDataBuffer, dataSize);
-
-        nWriteSize = (int) asio::write(m_netSocket, send_buffer);
 
         if (nWriteSize > 0)
         {
@@ -500,9 +600,11 @@ CNetMessageData::CNetMessageData(unsigned int nHeaderLength) :
 }
 
 
-bool CNetMessageData::allocBuffer(unsigned int nBufSize)
+bool CNetMessageData::allocBuffer(unsigned int nMaxDataSize)
 {
-    if (nBufSize < 1)
+    std::scoped_lock lock(m_dataLock);
+
+    if (nMaxDataSize < 1)
         return false;
 
     if (m_pData != nullptr)
@@ -511,6 +613,10 @@ bool CNetMessageData::allocBuffer(unsigned int nBufSize)
 
         m_pData = nullptr;
     }
+
+    m_nHeaderLength = sizeof(NetworkDataHeaderInfo_def);
+
+    auto nBufSize = (m_nHeaderLength + nMaxDataSize);
 
     m_pData = (char *) malloc(nBufSize);
 
@@ -525,8 +631,37 @@ bool CNetMessageData::allocBuffer(unsigned int nBufSize)
 }
 
 
-void CNetMessageData::clear()
+bool CNetMessageData::isBufferAllocated()
 {
+    if (m_pData == nullptr && m_nMaxDataSize > 0)
+        return false;
+
+    return true;
+}
+
+
+int CNetMessageData::getMaxDataLen()
+{
+    if (m_nMaxDataSize == 0)
+        return 0;
+
+    if (m_nMaxDataSize < m_nHeaderLength)
+        return 0;
+
+    return (int) (m_nMaxDataSize - m_nHeaderLength);
+}
+
+
+int CNetMessageData::getCurDataLen()
+{
+    return m_nDataLength;
+}
+
+
+void CNetMessageData::clearAll()
+{
+    std::scoped_lock lock(m_dataLock);
+
     m_nDataLength = 0;
 
     if (m_pData == nullptr)
@@ -536,57 +671,62 @@ void CNetMessageData::clear()
 }
 
 
-const char* CNetMessageData::getDataPtr() const
-{ 
-    return m_pData;
+void CNetMessageData::clearMsgBody()
+{
+    std::scoped_lock lock(m_dataLock);
+
+    m_nDataLength = 0;
+
+    if (m_pData == nullptr)
+        return;
+
+    memset((m_pData + MsgHeaderLen_def), 0, (m_nMaxDataSize - MsgHeaderLen_def));
 }
 
 
 char* CNetMessageData::getDataPtr()
 { 
+    m_dataLock.lock();
+
     return m_pData;
-}
-
-
-std::size_t CNetMessageData::getDataMax() const
-{
-    return (m_nMaxDataSize);
-}
-
-
-std::size_t CNetMessageData::getMsgLength() const
-{ 
-    return (m_nDataLength + m_nHeaderLength);
-}
-
-
-const char* CNetMessageData::getBodyPtr() const
-{ 
-    return (m_pData + m_nHeaderLength);
 }
 
 
 char* CNetMessageData::getBodyPtr()
 { 
+    m_dataLock.lock();
+    
     return (m_pData + m_nHeaderLength);
 }
 
 
-std::size_t CNetMessageData::getBodyMax() const
+void CNetMessageData::releasePtr()
 {
-    return (m_nMaxDataSize - m_nHeaderLength);
+    m_dataLock.unlock();
 }
 
 
-std::size_t CNetMessageData::getBodyLength() const
-{ 
-    return (m_nDataLength);
+void CNetMessageData::setHeaderLength(const std::size_t nLen)
+{
+    m_nHeaderLength = (unsigned int) nLen;
+}
+
+
+int CNetMessageData::getHeaderLength()
+{
+    return (int) m_nHeaderLength;
 }
 
 
 void CNetMessageData::setBodyLength(const std::size_t nLen)
 {
-    m_nDataLength = (unsigned int) nLen;
+    m_nDataLength = (unsigned int) (m_nHeaderLength + nLen);
+}
+
+
+int CNetMessageData::getBodyLength()
+{
+    return (int) (m_nDataLength - m_nHeaderLength);
 }
 
 
@@ -613,20 +753,28 @@ CNetMessageHandler::CNetMessageHandler(CNetMessageData &msgData) :
 
 bool CNetMessageHandler::decodeMsgHeader(const std::string& sType)
 {
-    m_msgData.m_nDataLength = 0;
+    m_msgData.setBodyLength(0);
 
-    if (m_msgData.m_pData == nullptr)
+    if (m_msgData.isBufferAllocated() == false)
         return false;
 
-    NetworkDataHeaderInfo_def *pMsgHeader = (NetworkDataHeaderInfo_def *) m_msgData.m_pData;
+    NetworkDataHeaderInfo_def *pHeader = (NetworkDataHeaderInfo_def *) m_msgData.getDataPtr();
         
-    if (pMsgHeader->m_headerMarker != 0xFFFF)
+    if (pHeader->m_headerMarker != 0xFFFF)
+    {
+        m_msgData.releasePtr();
         return false;
+    }
 
-    if (pMsgHeader->m_nDataLen > m_msgData.m_nMaxDataSize)
+    if (pHeader->m_nDataLen >= (uint32_t) m_msgData.getMaxDataLen())
+    {
+        m_msgData.releasePtr();
         return false;
+    }
 
-    m_msgData.m_nDataLength = (size_t) (pMsgHeader->m_nDataLen);
+    m_msgData.setBodyLength(pHeader->m_nDataLen);
+
+    m_msgData.releasePtr();
 
     return true;
 }
@@ -634,12 +782,14 @@ bool CNetMessageHandler::decodeMsgHeader(const std::string& sType)
 
 bool CNetMessageHandler::encodeMsgHeader(const std::string& sType)
 {
-    if (m_msgData.m_pData == nullptr)
+    if (m_msgData.isBufferAllocated() == false)
         return false;
 
-    NetworkDataHeaderInfo_def* pMsgHeader = (NetworkDataHeaderInfo_def*)m_msgData.m_pData;
+    NetworkDataHeaderInfo_def* pMsgHeader = (NetworkDataHeaderInfo_def*) m_msgData.getDataPtr();
 
-    pMsgHeader->initialize(sType.c_str(), (unsigned int) m_msgData.m_nDataLength);
+    pMsgHeader->initialize(sType.c_str(), (unsigned int) m_msgData.getBodyLength());
+
+    m_msgData.releasePtr();
 
     return true;
 }
@@ -655,6 +805,7 @@ CTcpSession::CTcpSession
     m_socket(socket),
     m_sMsgType(sMsgType)
 {
+    m_sLastError.clear();
 }
 
 
@@ -671,43 +822,39 @@ CTcpSession::~CTcpSession()
 
 bool CTcpSession::readMsgHeader(CNetMessageData &msgData)
 {
+    bool bReleased = false;
+
+    msgData.clearAll();
+
+    auto nLen = msgData.getHeaderLength();
+
+    if (nLen < 1)
+    {
+        return false;
+    }
+
+    // read the message header data
+
     auto pData = msgData.getDataPtr();
 
     if (pData == nullptr)
+    {
+        msgData.releasePtr();
         return false;
-
-    auto nLen = msgData.m_nHeaderLength;
-
-    if (nLen < 1)
-        return false;
+    }
 
     try
     {
-#ifdef USE_ASIO_ASYNC_READ
-        auto self(shared_from_this());
-
-        asio::async_read
-        (
-            m_socket,
-            asio::buffer(pData, nLen),
-            [this, self](const asio::error_code& error, std::size_t length)
-            {
-                if (error)
-                {
-                    return false;
-                }
-
-                return true;
-            }
-        );
-#else
         auto status = asio::read(m_socket, asio::buffer(pData, nLen));
+
+        msgData.releasePtr();
+
+        bReleased = true;
 
         if (status < nLen)
         {
             return false;
         }
-#endif
 
         CNetMessageHandler msgHandler(msgData);
 
@@ -715,11 +862,18 @@ bool CTcpSession::readMsgHeader(CNetMessageData &msgData)
     }
     catch (std::exception e)
     {
+        if (bReleased == false)
+            msgData.releasePtr();
+        
         std::string err = e.what();
+        
         return false;
     }
     catch (...)
     {
+        if (bReleased == false)
+            msgData.releasePtr();
+        
         return false;
     }
 
@@ -729,51 +883,58 @@ bool CTcpSession::readMsgHeader(CNetMessageData &msgData)
 
 bool  CTcpSession::readMsgBody(CNetMessageData& msgData)
 {
-    auto pData = msgData.getBodyPtr();
+    bool bReleased = false;
 
-    if (pData == nullptr)
-        return false;
+    msgData.clearMsgBody();
 
     auto nLen = msgData.getBodyLength();
 
     if (nLen < 1)
+    {
         return false;
+    }
+
+    // read the message body
+
+    auto pData = msgData.getBodyPtr();
+
+    if (pData == nullptr)
+    {
+        msgData.releasePtr();
+        return false;
+    }
 
     try
     {
-#ifdef USE_ASIO_ASYNC_READ
-        auto self(shared_from_this());
-
-        asio::async_read
-        (
-            m_socket,
-            asio::buffer(pData, nLen),
-            [this, self](const asio::error_code& error, std::size_t length)
-            {
-                if (error)
-                {
-                    return false;
-                }
-
-                return true;
-            }
-        );
-#else
         auto status = asio::read(m_socket, asio::buffer(pData, nLen));
+
+        msgData.releasePtr();
+
+        bReleased = true;
 
         if (status < nLen)
         {
             return false;
         }
-#endif
+        else
+        {
+            msgData.setUpdated(true);
+        }
     }
     catch (std::exception e)
     {
+        if (bReleased == false)
+            msgData.releasePtr();
+        
         std::string err = e.what();
+        
         return false;
     }
     catch (...)
     {
+        if (bReleased == false)
+            msgData.releasePtr();
+        
         return false;
     }
 
@@ -783,65 +944,64 @@ bool  CTcpSession::readMsgBody(CNetMessageData& msgData)
 
 bool CTcpSession::writeMsgData(CNetMessageData &msgData)
 {
-    auto pData = msgData.getDataPtr();
+    std::scoped_lock lock(m_mutex);
 
-    if (pData == nullptr)
-        return false;
+    bool bReleased = false;
 
-    auto nLen = msgData.getMsgLength();
+    auto nLen = msgData.getCurDataLen();
 
     if (nLen < 1)
+    {
         return false;
+    }
+
+    // encode/format the msg header
 
     CNetMessageHandler  msgHandler(msgData);
 
     msgHandler.encodeMsgHeader(m_sMsgType);
 
-    auto nDataSize = msgData.getBodyLength();
+    // write the message to the net
 
-    if (nDataSize > 0)
+    auto pData = msgData.getDataPtr();
+
+    if (pData == nullptr)
     {
-        ;
+        msgData.releasePtr();
+        
+        return false;
     }
 
     try
     {
-#ifdef USE_ASIO_ASYNC_WRIRE
-        auto self(shared_from_this());
-
-        asio::async_write
-        (
-            m_socket,
-            asio::buffer(pData, nLen),
-            [this, self](const asio::error_code& error, std::size_t length)
-            {
-                if (error)
-                {
-                    return false;
-                }
-
-                m_outputMsg.clear();
-
-                return true;
-            }
-        );
-#else
         auto status = asio::write(m_socket, asio::buffer(pData, nLen));
+
+        msgData.releasePtr();
+
+        bReleased = true;
 
         if (status < nLen)
         {
             return false;
         }
 
-#endif
+        msgData.setUpdated(false);
+
     }
     catch (std::exception e)
     {
+        if (bReleased == false)
+            msgData.releasePtr();
+
         std::string err = e.what();
+        
         return false;
     }
     catch (...)
     {
+        if (bReleased == false)
+            msgData.releasePtr();
+        
         return false;
     }
 
@@ -851,9 +1011,13 @@ bool CTcpSession::writeMsgData(CNetMessageData &msgData)
 
 bool CTcpSession::readMsgData(CNetMessageData &msgData)
 {
+    std::scoped_lock lock(m_mutex);
 
+    // read/decode the message header
     if (readMsgHeader(msgData) == true)
     {
+        // read the message body
+
         if (readMsgBody(msgData) == false)
         {
             return false;
@@ -879,6 +1043,7 @@ CTcpServer::CTcpServer(eNetIoDirection eDir, const unsigned int nPort, const uns
     m_pAcceptor(nullptr),
     m_inputMsg(MsgHeaderLen_def),
     m_outputMsg(MsgHeaderLen_def),
+    m_bInitialized(false),
     m_bRunning(false)
 {
 
@@ -894,27 +1059,47 @@ CTcpServer::~CTcpServer()
 }
 
 
-void CTcpServer::setPort(const unsigned int nPort)
+bool CTcpServer::setPort(const unsigned int nPort)
 {
+    if (m_bRunning == true)
+        return false;
+
     m_port = nPort;
+
+    return true;
 }
 
 
-void CTcpServer::setBufferSize(const unsigned int nSize)
+bool CTcpServer::setBufferSize(const unsigned int nSize)
 {
+    if (m_bInitialized == true)
+        return false;
+
     m_bufferSize = nSize;
+
+    return true;
 }
 
 
-void CTcpServer::setDataType(const std::string& sType)
+bool CTcpServer::setDataType(const std::string& sType)
 {
+    if (sType == "")
+        return false;
+
     m_sDataType = sType;
+
+    return true;
 }
 
 
-void CTcpServer::setName(const std::string& sName)
+bool CTcpServer::setName(const std::string& sName)
 {
+    if (sName == "")
+        return false;
+
     m_sSrvrName = sName;
+
+    return true;
 }
 
 
@@ -930,24 +1115,34 @@ bool CTcpServer::initialize(const unsigned int nBufize)
     {
     case eNetIoDirection::eNetIoDirection_input:
         if (m_inputMsg.allocBuffer(nBufize) == false)
+        {
             return false;
+        }
         break;
 
     case eNetIoDirection::eNetIoDirection_output:
         if (m_outputMsg.allocBuffer(nBufize) == false)
+        {
             return false;
+        }
         break;
 
     case eNetIoDirection::eNetIoDirection_IO:
         if (m_inputMsg.allocBuffer(nBufize) == false)
+        {
             return false;
+        }
         if (m_outputMsg.allocBuffer(nBufize) == false)
+        {
             return false;
+        }
         break;
 
     default:
         return false;
     }
+
+    m_bInitialized = true;
 
     return true;
 }
@@ -1000,7 +1195,7 @@ bool CTcpServer::acceptConnection()
                         case eNetIoDirection::eNetIoDirection_input:
                             {
                                 // read input msg
-                                m_inputMsg.clear();
+                                //m_inputMsg.clearAll();
                                 pSession->readMsgData(m_inputMsg);
                             }
                             break;
@@ -1010,14 +1205,14 @@ bool CTcpServer::acceptConnection()
                             if (m_outputMsg.isUpdated() == true)
                             { 
                                 pSession->writeMsgData(m_outputMsg);
-                                m_outputMsg.clear();
+                                //m_outputMsg.clearAll();
                             }
                             break;
 
                         case eNetIoDirection::eNetIoDirection_IO:
                             {
                                 // read input msg
-                                m_inputMsg.clear();
+                                //m_inputMsg.clearAll();
                                 pSession->readMsgData(m_inputMsg);
 
                                 // process input msg
@@ -1028,7 +1223,7 @@ bool CTcpServer::acceptConnection()
                                 if (m_outputMsg.isUpdated() == true)
                                 {
                                     pSession->writeMsgData(m_outputMsg);
-                                    m_outputMsg.clear();
+                                    //m_outputMsg.clearAll();
                                 }
                             }
                             break;
@@ -1184,23 +1379,31 @@ void CTcpServer::setRunning(bool bVal)
 int CTcpServer::readInputData(void* pBuff, const unsigned int nMax)
 {
     if (pBuff == nullptr || nMax < 1)
+    { 
         return -1;
-
-    auto pData = m_inputMsg.getBodyPtr();
-
-    if (pData == nullptr)
-        return -2;
+    }
 
     size_t nCopyLen = (size_t)nMax;
 
     auto nMsgLen = m_inputMsg.getBodyLength();
 
     if (nMsgLen < nCopyLen)
+    {
         nCopyLen = (size_t)nMsgLen;
+    }
+
+    auto pData = m_inputMsg.getBodyPtr();
+
+    if (pData == nullptr)
+    { 
+        m_outputMsg.releasePtr();
+
+        return -2;
+    }
 
     memcpy(pBuff, pData, nCopyLen);
 
-    m_inputMsg.clear();
+    m_inputMsg.releasePtr();
 
     return (int)nCopyLen;
 }
@@ -1209,28 +1412,44 @@ int CTcpServer::readInputData(void* pBuff, const unsigned int nMax)
 int CTcpServer::writeOutputData(const void* pBuff, const unsigned int nLen)
 {
     if (pBuff == nullptr || nLen < 1)
+    { 
         return -1;
+    }
 
-    size_t nCopyLen = (size_t)nLen;
+    // make sure buffer has been allocated
 
-    auto nMsgLen = m_outputMsg.getBodyLength();
-
-    if (nMsgLen < nCopyLen)
+    if (m_outputMsg.isBufferAllocated() == false)
     {
-        //nCopyLen = (size_t) nMsgLen;
-        m_outputMsg.allocBuffer((unsigned int)nCopyLen);
+        m_outputMsg.allocBuffer((unsigned int) nLen);
+    }
+
+    size_t nCopyLen = (size_t) nLen;
+
+    auto nMaxLen = m_outputMsg.getMaxDataLen();
+
+    // make sure buffer it big enough
+
+    if (nMaxLen < nCopyLen)
+    {
+        m_outputMsg.allocBuffer((unsigned int) nCopyLen);
     }
 
     auto pData = m_outputMsg.getBodyPtr();
 
     if (pData == nullptr)
+    { 
+        m_outputMsg.releasePtr();
+
         return false;
+    }
 
     memcpy(pData, pBuff, nCopyLen);
 
+    m_outputMsg.releasePtr();
+
     m_outputMsg.setBodyLength(nCopyLen);
 
-    return (int)nCopyLen;
+    return (int) nCopyLen;
 }
 
 
@@ -1256,36 +1475,57 @@ bool CTcpServer::processInputMsg(CNetMessageData& inputMsg, CNetMessageData& out
 //* utility functions
 //*
 
-bool CNetworkIO::parseServerAndPort(const std::string& sUri, std::string& sServer, std::string sPort)
+bool CNetworkIO::parseServerAndPort(const std::string& sUri, std::string& sServer, std::string &sPort, std::string &sProtocol)
 {
     if (sUri == "")
     {
         return false;
     }
 
-    size_t nPos = sUri.find(":");
+    size_t nSkip = 0;
 
-    if (nPos == std::string::npos)
+    size_t nColonPos = 0;
+
+    size_t nPtotocolPos = sUri.find("://");
+
+    if (nPtotocolPos != std::string::npos)
     {
-        sServer = sUri;
+        // server uri contains protocol ("://")
+
+        nSkip = (nPtotocolPos + 3);
+    }
+
+    nColonPos = sUri.rfind(":");
+
+    if (nColonPos == std::string::npos)
+    {
+        // there is no ":" in the uri
+        // return the uri chars and a blank port string 
+
+        sServer = sUri.substr(nSkip);
         sPort = "";
+        
+        if (nSkip > 3)
+            sProtocol = sUri.substr(0, (nSkip - 3));
+        else
+            sProtocol;
 
         return true;
     }
 
-    size_t nSkip = 0;
+    // return the uri string chars and the port string chars
 
-    if (sUri[nPos + 1] == '/')
-    {
-        nSkip = (nPos + 1);
+    sServer = sUri.substr(nSkip, (nColonPos - nSkip));
 
-        auto sTmp = sUri.substr(nSkip);
+    if (nColonPos > nSkip + 1)
+        sPort = sUri.substr((nColonPos + 1));
+    else
+        sPort = "";
 
-        nPos = sTmp.find(":");
-    }
-
-    sServer = sUri.substr(0, (nSkip + nPos));
-    sPort = sUri.substr((nSkip + nPos + 1));
+    if (nSkip > 3)
+        sProtocol = sUri.substr(0, (nSkip - 3));
+    else
+        sProtocol = "";
 
     return true;
 }

@@ -349,6 +349,15 @@ int CAudioFileIO::getCurrentFrameIndex() const
 }
 
 
+bool CAudioFileIO::resetPlayPosition()
+{
+    m_nCurrentFrameIdx = 0;
+    //m_lCurrentFilePos = 0;
+
+    return true;
+}
+
+
 int CRawFileIO::getNumericStringAt(const std::string &sText, const unsigned int pos)
 {
     auto len = sText.length();
