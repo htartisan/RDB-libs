@@ -43,6 +43,7 @@
 #ifndef COMPARE_RESULT_DEF
 #define COMPARE_RESULT_DEF
 
+
 enum eCompareResult
 {
     CompareResult_lessThan = -1,
@@ -56,6 +57,7 @@ enum eCompareResult
 
 
 // Utility defs
+
 
 #ifndef VERSION_NUMBER_DEF
 #define VERSION_NUMBER_DEF
@@ -253,7 +255,7 @@ extern "C"
 {
     PLUGIN_LIB_API void* CreatePluginFileInfoInstance();
 
-    PLUGIN_LIB_API void* CreatePluginClassInstance();
+    PLUGIN_LIB_API void* CreatePluginClassInstance(void *pInstData);
 
 };
 

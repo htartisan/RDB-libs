@@ -1,7 +1,7 @@
 //****************************************************************************
 // FILE:    CNetworkIO.h
 //
-// DESC:    C++ Network (TCP) input/output class 
+// DESC:    C++ Network input/output base classes 
 //
 // AUTHOR:  Russ Barker
 //
@@ -10,20 +10,28 @@
 #ifndef C_NETWORK_IO_H
 #define C_NETWORK_IO_H
 
+
 #include <string>
 #include <vector>
 #include <chrono>
-#include <thread>
 #include <mutex>
 
-#include <asio.hpp>
-
 #include "../Thread/ThreadBase.h"
+
 
 
 #define DEFAULT_TCP_BUFFER_SIZE             4096
 
 #define NET_STREAM_TYPE_LEN                 10
+
+#define TCP_NO_DELAY_DEFAULT                true
+
+#ifdef TCP_MULTI_SESSION
+#define TCP_SRVR_SESSION_LOOP_DEFAULT       true
+#else
+#define TCP_SRVR_SESSION_LOOP_DEFAULT       false
+#endif
+
 
 //#define ASYNC_ASIO_ACCEPTOR
 
@@ -85,138 +93,55 @@ typedef int8_t                                      DataByte_def;
 typedef DataByte_def *                              DataBytePtr_def;
 
 
-//*
-//* CTcpClient class defs
-//*
+// Utility functions
 
+bool parseServerAndPort(const std::string &sUri, std::string &sServer, std::string &sPort, std::string &sProtocol);
 
-// CTcpClient class
-
-class CTcpClient
-{
-  protected:
-
-    std::string                                     m_sURI;
-    std::string                                     m_sPort;
-
-    asio::io_context                                m_ioContext;
-
-    asio::ip::tcp::socket                           m_netSocket;
-
-    asio::ip::tcp::resolver                         *m_pNetResolver;
-
-    asio::ip::tcp::resolver::results_type           m_netEndPoints;
-
-    bool                                            m_bConnected;
-
-    NetworkDataHeaderInfo_def                       *m_pBufferHeader;
-
-    unsigned int                                    m_nHeaderSize;
-
-    DataBytePtr_def                                 m_pDataBuffer;
-
-    unsigned int                                    m_nBufferSize;
-
-    unsigned int                                    m_nCurrDataLen;
-
-    std::string                                     m_sLastError;
-
-    std::mutex                                      m_ioLock;
-
-  public:
-
-    CTcpClient();
-
-    ~CTcpClient();
-
-    void setDataType(const std::string &sType);
-
-    std::string getDataType();
-
-    bool isDataType(const std::string &sType);
-
-    unsigned int getHeaderSize();
-\
-    bool allocBuffer(const unsigned nSize = DEFAULT_TCP_BUFFER_SIZE, bool bAllocBufHeader = true);
-
-    bool freeBuffer();
-
-    bool clearBuffer();
-
-    bool setBuffer(const void* pSource, const unsigned int nLen);
-
-    bool appendBuffer(const void *pSource, const unsigned int nLen);
-
-    unsigned int getCurrdataLen();
-
-    bool getBuffer(void *pTarget, const unsigned int nLen, const unsigned int nStartingAt = 0);
-
-    DataBytePtr_def getDataPtr();
-
-    void releasePtr();
-
-    bool setDataSize(const unsigned int nLen);
-
-    bool setUri(const std::string &sURI);
-
-    bool setPort(const std::string& sPort);
-    bool setPort(const unsigned int nPort);
-
-    bool open();
-
-    bool close();
-
-    bool isConnected();
-
-    int read(void *pTarget = nullptr, const unsigned int nLen = 0);
-
-    int write(const void *pSource = nullptr, const unsigned int nLen = 0);
-
-};
 
 
 //*
-//* CTcpServer class defs
+//* General Server class defs
 //*
 
 
 // CServerThread clss 
 
+template <typename T>
 class CServerThread :
     public CThreadBase
 {
-    asio::io_context* m_pIoContext;
+    T* m_pContext;
 
 public:
 
-    CServerThread(asio::io_context* pIoContext = nullptr) :
-        m_pIoContext(pIoContext)
+    CServerThread(T* pContext = nullptr) :
+        m_pContext(pContext)
     {
 
     }
 
     ~CServerThread()
     {
-        if (m_pIoContext == nullptr)
+        if (m_pContext == nullptr)
             return;
 
-        if (m_pIoContext->stopped() == false)
+        if (m_pContext->stopped() == false)
         {
-            m_pIoContext->stop();
+            m_pContext->stop();
         }
     }
 
-    void setIoContext(asio::io_context* pIoContext)
+    void setContext(T* pContext)
     {
-        m_pIoContext = pIoContext;
+        m_pContext = pContext;
     }
 
     virtual void threadProc(void) override
     {
-        if (m_pIoContext == nullptr)
+        if (m_pContext == nullptr)
             return;
 
-        m_pIoContext->run();
+        m_pContext->run();
     }
 };
 
@@ -228,17 +153,17 @@ public:
 
 class CNetMessageData
 {
-    char                    *m_pData;
+    char                            *m_pData;
 
-    unsigned int            m_nHeaderLength;
+    unsigned int                    m_nHeaderLength;
 
-    unsigned int            m_nMaxDataSize;
+    unsigned int                    m_nMaxDataSize;
 
-    unsigned int            m_nDataLength;
+    unsigned int                    m_nDataLength;
 
-    bool                    m_bUpdated;
+    bool                            m_bUpdated;
 
-    std::mutex              m_dataLock;
+    std::mutex                      m_dataLock;
 
 public:
 
@@ -293,130 +218,6 @@ public:
     bool encodeMsgHeader(const std::string& sType);
 
 };
-
-
-class CTcpServer;
-
-
-// CTcpSession class
-
-class CTcpSession : 
-    public std::enable_shared_from_this<CTcpSession>
-{
-    asio::ip::tcp::socket       &m_socket;
-
-    std::string                 &m_sMsgType;
-
-    std::string                 m_sLastError;
-
-    std::mutex                  m_mutex;
-
-public:
-
-    CTcpSession
-        (
-            asio::ip::tcp::socket &socket,
-            std::string &sMsgType
-        );
-
-    ~CTcpSession();
-
-    bool writeMsgData(CNetMessageData& msgData);
-
-    bool readMsgData(CNetMessageData& msgData);
-
-private:
-
-    bool readMsgHeader(CNetMessageData& msgData);
-
-    bool readMsgBody(CNetMessageData& msgData);
-
-};
-
-
-// CTcpServer class
-
-class CTcpServer
-{
-    unsigned int                m_port;
-
-    unsigned int                m_bufferSize;
-
-    eNetIoDirection             m_eIoDirection;
-
-    std::string                 m_sDataType;
-
-    std::string                 m_sSrvrName;
-
-    asio::ip::tcp::endpoint     *m_pEndpoint;
-
-    asio::ip::tcp::acceptor     *m_pAcceptor;
-
-    asio::io_context            m_ioContext;
-
-    CServerThread               m_srvrThread;
-
-    std::mutex                  m_inputMutex;
-    std::mutex                  m_outputMutex;
-
-    CNetMessageData             m_inputMsg;
-    CNetMessageData             m_outputMsg;
-
-    bool                        m_bInitialized;
-    bool                        m_bRunning;
-
-public:
-
-    CTcpServer(eNetIoDirection eDir, const unsigned int nPort = 0, const unsigned int nSize = 0);
-
-    ~CTcpServer();
-
-    bool setPort(const unsigned int nPort);
-
-    bool setBufferSize(const unsigned int nSize);
-
-    bool setDataType(const std::string &sType);
-
-    bool setName(const std::string &sName);
-
-    bool initialize(const unsigned int nBufize = 0);
-
-    bool acceptConnection();
-
-    bool findTcpSession(CTcpSession *pSession);
-
-    bool deleteTcpSession(CTcpSession *pSession);
-
-    asio::io_context& getIoContext()
-    {
-        return m_ioContext;
-    }
-
-    bool start();
-
-    bool stop();
-
-    bool isRunning();
-
-    void setRunning(bool bVal);
-
-    int readInputData(void* pBuff, const unsigned int nMax);
-
-    int writeOutputData(const void* pBuff, const unsigned int nLen);
-
-    bool sendOutput();
-
-    // Virtual function for input msg processing.
-    // Override this function for app msg handling.
-
-    virtual bool processInputMsg(CNetMessageData &inputMsg, CNetMessageData &outputMsg);
-
-};
-
-
-// Utility functions
-
-bool parseServerAndPort(const std::string &sUri, std::string &sServer, std::string &sPort, std::string &sProtocol);
 
 
 };  //  namespace CNetworkIO

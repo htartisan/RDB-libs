@@ -168,7 +168,13 @@ class CSimpleAudioBuffer : public CErrorHandler
 
         if (m_pBuffer != nullptr)
         {
-            ::free(m_pBuffer);
+            try
+            {
+                ::free(m_pBuffer);
+            }
+            catch (...)
+            {
+            }
         }
 
         m_bAllocated = false;

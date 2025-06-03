@@ -43,6 +43,8 @@ class CPluginLibLoader : public CErrorHandler
 {
     typedef void * (*VoidFunctionPtr)();
 
+    typedef void* (*VoidPtrFunctionPtr)(void *);
+
 protected:
 
     std::string                             m_sFilePath;
@@ -57,7 +59,7 @@ protected:
 
     VoidFunctionPtr                         m_createFileInfoFunc;
 
-    VoidFunctionPtr                         m_createClassInstFunc;
+    VoidPtrFunctionPtr                      m_createClassInstFunc;
 
     std::shared_ptr<CPluginFileInfoMgrBase> m_pPluginFileInfoMgr;
 
@@ -89,6 +91,7 @@ public:
 #else
             free(m_hLib);
 #endif
+            m_hLib = 0;
         }
     }
 
@@ -139,7 +142,7 @@ public:
         { 
             m_createFileInfoFunc = (VoidFunctionPtr) GetProcAddress(m_hLib, "CreatePluginFileInfoInstance");
 
-            m_createClassInstFunc =  (VoidFunctionPtr) GetProcAddress(m_hLib, "CreatePluginClassInstance");
+            m_createClassInstFunc =  (VoidPtrFunctionPtr) GetProcAddress(m_hLib, "CreatePluginClassInstance");
         }
         catch (...)
         {
@@ -170,7 +173,7 @@ public:
         {
             m_createFileInfoFunc = (VoidFunctionPtr) dlsym(m_hLib, "CreatePluginFileInfoInstance");
 
-            m_createClassInstFunc = (VoidFunctionPtr) dlsym(m_hLib, "CreatePluginClassInstance");
+            m_createClassInstFunc = (VoidPtrFunctionPtr) dlsym(m_hLib, "CreatePluginClassInstance");
         }
         catch(...)
         {
@@ -223,13 +226,13 @@ public:
         return m_pPluginFileInfoMgr;
     }
 
-    std::shared_ptr<T>  createPluginClassInst()
+    std::shared_ptr<T>  createPluginClassInst(void *pInstData)
     {   
         void *pClassInst = nullptr;
 
         try
         { 
-            pClassInst = m_createClassInstFunc();
+            pClassInst = m_createClassInstFunc(pInstData);
         }
         catch (...)
         {

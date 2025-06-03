@@ -165,11 +165,13 @@ class CFileIO
         if (m_bBinary)
             sFileMode.append("b");
 
+        bool status;
+
         try
         {
             FILE *pFile = nullptr;
 #ifdef WINDOWS
-            auto status = fopen_s(&pFile, m_sFilePath.c_str(), sFileMode.c_str());
+            status = fopen_s(&pFile, m_sFilePath.c_str(), sFileMode.c_str());
 #else
             pFile = fopen(m_sFilePath.c_str(), sFileMode.c_str());
 #endif
@@ -444,7 +446,12 @@ class CFileIO
 
             char *pInputBuffer = (char *) calloc(sizeof(char), nReadSize);
 
-           auto status = ::fgets(pInputBuffer, nReadSize, m_pFileHandle);
+            if (pInputBuffer == nullptr)
+            {
+                return false;
+            }
+
+            auto status = ::fgets(pInputBuffer, nReadSize, m_pFileHandle);
 
             if (status != nullptr && nReadSize > 0)
                 m_nLastIoSize = (unsigned int) nReadSize;
@@ -475,7 +482,15 @@ class CFileIO
                     m_nLastErrorNum = ferror(m_pFileHandle);
                 }
 
+                free(pInputBuffer);
+
                 return false;
+            }
+            else
+            {
+                sInput.assign(pInputBuffer);
+
+                free(pInputBuffer);
             }
         }
         catch (...)

@@ -59,7 +59,6 @@ class CPluginFileMgr
         m_pluginFileList.clear();
     }
 
-
     bool setPluginDir(std::string &sDir)
     {
         if (sDir.empty())

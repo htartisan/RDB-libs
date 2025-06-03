@@ -320,6 +320,16 @@ class CLogger
     {
         m_sLogName = sLogName;
 
+        if (sLogFile != "")
+        {
+            m_sLogFile = sLogFile;
+        }
+
+        if (sLogDir != "")
+        {
+            m_sLogDir = sLogDir;
+        }
+
         if (consoleLogLevel >= 0)
         {
             m_nConsoleLogLevel = (eLogLevel) consoleLogLevel;
@@ -343,16 +353,6 @@ class CLogger
             std::cout << "DEBUG: Failed to init main logger " << " \n";
 #endif
             return false;
-        }
-
-        if (sLogFile != "")
-        {
-            m_sLogFile = sLogFile;
-
-            if (sLogDir != "")
-            {
-                m_sLogDir = sLogDir;
-            }
         }
 
         if (m_sLogFile != "")
@@ -381,6 +381,11 @@ class CLogger
         setConsoleLogLevel(m_nConsoleLogLevel);
 
         return true;
+    }
+
+    std::shared_ptr <spdlog::logger> getMainLogger()
+    {
+        return m_mainLogger;
     }
 
     void setConsoleLogLevel(eLogLevel logLevel)
@@ -598,6 +603,13 @@ class CLogger
         if (status == false)
         {
             return false;
+        }
+
+        if (fileLogLevel != LogLevel_useDefault)
+        { 
+            auto spdLogLvl = getSpdlogLevel(fileLogLevel);
+
+            m_fileSink->set_level(spdLogLvl);
         }
         
         return true;

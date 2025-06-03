@@ -18,6 +18,8 @@
 
 #include "../Error/CError.h"
 
+#include "../Logging/Logging.h"
+
 #include "PluginDefs.h"
 
 
@@ -45,6 +47,8 @@ public:
 
     CPluginFileInfoMgrBase()
     {
+        m_sPluginApiType = "";
+
         clear();
     }
 
@@ -55,8 +59,14 @@ public:
 
     void clear()
     {
-        m_sPluginModuleName.clear();
-        m_sPluginDescription.clear();
+        try
+        { 
+            m_sPluginModuleName.clear();
+            m_sPluginDescription.clear();
+        }
+        catch (...)
+        { }
+
         m_nPluginType = 0;
     }
 

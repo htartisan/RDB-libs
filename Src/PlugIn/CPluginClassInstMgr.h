@@ -68,7 +68,7 @@ public:
         return m_nPluginType;
     }
 
-    virtual std::shared_ptr<T> CreatePluginClassInstance() = 0;
+    virtual std::shared_ptr<T> CreatePluginClassInstance(void *pInstData) = 0;
 
 };
 
