@@ -65,10 +65,11 @@ eAudioFileType_def getAudioFileType(const std::string &filepath);
 /// the "AudioFile.h" or "dr_wav.h".
 // #define USE_DR_WAV
 
+// #define USE_DR_MP3
 
 #ifdef USE_DR_WAV
 
-/// #define DR_WAV_NO_CONVERSION_API ///< why do we define this
+/// #define DR_WAV_NO_CONVERSION_API 
 #include "../Libs/drwav-lib/dr_wav.h"
 
 #else
@@ -77,6 +78,12 @@ eAudioFileType_def getAudioFileType(const std::string &filepath);
 
 #endif /// USE_DR_WAV
 
+
+#ifdef USE_DR_MP3
+
+#include "../Libs/drwav-lib/dr_mp3.h"
+
+#endif
 
 /// This is defined in several different files.
 #define UPDATE_FILE_POSITION
@@ -91,7 +98,7 @@ class CAudioFileIO
   protected:
 
     unsigned int        m_sampleRate;       ///< sample rate
-    unsigned int        m_numChannels;      ///< number is samples/channels per frame
+    unsigned int        m_numChls;          ///< number is samples/channels per frame
     unsigned int        m_nFrameSize;
 
     std::string         m_sFilePath;        ///< stream containug the file patrh/name
@@ -159,6 +166,13 @@ class CAudioFileIO
 
     virtual long       getNumFramesInFile();
 
+    virtual int        getSampleRate()
+    {
+        return m_sampleRate;
+    }
+
+    virtual bool       isEOF() = 0;
+
     /// Read a single sample, for the specified channel, at the current frame offset.
     virtual bool readSample(int16_t &data, unsigned int chl)              = 0;
     virtual bool readSample(int32_t &data, unsigned int chl)              = 0;
@@ -184,11 +198,12 @@ class CAudioFileIO
 
     int          getCurrentFrameIndex() const;
 
-    bool         resetPlayPosition();
+    virtual bool resetPlayPosition();
 };
 
 
-class CRawFileIO : public CAudioFileIO
+class CRawFileIO : 
+    public CAudioFileIO
 {
   public:
 
@@ -243,6 +258,8 @@ class CRawFileIO : public CAudioFileIO
 
     bool closeFile() override;
 
+    bool isEOF();
+
     /// Read a sample from a "raw" data file
     bool readSample(int16_t &data, unsigned int chl) override;
     bool readSample(int32_t &data, unsigned int chl) override;
@@ -258,10 +275,13 @@ class CRawFileIO : public CAudioFileIO
     bool nextFrame() override;
 
     bool setCurrentFrame(unsigned int frameNum) override;
+
+    bool resetPlayPosition() override;
 };
 
 
-class CWavFileIO : public CAudioFileIO
+class CWavFileIO : 
+    public CAudioFileIO
 {
 
 #ifndef USE_DR_WAV
@@ -270,8 +290,8 @@ class CWavFileIO : public CAudioFileIO
     unsigned int m_blockSize;
 #else
     drwav       m_audioFile{};
-
 #endif
+
     void        *m_pFramebuffer;
 
     unsigned int m_currChannel;
@@ -280,6 +300,8 @@ class CWavFileIO : public CAudioFileIO
     int          m_lastChlWritten;
 
     bool         m_bWriteFileForEachFrame;
+
+    bool getSamples(void *pData, unsigned int numFrames);
 
   public:
 
@@ -291,9 +313,9 @@ class CWavFileIO : public CAudioFileIO
 
     bool openFile(eFileIoMode_def mode, const std::string &sFilePath) override;
 
-   
    ///  @note For "wav" and "aiff" files.
-   ///  The data is ONLY written to the disk file when the file is closed unless m_bWriteFileForEachFrame = true
+   ///  The data is ONLY written to the disk file when the 
+   ///  file is closed unless m_bWriteFileForEachFrame = true.
 
     bool closeFile() override;
 
@@ -305,11 +327,13 @@ class CWavFileIO : public CAudioFileIO
     void setBlockSize(const unsigned int blockSize);
 #endif
 
-    int  getSampleRate();
+    int  getSampleRate() override;
 
     int  getNumChannels() override;
 
     int  getNumFrames() const;
+
+    bool isEOF();
 
     bool readSample(int16_t &data, unsigned int chl) override;
     bool readSample(int32_t &data, unsigned int chl) override;
@@ -325,7 +349,74 @@ class CWavFileIO : public CAudioFileIO
     bool nextFrame() override;
 
     bool setCurrentFrame(unsigned int frameNum) override;
+
+    bool resetPlayPosition() override;
 };
 
 
-#endif /// AUDIO_FILE_IO_H
+#ifdef USE_DR_MP3
+
+class CMp3FileIO : 
+    public CAudioFileIO
+{
+
+    drmp3       m_audioFile{};
+
+    void        *m_pFramebuffer;
+
+    unsigned int m_currChannel;
+
+    int          m_lastChlRead;
+    int          m_lastChlWritten;
+
+    bool         m_bWriteFileForEachFrame;
+
+  public:
+
+    CMp3FileIO(unsigned int numChannels);
+
+    CMp3FileIO(unsigned int numChannels, const std::string &sFilePath);
+
+    ~CMp3FileIO() override;
+
+    bool openFile(eFileIoMode_def mode, const std::string &sFilePath) override;
+
+   ///  @note For "mp3" files.
+   ///  The data is ONLY written to the disk file when the 
+   ///  file is closed unless m_bWriteFileForEachFrame = true.
+
+    bool closeFile() override;
+
+    void setFrameOutputWriteFlag(bool value);
+
+    void setSampleRate(unsigned int rate) override;
+
+    int  getSampleRate();
+
+    int  getNumChannels() override;
+
+    int  getNumFrames() const;
+
+    bool isEOF();
+
+    bool readSample(int16_t &data, unsigned int chl) override;
+    bool readSample(int32_t &data, unsigned int chl) override;
+
+    bool readBlock(void *pData, unsigned int numFrames) override;
+
+    bool writeSample(int16_t data, unsigned int chl) override;
+    bool writeSample(int32_t data, unsigned int chl) override;
+
+    bool writeBlock(const void *pData, unsigned int numFrames) override;
+
+    /// Move to next input/output frame
+    bool nextFrame() override;
+
+    bool setCurrentFrame(unsigned int frameNum) override;
+
+    bool resetPlayPosition() override;
+};
+
+#endif  //  USE_DR_MP3
+
+#endif  //  AUDIO_FILE_IO_H

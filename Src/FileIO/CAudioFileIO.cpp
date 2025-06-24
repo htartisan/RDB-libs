@@ -27,6 +27,12 @@
 
 #endif
 
+#ifdef  USE_DR_MP3
+
+#include <dr_mp3.h>
+
+#endif
+
 
 // Utility functions defs
 
@@ -51,6 +57,7 @@ std::string audioFileTypeToString(eAudioFileType_def value)
     {
         {eFileType_raw, "raw"},   
         {eFileType_wav, "wav"},   
+        {eFileType_mp3, "mp3"},   
         {eFileType_aiff, "aiff"},
         {eFileType_info, "info"}, 
         {eFileType_text, "text"},
@@ -81,6 +88,9 @@ eAudioFileType_def getAudioFileType(const std::string &filepath)
     if (ext == ".wav")
         return eFileType_wav;
 
+    if (ext == ".mp3")
+        return eFileType_mp3;
+
     if (ext == ".aiff")
         return eFileType_aiff;
 
@@ -106,13 +116,13 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
 {
     if (sFilePath.empty())
     {
-        LogError("file path not set");
+        LogDebug("file path not set");
         return nullptr;
     }
 
     if (numChannels < 1 && mode == eFileIoMode_def::eFileIoMode_output)
     {
-        LogError("number of channels MUST be > 0 for output files");
+        LogDebug("number of channels MUST be > 0 for output files");
         return nullptr;
     }
 
@@ -124,7 +134,7 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
     {
         if (numChannels < 1)
         {
-            LogError("number of channels MUST be > 0 for raw audio files");
+            LogDebug("number of channels MUST be > 0 for raw audio files");
             return pAFIO;
         }
 
@@ -144,13 +154,13 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
 
         if (!pRawFileIO->openFile(mode, sFilePath))
         {
-            LogError("unable to open file={}", sFilePath);
+            LogDebug("unable to open file={}", sFilePath);
             return pAFIO;
         }
 
         if (pRawFileIO->getNumChannels() != (int)numChannels)
         {
-            LogError("file does not have correct number of channels");
+            LogDebug("file does not have correct number of channels");
             return pAFIO;
         }
 
@@ -171,7 +181,7 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
 
         if (!pWavFileIO->openFile(mode, sFilePath))
         {
-            LogError("unable to open file={}", sFilePath);
+            LogDebug("unable to open file={}", sFilePath);
             return pAFIO;
         }
 
@@ -179,21 +189,55 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
         {
             if (pWavFileIO->getNumChannels() != (int)numChannels)
             {
-                LogError("file does not have correct number of channels");
+                LogDebug("file does not have correct number of channels");
                 return pAFIO;
             }
         }
 
         pAFIO = pWavFileIO;
     }
+#ifdef USE_DR_MP3            
+    else if (eFileType == eFileType_mp3)
+    {
+        std::shared_ptr<CWavFileIO> pWavFileIO = 
+            std::make_shared<CWavFileIO>(numChannels);
+
+        if (frameRate > 0)
+            pWavFileIO->setSampleRate(frameRate);
+
+        if (blockSize > 0)
+            pWavFileIO->setIoBlockSize(blockSize);
+
+        pWavFileIO->setSampleSize(bitsPerSasmple);            /// this also sets the "frameSize"
+
+        if (!pWavFileIO->openFile(mode, sFilePath))
+        {
+            LogDebug("unable to open file={}", sFilePath);
+            return pAFIO;
+        }
+
+        if (mode == eFileIoMode_def::eFileIoMode_output)
+        {
+            if (pWavFileIO->getNumChannels() != (int)numChannels)
+            {
+                LogDebug("file does not have correct number of channels");
+                return pAFIO;
+            }
+        }
+
+        pAFIO = pWavFileIO;
+    }
+#endif
 
     return pAFIO;
 }
 
 
+/// CAudioFileIO class functions
+
 CAudioFileIO::CAudioFileIO() 
 {
-    m_numChannels       = 0;
+    m_numChls       = 0;
     m_nFrameSize        = 0;
     m_sampleRate        = 0;
     m_sFilePath         = "";
@@ -211,7 +255,7 @@ CAudioFileIO::CAudioFileIO()
 
 
 CAudioFileIO::CAudioFileIO(unsigned int numChannels) :
-    m_numChannels(numChannels)
+    m_numChls(numChannels)
 {
     m_nFrameSize        = (numChannels * sizeof(int16_t));
     m_sampleRate        = 0;
@@ -230,7 +274,7 @@ CAudioFileIO::CAudioFileIO(unsigned int numChannels) :
 
 
 CAudioFileIO::CAudioFileIO(const unsigned int numChannels, const std::string &sFilePath) :
-    m_numChannels(numChannels)
+    m_numChls(numChannels)
 {
     m_nFrameSize        = (numChannels * sizeof(int16_t));
     m_sampleRate        = 0;
@@ -270,7 +314,7 @@ void CAudioFileIO::setLoopingRead(bool value)
 
 void CAudioFileIO::setNumChannels(const unsigned int numChls)
 {
-    m_numChannels = numChls;
+    m_numChls = numChls;
     m_nFrameSize = (numChls * (m_nBitsPerSample / 8));
 }
 
@@ -301,7 +345,7 @@ eAudioFileType_def CAudioFileIO::getFileType()
 
 int CAudioFileIO::getNumChannels()
 {
-    return (int)m_numChannels;
+    return (int)m_numChls;
 }
 
 
@@ -323,11 +367,11 @@ void CAudioFileIO::setSampleSize(int numBits)
         m_nBitsPerSample = numBits;
 
     if (m_nBitsPerSample == 32)
-        m_nFrameSize  = (m_numChannels * sizeof(int32_t));
+        m_nFrameSize  = (m_numChls * sizeof(int32_t));
     else if (m_nBitsPerSample == 8)
-        m_nFrameSize  = (m_numChannels * sizeof(int8_t));
+        m_nFrameSize  = (m_numChls * sizeof(int8_t));
     else
-        m_nFrameSize  = (m_numChannels * sizeof(int16_t));
+        m_nFrameSize  = (m_numChls * sizeof(int16_t));
 }
 
 
@@ -352,11 +396,12 @@ int CAudioFileIO::getCurrentFrameIndex() const
 bool CAudioFileIO::resetPlayPosition()
 {
     m_nCurrentFrameIdx = 0;
-    //m_lCurrentFilePos = 0;
 
     return true;
 }
 
+
+/// CRawFileIO class functions
 
 int CRawFileIO::getNumericStringAt(const std::string &sText, const unsigned int pos)
 {
@@ -435,7 +480,7 @@ bool CRawFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
     infoFile.open(sFile, std::ios::in);
     if (!infoFile.is_open())
     {
-        LogError("parseInfoFile(): ERROR: unable to open 'raw' audio info file: {}", sFile);
+        LogDebug("parseInfoFile(): ERROR: unable to open 'raw' audio info file: {}", sFile);
         return false;
     }
 
@@ -532,7 +577,7 @@ bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 {
     LogTrace("file path={}", sFilePath);
 
-    if (m_bFileOpened || m_numChannels < 1)
+    if (m_bFileOpened || m_numChls < 1)
         return false;
 
     if (!sFilePath.empty())
@@ -545,23 +590,23 @@ bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
     if (m_nIoBlockSize < 1)
     {
-        /// Allocate just 1 frame (size of 'm_numChannels')
+        /// Allocate just 1 frame (size of 'm_numChls')
         if (m_nBitsPerSample == 32)
-            m_pFramebuffer = calloc(sizeof(int32_t), m_numChannels);
+            m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
         else if (m_nBitsPerSample == 8)
-            m_pFramebuffer = calloc(sizeof(int8_t), m_numChannels);
+            m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
         else
-            m_pFramebuffer = calloc(sizeof(int16_t), m_numChannels);
+            m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
     }
     else
     {
-        /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChannels')
+        /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
         if (m_nBitsPerSample == 32)
-            m_pFramebuffer = calloc(sizeof(int32_t), (m_numChannels * m_nIoBlockSize));
+            m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
         else if (m_nBitsPerSample == 8)
-            m_pFramebuffer = calloc(sizeof(int8_t), (m_numChannels * m_nIoBlockSize));
+            m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
         else
-            m_pFramebuffer = calloc(sizeof(int16_t), (m_numChannels * m_nIoBlockSize));
+            m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
     }
 
     if (m_pFramebuffer == nullptr)
@@ -648,20 +693,20 @@ bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
                         infoText.append("SampleSize: " + sTmp + " \n");
 
-                        infoText.append("NumberOfChannels: " + std::to_string(m_numChannels) + " \n");
+                        infoText.append("NumberOfChannels: " + std::to_string(m_numChls) + " \n");
 
                         if (m_sampleRate != 0)
                             infoText.append("SampleRate: " + std::to_string(m_sampleRate) + " \n");
 
                         /// write "raw" file into to new text file
                         if (!fileInfo.writeBlock(infoText.c_str(), (unsigned int) infoText.size(), 1))
-                            LogError("write failed to audio output text info file failed, path={}", sFilePath);
+                            LogDebug("write failed to audio output text info file failed, path={}", sFilePath);
 
                         fileInfo.closeFile();
                     }
                     else
                     {
-                        LogError("failed to create audio output text info file, path={}", sFilePath);
+                        LogDebug("failed to create audio output text info file, path={}", sFilePath);
                     }
                 }
             }
@@ -684,7 +729,7 @@ long CRawFileIO::getNumFrames()
 {
     LogTrace("getting number of frame in the file");
 
-    if (!m_bFileOpened || m_eMode == eFileIoMode_unknown || m_eMode == eFileIoMode_output || m_numChannels < 1)
+    if (!m_bFileOpened || m_eMode == eFileIoMode_unknown || m_eMode == eFileIoMode_output || m_numChls < 1)
         return -1;
 
     /// Get the file length (which sets file pointer to EOF)
@@ -742,15 +787,34 @@ bool CRawFileIO::closeFile()
 }
 
 
+bool CRawFileIO::isEOF()
+{
+    if (m_nCurrentFrameIdx >= m_nFramesInFile)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+
+
 /// Read a sample from a "raw" data file
 bool CRawFileIO::readSample(int16_t &data, const unsigned int chl)
 {
     LogTrace("channel={}", chl);
 
-    if (!m_bFileOpened || m_pFramebuffer == nullptr || chl >= m_numChannels || m_nBitsPerSample != 16)
+    if (!m_bFileOpened || m_pFramebuffer == nullptr || chl >= m_numChls || m_nBitsPerSample != 16)
+    {
         return false;
+    }
 
-    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChannels)
+    if (isEOF() == true)
+    {
+        return false;
+    }
+
+    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChls)
     /// at a time from the input file, and stores it in the
     /// FrameBuffer.	 It then gets sample values from the buffer.
 
@@ -760,10 +824,10 @@ bool CRawFileIO::readSample(int16_t &data, const unsigned int chl)
     }
     else
     {
-        data = *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl);
+        data = *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl);
     }
 
-    if ((int)chl != m_lastChlRead)
+    if ((int) chl != m_lastChlRead)
     {
         /// This logic makes sure the same channel number
         /// isn't being read over and over.
@@ -780,10 +844,17 @@ bool CRawFileIO::readSample(int32_t &data, const unsigned int chl)
 {
     LogTrace("channel={}", chl);
 
-    if (!m_bFileOpened || m_pFramebuffer == nullptr || chl >= m_numChannels || m_nBitsPerSample != 32)
+    if (!m_bFileOpened || m_pFramebuffer == nullptr || chl >= m_numChls || m_nBitsPerSample != 32)
+    {
         return false;
+    }
 
-    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChannels)
+    if (isEOF() == true)
+    {
+        return false;
+    }
+   
+    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChls)
     /// at a time from the input file, and stores it in the
     /// FrameBuffer.	 It then gets sample values from the buffer.
 
@@ -793,10 +864,10 @@ bool CRawFileIO::readSample(int32_t &data, const unsigned int chl)
     }
     else
     {
-        data = *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl);
+        data = *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl);
     }
 
-    if ((int)chl != m_lastChlRead)
+    if ((int) chl != m_lastChlRead)
     {
         /// This logic makes sure the same channel number
         /// isn't being read over and over.
@@ -814,44 +885,123 @@ bool CRawFileIO::readBlock(void *pData, const unsigned int numFrames)
     LogTrace("numFrames={}", numFrames);
 
     if (!m_bFileOpened || pData == nullptr || numFrames < 1)
+    {
         return false;
+    }
 
-    if (m_lCurrentFilePos + (m_nFrameSize * numFrames) > m_lFileSize)
+    if (isEOF() == true)
+    {
+        return false;
+    }
+
+    auto nFramesLeftInFile = ((m_lFileSize - m_lCurrentFilePos) / m_nFrameSize);
+
+    unsigned int nReadSize = 0;
+
+    bool status = false;
+
+    if (nFramesLeftInFile < numFrames)
     {
         /// If our next read would exceed the file size...
+
+        if (nFramesLeftInFile > 0)
+        {
+            // read what's left in the file
+
+            status = m_fileIO.readBlock(pData, m_nFrameSize, nFramesLeftInFile);
+
+            if (status == false)
+            {
+                return false;
+            }
+        }
+
+        auto nNumFramesNotRead = (numFrames - nFramesLeftInFile);
+
         /// If the "UseLoopingRead" flag = false
         /// don't try to read anymore.
         if (!m_bUseLoopingRead)
-            return false;
+        {
+            if (nFramesLeftInFile < 0)
+            {
+                // there was nothing left to read
+                return false;
+            }
+
+            // zero out/pad the rest of the samples (from chosen read size)
+
+            auto nPadSize = 0;
+
+            void *pPadStart = nullptr;
+
+            if (m_nBitsPerSample == 16)
+            {
+                nPadSize = ((numFrames - nFramesLeftInFile) * m_nFrameSize * sizeof(int16_t));
+                pPadStart = (void *) (((int16_t *) pData) + (nFramesLeftInFile * m_nFrameSize));
+            }
+            else if (m_nBitsPerSample == 32)
+            {
+                nPadSize = ((numFrames - nFramesLeftInFile) * m_nFrameSize * sizeof(int32_t));
+                pPadStart = (void *) (((int32_t *) pData) + (nFramesLeftInFile * m_nFrameSize));
+            }
+            else
+            {
+                return false;
+            }
+
+            memset(pPadStart, 0, nPadSize);
+
+            return true;
+        }
 
         /// If the "UseLoopingRead" flag = true
         /// seek back to the beginning of the file
 
         if (!m_fileIO.setFilePosition(0))
         {
+            // set file pos failed
             m_fileIO.closeFile();
             return false;
         }
 
         m_lCurrentFilePos = 0;
+
+        m_nCurrentFrame = 0;
+
+        nReadSize = nNumFramesNotRead;
+
+        status = m_fileIO.readBlock(pData, m_nFrameSize, nReadSize);
+
+        if (status == false)
+        {
+            return false;
+        }
     }
+    else
+    {
+        /// Read n frames of samples from the input file.
 
-    /// Read 1 frame of samples from the input file.
+        nReadSize = numFrames;
 
-    bool status = m_fileIO.readBlock(pData, m_nFrameSize, numFrames);
+        status = m_fileIO.readBlock(pData, m_nFrameSize, nReadSize);
+    }
 
     /// Update the file read position
 #ifdef UPDATE_FILE_POSITION
     m_lCurrentFilePos = m_fileIO.getFilePosition();
 #else
-    auto pos = m_fileIO.getLastIoSize();
+    auto nReadSize = m_fileIO.getLastIoSize();
 
-    if (pos > 0)
-        m_lCurrentFilePos += pos;
+    if (nReadSize > 0)
+    {
+        m_lCurrentFilePos += nReadSize;
+    }
 #endif
 
-    if (status)
-        m_nCurrentFrame += numFrames;
+    if (status == true)
+    {
+        m_nCurrentFrame += nReadSize;
+    }
 
     return status;
 }
@@ -859,20 +1009,20 @@ bool CRawFileIO::readBlock(void *pData, const unsigned int numFrames)
 
 bool CRawFileIO::writeSample(const int16_t data, const unsigned int chl)
 {
-    if (chl >= m_numChannels || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr || m_nBitsPerSample != 16)
+    if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr || m_nBitsPerSample != 16)
     {
         LogDebug
         (
             "bad param - chl={}, numChannels={}, eMode={}", 
             chl, 
-            m_numChannels,
+            m_numChls,
             (int) m_eMode
         );
         return false;
     }
 
     /// This "write" logic writes 1 "frame" 
-    /// (int16_t sample * m_numChannels)
+    /// (int16_t sample * m_numChls)
     /// at a time to the output file.
 
     /// First set the sample value for each channel.
@@ -883,7 +1033,7 @@ bool CRawFileIO::writeSample(const int16_t data, const unsigned int chl)
     }
     else
     {
-        *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl) = data;
+        *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl) = data;
     }
 
     if ((int)chl != m_lastChlWritten)
@@ -904,19 +1054,19 @@ bool CRawFileIO::writeSample(const int16_t data, const unsigned int chl)
 
 bool CRawFileIO::writeSample(const int32_t data, const unsigned int chl)
 {
-    if (chl >= m_numChannels || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr || m_nBitsPerSample != 32)
+    if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr || m_nBitsPerSample != 32)
     {
         LogDebug
         (
             "bad param - chl={}, numChannels={}, eMode={}", 
             chl, 
-            m_numChannels,
+            m_numChls,
             (int) m_eMode
         );
         return false;
     }
 
-    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChannels)
+    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChls)
     /// at a time to the output file.
 
     /// First set the sample value for each channel.
@@ -927,7 +1077,7 @@ bool CRawFileIO::writeSample(const int32_t data, const unsigned int chl)
     }
     else
     {
-        *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl) = data;
+        *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl) = data;
     }
 
     if ((int)chl != m_lastChlWritten)
@@ -993,6 +1143,11 @@ bool CRawFileIO::nextFrame()
         {
             case eFileIoMode_input:
                 {
+                    if (isEOF() == true)
+                    {
+                        return false;
+                    }
+
                     auto status = readBlock(m_pFramebuffer, 1);
                     if (!status)
                         return false;
@@ -1025,6 +1180,11 @@ bool CRawFileIO::nextFrame()
             {
                 case eFileIoMode_input:
                     {
+                        if (isEOF() == true)
+                        {
+                            return false;
+                        }
+
                         auto status = readBlock(m_pFramebuffer, m_nIoBlockSize);
                         if (!status)
                             return false;
@@ -1076,6 +1236,18 @@ bool CRawFileIO::setCurrentFrame(unsigned int frameNum)
 }
 
 
+bool CRawFileIO::resetPlayPosition()
+{
+    setCurrentFrame(0);
+
+    CAudioFileIO::resetPlayPosition();
+
+    return true;
+}
+
+
+/// CWavFileIO class functions
+
 CWavFileIO::CWavFileIO(const unsigned int numChannels) :
     CAudioFileIO(numChannels)
 {
@@ -1083,9 +1255,12 @@ CWavFileIO::CWavFileIO(const unsigned int numChannels) :
 
     m_eMode = eFileIoMode_def::eFileIoMode_unknown;
 
-#ifdef USE_DR_WAV
-    m_pFramebuffer = nullptr;
+    m_pFramebuffer           = nullptr;
+
+#ifndef USE_DR_WAV
+    m_blockSize = 0;
 #endif
+
     m_nCurrentFrameIdx       = 0;
     m_currChannel            = 0;
     m_lastChlRead            = -1;
@@ -1101,11 +1276,12 @@ CWavFileIO::CWavFileIO(const unsigned int numChannels, const std::string &sFileP
 
     m_eMode = eFileIoMode_def::eFileIoMode_unknown;
 
-#ifdef USE_DR_WAV
     m_pFramebuffer           = nullptr;
-#else
+
+#ifndef USE_DR_WAV
     m_blockSize              = 0;
 #endif
+
     m_nCurrentFrameIdx       = 0;
     m_currChannel            = 0;
     m_lastChlRead            = -1;
@@ -1131,8 +1307,7 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
     if (m_pFramebuffer != nullptr)
     {
-        /// LogWarning("CWavFileIO::openFile() - 
-        /// openFile called ({}) while a file is already open ", sFilePath);
+        LogDebug("CWavFileIO::openFile() - openFile called ({}) while a file is already open ", sFilePath);
         return false;
     }
 
@@ -1141,7 +1316,7 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
     if (m_sFilePath.empty())
     {
-        LogError("file path is empty");
+        LogDebug("file path is empty");
         return false;
     }
 
@@ -1158,19 +1333,19 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
                 auto status = m_audioFile.load(m_sFilePath);
                 if (!status)
                 {
-                    LogError("audiofile load failed");
+                    LogDebug("audiofile load failed");
                     return false;
                 }
 
                 if (m_audioFile.getNumSamplesPerChannel() < 1)
                 {
-                    LogError("audiofile does not contain AT LEAST 1 frame");
+                    LogDebug("audiofile does not contain AT LEAST 1 frame");
                     return false;
                 }
 
-                if (m_numChannels != (unsigned int)m_audioFile.getNumChannels())
+                if (m_numChls != (unsigned int)m_audioFile.getNumChannels())
                 {
-                    LogError("bad audiofile num Channels");
+                    LogDebug("bad audiofile num Channels");
                     return false;
                 }
 
@@ -1178,54 +1353,59 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
                 {
                     if (m_sampleRate != (unsigned int)m_audioFile.getSampleRate())
                     {
-                        LogError("bad audiofile sample rate");
+                        LogDebug("bad audiofile sample rate");
                         return false;
                     }
                 }
+
+                m_nFramesInFile = m_audioFile.getNumSamplesPerChannel();
 #else
                 LogTrace("loading WAV file for input");
                 if (!drwav_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
                 {
-                    LogError("problem during dr_wav input file init, file={}", m_sFilePath);
+                    LogDebug("problem during dr_wav input file init, file={}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
 
-                m_numChannels = (unsigned int) m_audioFile.channels;
+                m_numChls = (unsigned int) m_audioFile.channels;
                 m_sampleRate  = (int) m_audioFile.sampleRate;
 
                 if (m_nIoBlockSize < 1)
                 {
-                    /// Allocate just 1 frame (size of 'm_numChannels')
+                    /// Allocate just 1 frame (size of 'm_numChls')
                     if (m_nBitsPerSample == 32)
-                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
                     else if (m_nBitsPerSample == 8)
-                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
                     else
-                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
                 }
                 else
                 {
-                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChannels')
+                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
                     if (m_nBitsPerSample == 32)
-                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
                     else if (m_nBitsPerSample == 8)
-                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
                     else
-                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
                 }
 
                 if (m_pFramebuffer == nullptr)
                 {
-                    LogError("invalid frame buffer pointer");
+                    LogDebug("invalid frame buffer pointer");
                     return false;
                 }
 
                 drwav_uint64 numFrames = 0;
-                auto         status    = drwav_get_length_in_pcm_frames(&m_audioFile, &numFrames);
+
+                auto status = drwav_get_length_in_pcm_frames(&m_audioFile, &numFrames);
 
                 if (status == DRWAV_SUCCESS)
-                    m_nFramesInFile = (long)numFrames;
+                    m_nFramesInFile = (long) numFrames;
+                else
+                    m_nFramesInFile = m_audioFile.totalPCMFrameCount;
 
                 nextFrame();
 #endif
@@ -1237,7 +1417,7 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 #ifndef USE_DR_WAV
                 LogTrace("opening WAV file for output");
 
-                m_audioFile.setNumChannels(m_numChannels);
+                m_audioFile.setNumChannels(m_numChls);
                 if (m_sampleRate != 0)
                     m_audioFile.setSampleRate(m_sampleRate);
 
@@ -1251,41 +1431,41 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
                 dataFormat.container     = drwav_container_riff; /// <-- drwav_container_riff = normal WAV files,
                                                                  /// drwav_container_w64 = Sony Wave64.
                 dataFormat.format        = DR_WAVE_FORMAT_PCM;   /// <-- Any of the DR_WAVE_FORMAT_* codes.
-                dataFormat.channels      = m_numChannels;
+                dataFormat.channels      = m_numChls;
                 dataFormat.sampleRate    = m_sampleRate;
                 dataFormat.bitsPerSample = m_nBitsPerSample;
 
                 if (!drwav_init_file_write(&m_audioFile, m_sFilePath.c_str(), &dataFormat, nullptr))
                 {
-                    LogError("problem during dr_wav output file init, file={}", m_sFilePath);
+                    LogDebug("problem during dr_wav output file init, file={}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
 
                 if (m_nIoBlockSize < 1)
                 {
-                    /// Allocate just 1 frame (size of 'm_numChannels')
+                    /// Allocate just 1 frame (size of 'm_numChls')
                     if (m_nBitsPerSample == 32)
-                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
                     else if (m_nBitsPerSample == 8)
-                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
                     else
-                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
                 }
                 else
                 {
-                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChannels')
+                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
                     if (m_nBitsPerSample == 32)
-                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
                     else if (m_nBitsPerSample == 8)
-                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
                     else
-                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
                 }
 
                 if (m_pFramebuffer == nullptr)
                 {
-                    LogError("invalid frame buffer pointer");
+                    LogDebug("invalid frame buffer pointer");
                     return false;
                 }
 
@@ -1302,39 +1482,41 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
                 auto status = m_audioFile.load(m_sFilePath);
                 if (!status)
                 {
-                    m_audioFile.setNumChannels(m_numChannels);
+                    m_audioFile.setNumChannels(m_numChls);
                     if (m_sampleRate != 0)
                         m_audioFile.setSampleRate(m_sampleRate);
                 }
+
+                m_nFramesInFile = m_audioFile.getNumSamplesPerChannel();
 #else
                 LogTrace("opening WAV file");
 
                 if (!drwav_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
                 {
-                    LogError("problem during dr_wav file I/O init, file={}", m_sFilePath);
+                    LogDebug("problem during dr_wav file I/O init, file={}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
 
                 if (m_nIoBlockSize < 1)
                 {
-                    /// Allocate just 1 frame (size of 'm_numChannels')
+                    /// Allocate just 1 frame (size of 'm_numChls')
                     if (m_nBitsPerSample == 32)
-                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
                     else if (m_nBitsPerSample == 8)
-                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
                     else
-                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChannels);
+                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
                 }
                 else
                 {
-                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChannels')
+                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
                     if (m_nBitsPerSample == 32)
-                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
                     else if (m_nBitsPerSample == 8)
-                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
                     else
-                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChannels * m_nIoBlockSize));
+                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
                 }
 
                 if (m_pFramebuffer == nullptr)
@@ -1342,10 +1524,12 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
                 drwav_uint64 numFrames = 0;
 
-                auto         status    = drwav_get_length_in_pcm_frames(&m_audioFile, &numFrames);
+                auto status = drwav_get_length_in_pcm_frames(&m_audioFile, &numFrames);
 
                 if (status == DRWAV_SUCCESS)
                     m_nFramesInFile = (long)numFrames;
+                else
+                    m_nFramesInFile = m_audioFile.totalPCMFrameCount;
 
                 nextFrame();
 #endif //	USE_DR_WAV
@@ -1434,7 +1618,7 @@ void CWavFileIO::setBlockSize(const unsigned int blockSize)
 {
     m_blockSize = blockSize;
 
-    m_audioFile.setAudioBufferSize(m_numChannels, m_blockSize);
+    m_audioFile.setAudioBufferSize(m_numChls, m_blockSize);
 }
 #endif
 
@@ -1454,12 +1638,12 @@ int CWavFileIO::getSampleRate()
 int CWavFileIO::getNumChannels()
 {
 #ifndef USE_DR_WAV
-    m_numChannels = (unsigned int)m_audioFile.getNumChannels();
+    m_numChls = (unsigned int)m_audioFile.getNumChannels();
 #else
-    m_numChannels = (unsigned int)m_audioFile.channels;
+    m_numChls = (unsigned int)m_audioFile.channels;
 #endif
 
-    return (int)m_numChannels;
+    return (int)m_numChls;
 }
 
 
@@ -1473,11 +1657,24 @@ int CWavFileIO::getNumFrames() const
 }
 
 
+bool CWavFileIO::isEOF()
+{
+    long nFramesLeftInFile = (long) (m_nFramesInFile - m_nCurrentFrame);
+
+    if (nFramesLeftInFile < 1)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+
 bool CWavFileIO::readSample(int16_t &data, const unsigned int chl)
 {
     LogTrace("channel={}", chl);
 
-    if (chl >= m_numChannels || m_eMode == eFileIoMode_output || m_nBitsPerSample != 16)
+    if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 16)
         return false;
 
 #ifndef USE_DR_WAV
@@ -1485,10 +1682,14 @@ bool CWavFileIO::readSample(int16_t &data, const unsigned int chl)
 #else
     auto totalNumFrames = m_audioFile.totalPCMFrameCount;
 #endif
-    if (m_nCurrentFrame > (int)totalNumFrames)
+
+    if (m_nCurrentFrame >= (int) totalNumFrames)
     {
         if (!m_bUseLoopingRead)
+        {
+            // m_bUseLoopingRead = false & EOF
             return false;
+        }
 
         m_nCurrentFrame = 0;
     }
@@ -1510,7 +1711,7 @@ bool CWavFileIO::readSample(int16_t &data, const unsigned int chl)
     if (m_pFramebuffer == nullptr)
         return false;
 
-    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChannels)
+    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChls)
     /// at a time from the input file, and stores it in the
     /// FrameBuffer.	 It then gets sample values from the buffer.
 
@@ -1523,7 +1724,7 @@ bool CWavFileIO::readSample(int16_t &data, const unsigned int chl)
         if (m_nCurrentFrameIdx >= m_nIoBlockSize)
             return false;
 
-        data = *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl);
+        data = *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl);
     }
 
     if ((int)chl != m_lastChlRead)
@@ -1544,7 +1745,7 @@ bool CWavFileIO::readSample(int32_t &data, const unsigned int chl)
 {
     LogTrace("channel={}", chl);
 
-    if (chl >= m_numChannels || m_eMode == eFileIoMode_output || m_nBitsPerSample != 32)
+    if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 32)
         return false;
 
 #ifndef USE_DR_WAV
@@ -1552,10 +1753,14 @@ bool CWavFileIO::readSample(int32_t &data, const unsigned int chl)
 #else
     auto totalNumFrames = m_audioFile.totalPCMFrameCount;
 #endif
-    if (m_nCurrentFrame > (int)totalNumFrames)
+
+    if (m_nCurrentFrame >= (int) totalNumFrames)
     {
         if (!m_bUseLoopingRead)
+        {
+            // m_bUseLoopingRead = false & EOF
             return false;
+        }
 
         m_nCurrentFrame = 0;
     }
@@ -1577,7 +1782,7 @@ bool CWavFileIO::readSample(int32_t &data, const unsigned int chl)
     if (m_pFramebuffer == nullptr)
         return false;
 
-    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChannels)
+    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChls)
     /// at a time from the input file, and stores it in the
     /// FrameBuffer.	 It then gets sample values from the buffer.
 
@@ -1590,7 +1795,7 @@ bool CWavFileIO::readSample(int32_t &data, const unsigned int chl)
         if (m_nCurrentFrameIdx >= m_nIoBlockSize)
             return false;
 
-        data = *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl);
+        data = *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl);
     }
 
     if ((int)chl != m_lastChlRead)
@@ -1607,45 +1812,14 @@ bool CWavFileIO::readSample(int32_t &data, const unsigned int chl)
 }
 
 
-bool CWavFileIO::readBlock(void *pData, const unsigned int numFrames)
+bool CWavFileIO::getSamples(void *pData, unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
-
-    if (pData == nullptr || m_eMode == eFileIoMode_output)
-    {
-        LogDebug
-        (
-            "bad param - eMode={}", 
-            (int) m_eMode
-        );
-        return false;
-    }
-
-#ifndef USE_DR_WAV
-    auto totalNumFrames = m_audioFile.getNumSamplesPerChannel();
-#else
-    auto totalNumFrames = m_audioFile.totalPCMFrameCount;
-#endif
-    if ((m_nCurrentFrame + numFrames) > (unsigned int)totalNumFrames)
-    {
-        if (!m_bUseLoopingRead)
-            return false;
-
-        m_nCurrentFrame = 0;
-
-#ifdef USE_DR_WAV
-        drwav_bool32 status = drwav_seek_to_pcm_frame(&m_audioFile, (drwav_uint64)0);
-        if (!status)
-            LogWarning("drwav_seek_to_pcm_frame to frame 0 failed");
-#endif
-    }
-
 #ifndef USE_DR_WAV
 
     unsigned int readOffset = 0;
     for (unsigned int i = 0; i < numFrames; i++)
     {
-        for (unsigned int chl = 0; chl < m_numChannels; chl++)
+        for (unsigned int chl = 0; chl < m_numChls; chl++)
         {
             int16_t iTmp  = 
                 ConvertFloatToInt16(m_audioFile.samples[chl][m_nCurrentFrame + i]);
@@ -1653,7 +1827,9 @@ bool CWavFileIO::readBlock(void *pData, const unsigned int numFrames)
             *((int16_t *) pData + readOffset++) = iTmp;
         }
     }
+
 #else
+
     drwav_uint64 framesRead = 0;
     //auto framesRead = drwav_read_pcm_frames(&m_audioFile, numFrames, pData);
     if (m_nBitsPerSample == 16)
@@ -1672,10 +1848,115 @@ bool CWavFileIO::readBlock(void *pData, const unsigned int numFrames)
     }
 
     if (framesRead != (drwav_uint64)numFrames)
+    {
         return false;
+    }
+
 #endif
 
-    m_nCurrentFrame += numFrames;
+    return true;
+}
+
+
+bool CWavFileIO::readBlock(void *pData, const unsigned int numFrames)
+{
+    LogTrace("numFrames={}", numFrames);
+
+    if (pData == nullptr || m_eMode == eFileIoMode_output)
+    {
+        LogDebug
+        (
+            "bad param - eMode={}", 
+            (int) m_eMode
+        );
+
+        return false;
+    }
+
+    if (isEOF() == true && m_bUseLoopingRead == false)
+    {
+        return false;
+    }
+
+    auto nFramesLeftInFile = (m_nFramesInFile - m_nCurrentFrame);
+
+    unsigned int nReadSize = 0;
+
+    bool status = false;
+
+    if (nFramesLeftInFile < (long) numFrames)
+    {
+        if (nFramesLeftInFile > 0)
+        {
+            status = getSamples(pData, nFramesLeftInFile);
+
+            if (status == false)
+            {
+                return false;
+            }
+
+            m_nCurrentFrame += nFramesLeftInFile;
+        }
+
+        if (!m_bUseLoopingRead)
+        {
+            if (nFramesLeftInFile < 1)
+            {
+                return false;
+            }
+
+            auto nPadSize = 0;
+
+            void *pPadStart = nullptr;
+
+            if (m_nBitsPerSample == 16)
+            {
+                nPadSize = ((numFrames - nFramesLeftInFile) * m_nFrameSize * sizeof(int16_t));
+                pPadStart = (void *) (((int16_t *) pData) + (nFramesLeftInFile * m_nFrameSize));
+            }
+            else if (m_nBitsPerSample == 32)
+            {
+                nPadSize = ((numFrames - nFramesLeftInFile) * m_nFrameSize * sizeof(int32_t));
+                pPadStart = (void *) (((int32_t *) pData) + (nFramesLeftInFile * m_nFrameSize));
+            }
+            else
+            {
+                return false;
+            }
+
+            memset(pPadStart, 0, nPadSize);
+
+            return true;
+        }
+
+        m_nCurrentFrame = 0;
+
+#ifdef USE_DR_WAV
+        drwav_bool32 status = drwav_seek_to_pcm_frame(&m_audioFile, (drwav_uint64) 0);
+        if (!status)
+        {
+            LogWarning("drwav_seek_to_pcm_frame to frame 0 failed");
+            return false;
+        }
+#endif
+
+        nReadSize = (numFrames - nFramesLeftInFile);
+
+        status = getSamples(pData, nReadSize);
+    }
+    else
+    {
+        nReadSize = numFrames;
+
+        status = getSamples(pData, nReadSize);
+    }
+
+    if (status == false)
+    {
+        return false;
+    }
+
+    m_nCurrentFrame += nReadSize;
 
     return true;
 }
@@ -1683,13 +1964,13 @@ bool CWavFileIO::readBlock(void *pData, const unsigned int numFrames)
 
 bool CWavFileIO::writeSample(const int16_t data, const unsigned int chl)
 {
-    if (chl >= m_numChannels || m_eMode == eFileIoMode_input || m_nBitsPerSample != 16)
+    if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_nBitsPerSample != 16)
     {
         LogDebug
         (
             "bad param - chl={}, numChannels={}, eMode={}", 
             chl, 
-            m_numChannels,
+            m_numChls,
             (int) m_eMode
         );
 
@@ -1710,7 +1991,7 @@ bool CWavFileIO::writeSample(const int16_t data, const unsigned int chl)
     if (m_pFramebuffer == nullptr)
         return false;
 
-    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChannels)
+    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChls)
     /// at a time to the output file.
 
     if (m_nCurrentFrameIdx < 1)
@@ -1722,7 +2003,7 @@ bool CWavFileIO::writeSample(const int16_t data, const unsigned int chl)
         if (m_nCurrentFrameIdx >= m_nIoBlockSize)
             return false;
 
-        *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl) = data;
+        *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl) = data;
     }
 #endif
 
@@ -1741,13 +2022,13 @@ bool CWavFileIO::writeSample(const int16_t data, const unsigned int chl)
 
 bool CWavFileIO::writeSample(const int32_t data, const unsigned int chl)
 {
-    if (chl >= m_numChannels || m_eMode == eFileIoMode_input || m_nBitsPerSample != 32)
+    if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_nBitsPerSample != 32)
     {
         LogDebug
         (
             "bad param - chl={}, numChannels={}, eMode={}", 
             chl, 
-            m_numChannels,
+            m_numChls,
             (int) m_eMode
         );
         return false;
@@ -1767,7 +2048,7 @@ bool CWavFileIO::writeSample(const int32_t data, const unsigned int chl)
     if (m_pFramebuffer == nullptr)
         return false;
 
-    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChannels)
+    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChls)
     /// at a time to the output file.
 
     if (m_nCurrentFrameIdx < 1)
@@ -1779,7 +2060,7 @@ bool CWavFileIO::writeSample(const int32_t data, const unsigned int chl)
         if (m_nCurrentFrameIdx >= m_nIoBlockSize)
             return false;
 
-        *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChannels) + chl) = data;
+        *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl) = data;
     }
 #endif
 
@@ -1810,9 +2091,9 @@ bool CWavFileIO::writeBlock(const void *pData, const unsigned int numFrames)
         return false;
     }
 
-    if (m_numChannels < 1)
+    if (m_numChls < 1)
     {
-        LogDebug("invalid number of channels (m_numChannels <= 0)");
+        LogDebug("invalid number of channels (m_numChls <= 0)");
         return false;
     }
 
@@ -1823,7 +2104,7 @@ bool CWavFileIO::writeBlock(const void *pData, const unsigned int numFrames)
     unsigned int writeOffset = 0;
     for (unsigned int i = 0; i < numFrames; i++)
     {
-        for (unsigned int chl = 0; chl < m_numChannels; chl++)
+        for (unsigned int chl = 0; chl < m_numChls; chl++)
         {
             if (((int16_t *) pData + writeOffset) == nullptr)
             {
@@ -1876,6 +2157,11 @@ bool CWavFileIO::nextFrame()
         case eFileIoMode_input:
             {
                 m_lastChlRead = -1;
+
+                if (isEOF() == true)
+                {
+                    return false;
+                }
             }
             break;
 
@@ -2005,6 +2291,703 @@ bool CWavFileIO::setCurrentFrame(unsigned int frameNum)
     return true;
 }
 
+
+bool CWavFileIO::resetPlayPosition()
+{
+    setCurrentFrame(0);
+
+    CAudioFileIO::resetPlayPosition();
+
+    return true;
+}
+
+
+#ifdef  USE_DR_MP3
+
+/// CMp3FileIO class functions
+
+CMp3FileIO::CMp3FileIO(const unsigned int numChannels) :
+    CAudioFileIO(numChannels)
+{
+    LogTrace("class created");
+
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+
+    m_pFramebuffer = nullptr;
+    m_nCurrentFrameIdx       = 0;
+    m_currChannel            = 0;
+    m_lastChlRead            = -1;
+    m_lastChlWritten         = -1;
+    m_bWriteFileForEachFrame = false;
+}
+
+
+CMp3FileIO::CMp3FileIO(const unsigned int numChannels, const std::string &sFilePath) :
+    CAudioFileIO(numChannels, sFilePath)
+{
+    LogTrace("class created");
+
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+
+    m_pFramebuffer           = nullptr;
+    m_nCurrentFrameIdx       = 0;
+    m_currChannel            = 0;
+    m_lastChlRead            = -1;
+    m_lastChlWritten         = -1;
+    m_bWriteFileForEachFrame = false;
+}
+
+
+CMp3FileIO::~CMp3FileIO()
+{
+    if (m_bFileOpened)
+        closeFile();
+
+    drmp3_uninit(&m_audioFile);
+}
+
+
+bool CMp3FileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
+{
+    LogTrace("file path={}", sFilePath);
+
+    if (m_pFramebuffer != nullptr)
+    {
+        /// LogWarning("CMp3FileIO::openFile() - 
+        /// openFile called ({}) while a file is already open ", sFilePath);
+        return false;
+    }
+
+    if (!sFilePath.empty())
+        m_sFilePath = sFilePath;
+
+    if (m_sFilePath.empty())
+    {
+        LogError("file path is empty");
+        return false;
+    }
+
+    m_eFileType = getAudioFileType(m_sFilePath);
+
+    m_eMode     = mode;
+    switch (m_eMode)
+    {
+        case eFileIoMode_input:
+            {
+                LogTrace("loading MP3 file for input");
+                if (!drmp3_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
+                {
+                    LogError("problem during dr_wav input file init, file={}", m_sFilePath);
+                    m_bFileOpened = false;
+                    return false;
+                }
+
+                m_numChls = (unsigned int) m_audioFile.channels;
+                m_sampleRate  = (int) m_audioFile.sampleRate;
+
+                if (m_nIoBlockSize < 1)
+                {
+                    /// Allocate just 1 frame (size of 'm_numChls')
+                    if (m_nBitsPerSample == 32)
+                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
+                    else if (m_nBitsPerSample == 8)
+                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
+                    else
+                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
+                }
+                else
+                {
+                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
+                    if (m_nBitsPerSample == 32)
+                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
+                    else if (m_nBitsPerSample == 8)
+                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
+                    else
+                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
+                }
+
+                if (m_pFramebuffer == nullptr)
+                {
+                    LogError("invalid frame buffer pointer");
+                    return false;
+                }
+
+                drmp3_uint64 numFrames = 0;
+                auto         status    = drmp3_get_length_in_pcm_frames(&m_audioFile, &numFrames);
+
+                if (status == DRWAV_SUCCESS)
+                    m_nFramesInFile = (long)numFrames;
+
+                nextFrame();
+            }
+            break;
+
+        case eFileIoMode_output:
+            {
+                LogTrace("opening MP3 file for output");
+
+                //drmp3_fmt             wavFmt;
+
+                drmp3_data_format       dataFormat;
+
+                dataFormat.container     = drwav_container_riff; /// <-- drwav_container_riff = normal WAV files,
+                                                                 /// drwav_container_w64 = Sony Wave64.
+                dataFormat.format        = DR_WAVE_FORMAT_MP3;   /// <-- Any of the DR_WAVE_FORMAT_* codes.
+                dataFormat.channels      = m_numChls;
+                dataFormat.sampleRate    = m_sampleRate;
+                dataFormat.bitsPerSample = m_nBitsPerSample;
+
+                if (!drmp3_init_file_write(&m_audioFile, m_sFilePath.c_str(), &dataFormat, nullptr))
+                {
+                    LogError("problem during dr_wav output file init, file={}", m_sFilePath);
+                    m_bFileOpened = false;
+                    return false;
+                }
+
+                if (m_nIoBlockSize < 1)
+                {
+                    /// Allocate just 1 frame (size of 'm_numChls')
+                    if (m_nBitsPerSample == 32)
+                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
+                    else if (m_nBitsPerSample == 8)
+                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
+                    else
+                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
+                }
+                else
+                {
+                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
+                    if (m_nBitsPerSample == 32)
+                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
+                    else if (m_nBitsPerSample == 8)
+                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
+                    else
+                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
+                }
+
+                if (m_pFramebuffer == nullptr)
+                {
+                    LogError("invalid frame buffer pointer");
+                    return false;
+                }
+
+                m_nFramesInFile = 0;
+            }
+            break;
+
+        case eFileIoMode_IO:
+            {
+                LogTrace("opening MP3 file");
+
+                if (!drmp3_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
+                {
+                    LogError("problem during dr_wav file I/O init, file={}", m_sFilePath);
+                    m_bFileOpened = false;
+                    return false;
+                }
+
+                if (m_nIoBlockSize < 1)
+                {
+                    /// Allocate just 1 frame (size of 'm_numChls')
+                    if (m_nBitsPerSample == 32)
+                        m_pFramebuffer = calloc(sizeof(int32_t), m_numChls);
+                    else if (m_nBitsPerSample == 8)
+                        m_pFramebuffer = calloc(sizeof(int8_t), m_numChls);
+                    else
+                        m_pFramebuffer = calloc(sizeof(int16_t), m_numChls);
+                }
+                else
+                {
+                    /// Allocate 'm_nIoBlockSize' (number of) frames (* size of 'm_numChls')
+                    if (m_nBitsPerSample == 32)
+                        m_pFramebuffer = calloc(sizeof(int32_t), (m_numChls * m_nIoBlockSize));
+                    else if (m_nBitsPerSample == 8)
+                        m_pFramebuffer = calloc(sizeof(int8_t), (m_numChls * m_nIoBlockSize));
+                    else
+                        m_pFramebuffer = calloc(sizeof(int16_t), (m_numChls * m_nIoBlockSize));
+                }
+
+                if (m_pFramebuffer == nullptr)
+                    return false;
+
+                drwav_uint64 numFrames = 0;
+
+                auto         status    = drmp3_get_length_in_pcm_frames(&m_audioFile, &numFrames);
+
+                if (status == DRWAV_SUCCESS)
+                    m_nFramesInFile = (long)numFrames;
+
+                nextFrame();
+            }
+            break;
+
+        default:
+            return false;
+    }
+
+    m_nCurrentFrameIdx = 0;
+    m_nIoCntr          = 0;
+    m_nCurrentFrame    = 0;
+    m_currChannel      = 0;
+    m_lastChlRead      = -1;
+    m_lastChlWritten   = -1;
+    m_bFileOpened      = true;
+
+    return true;
+}
+
+
+/**
+@note For "mp3" files.
+The data is ONLY written to the disk file when the file 
+is closed unless m_bWriteFileForEachFrame = true.
+*/
+bool CMp3FileIO::closeFile()
+{
+    LogTrace("file being closed");
+
+    if (m_bFileOpened)
+    {
+        try
+        {
+            if (m_pFramebuffer != nullptr)
+            {
+                auto pTmp      = m_pFramebuffer;
+
+                m_pFramebuffer = nullptr;
+                free(pTmp);
+            }
+        }
+        catch (...)
+        {
+            ;
+        }
+    }
+
+    m_nIoCntr       = -1;
+    m_nCurrentFrame = -1;
+    m_eMode         = eFileIoMode_def::eFileIoMode_unknown;
+    m_bFileOpened   = false;
+
+    return true;
+}
+
+
+void CMp3FileIO::setFrameOutputWriteFlag(const bool value)
+{
+    m_bWriteFileForEachFrame = value;
+}
+
+
+void CMp3FileIO::setSampleRate(const unsigned int rate)
+{
+    m_sampleRate = rate;
+}
+
+
+int CMp3FileIO::getSampleRate()
+{
+    m_sampleRate  = (unsigned int)m_audioFile.sampleRate;
+
+    return (int) m_sampleRate;
+}
+
+
+int CMp3FileIO::getNumChannels()
+{
+    m_numChls = (unsigned int)m_audioFile.channels;
+
+    return (int)m_numChls;
+}
+
+
+int CMp3FileIO::getNumFrames() const
+{
+    return (int)m_audioFile.totalPCMFrameCount;
+}
+
+
+bool CMp3FileIO::readSample(int16_t &data, const unsigned int chl)
+{
+    LogTrace("channel={}", chl);
+
+    if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 16)
+        return false;
+
+    auto totalNumFrames = m_audioFile.totalPCMFrameCount;
+    if (m_nCurrentFrame > (int)totalNumFrames)
+    {
+        if (!m_bUseLoopingRead)
+            return false;
+
+        m_nCurrentFrame = 0;
+    }
+
+    if (m_pFramebuffer == nullptr)
+        return false;
+
+    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChls)
+    /// at a time from the input file, and stores it in the
+    /// FrameBuffer.	 It then gets sample values from the buffer.
+
+    if (m_nCurrentFrameIdx < 1)
+    {
+        data = *(((int16_t *) m_pFramebuffer) + chl);
+    }
+    else
+    {
+        if (m_nCurrentFrameIdx >= m_nIoBlockSize)
+            return false;
+
+        data = *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl);
+    }
+
+    if ((int)chl != m_lastChlRead)
+    {
+        /// This logic makes sure the same channel number
+        /// isn't being read over and over.
+
+        m_nIoCntr++; /// Increment the number of samples read.
+        m_lastChlRead = (int)chl;
+    }
+
+    return true;
+}
+
+
+bool CMp3FileIO::readSample(int32_t &data, const unsigned int chl)
+{
+    LogTrace("channel={}", chl);
+
+    if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 32)
+        return false;
+
+    auto totalNumFrames = m_audioFile.totalPCMFrameCount;
+    if (m_nCurrentFrame > (int)totalNumFrames)
+    {
+        if (!m_bUseLoopingRead)
+            return false;
+
+        m_nCurrentFrame = 0;
+    }
+
+    if (m_pFramebuffer == nullptr)
+        return false;
+
+    /// This "read" logic reads 1 "frame" (int16_t sample * m_numChls)
+    /// at a time from the input file, and stores it in the
+    /// FrameBuffer.	 It then gets sample values from the buffer.
+
+    if (m_nCurrentFrameIdx < 1)
+    {
+        data = *(((int32_t *) m_pFramebuffer) + chl);
+    }
+    else
+    {
+        if (m_nCurrentFrameIdx >= m_nIoBlockSize)
+            return false;
+
+        data = *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl);
+    }
+
+    if ((int)chl != m_lastChlRead)
+    {
+        /// This logic makes sure the same channel number
+        /// isn't being read over and over.
+
+        m_nIoCntr++; /// Increment the number of samples read.
+        m_lastChlRead = (int)chl;
+    }
+
+    return true;
+}
+
+
+bool CMp3FileIO::readBlock(void *pData, const unsigned int numFrames)
+{
+    LogTrace("numFrames={}", numFrames);
+
+    if (pData == nullptr || m_eMode == eFileIoMode_output)
+    {
+        LogDebug
+        (
+            "bad param - eMode={}", 
+            (int) m_eMode
+        );
+        return false;
+    }
+
+    auto totalNumFrames = m_audioFile.totalPCMFrameCount;
+    if ((m_nCurrentFrame + numFrames) > (unsigned int)totalNumFrames)
+    {
+        if (!m_bUseLoopingRead)
+            return false;
+
+        m_nCurrentFrame = 0;
+
+        drmp3_bool32 status = drmp3_seek_to_pcm_frame(&m_audioFile, (drmp3_uint64)0);
+        if (!status)
+            LogWarning("drwav_seek_to_pcm_frame to frame 0 failed");
+    }
+
+    drwav_uint64 framesRead = 0;
+    //auto framesRead = drwav_read_pcm_frames(&m_audioFile, numFrames, pData);
+    if (m_nBitsPerSample == 16)
+    {
+        framesRead = 
+            drmp3_read_pcm_frames_s16__pcm(&m_audioFile, numFrames, (drwav_int16 *) pData);
+    }
+    else if (m_nBitsPerSample == 32)
+    {
+        framesRead = 
+            drmp3_read_pcm_frames_s32__pcm(&m_audioFile, numFrames, (drwav_int32 *) pData);
+    }
+    else
+    {
+        LogWarning("invalid sample size");
+    }
+
+    if (framesRead != (drwav_uint64)numFrames)
+        return false;
+
+    m_nCurrentFrame += numFrames;
+
+    return true;
+}
+
+
+bool CMp3FileIO::writeSample(const int16_t data, const unsigned int chl)
+{
+    if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_nBitsPerSample != 16)
+    {
+        LogDebug
+        (
+            "bad param - chl={}, numChannels={}, eMode={}", 
+            chl, 
+            m_numChls,
+            (int) m_eMode
+        );
+
+        return false;
+    }
+
+    if (m_pFramebuffer == nullptr)
+        return false;
+
+    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChls)
+    /// at a time to the output file.
+
+    if (m_nCurrentFrameIdx < 1)
+    {
+        *(((int16_t *) m_pFramebuffer) + chl) = data;
+    }
+    else
+    {
+        if (m_nCurrentFrameIdx >= m_nIoBlockSize)
+            return false;
+
+        *(((int16_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl) = data;
+    }
+
+    if ((int)chl != m_lastChlWritten)
+    {
+        /// This logic makes sure the same channel number
+        /// isn't being written over and over.
+
+        m_nIoCntr++; /// Increment the number of samples read.
+        m_lastChlWritten = (int)chl;
+    }
+
+    return true;
+}
+
+
+bool CMp3FileIO::writeSample(const int32_t data, const unsigned int chl)
+{
+    if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_nBitsPerSample != 32)
+    {
+        LogDebug
+        (
+            "bad param - chl={}, numChannels={}, eMode={}", 
+            chl, 
+            m_numChls,
+            (int) m_eMode
+        );
+        return false;
+    }
+
+    if (m_pFramebuffer == nullptr)
+        return false;
+
+    /// This "write" logic writes 1 "frame" (int16_t sample * m_numChls)
+    /// at a time to the output file.
+
+    if (m_nCurrentFrameIdx < 1)
+    {
+        *(((int32_t *) m_pFramebuffer) + chl) = data;
+    }
+    else
+    {
+        if (m_nCurrentFrameIdx >= m_nIoBlockSize)
+            return false;
+
+        *(((int32_t *) m_pFramebuffer) + (m_nCurrentFrameIdx * m_numChls) + chl) = data;
+    }
+
+    if ((int)chl != m_lastChlWritten)
+    {
+        /// This logic makes sure the same channel number
+        /// isn't being written over and over.
+
+        m_nIoCntr++; /// Increment the number of samples read.
+        m_lastChlWritten = (int)chl;
+    }
+
+    return true;
+}
+
+
+bool CMp3FileIO::writeBlock(const void *pData, const unsigned int numFrames)
+{
+    if (pData == nullptr)
+    {
+        LogDebug("invalid input data pointer");
+        return false;
+    }
+
+    if (numFrames < 1)
+    {
+        LogDebug("invalid number of frames to write (numFrames <= 0)");
+        return false;
+    }
+
+    if (m_numChls < 1)
+    {
+        LogDebug("invalid number of channels (m_numChls <= 0)");
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+        return false;
+
+    drwav_uint64 framesWritten = 0;
+    
+    framesWritten = drmp3_write_pcm_frames(&m_audioFile, numFrames, pData);
+
+    if (framesWritten != (drwav_uint64)numFrames)
+        return false;
+
+    m_nCurrentFrame += numFrames;
+    m_nFramesInFile += numFrames;
+
+    return true;
+}
+
+
+/// Move to next input/output frame
+bool CMp3FileIO::nextFrame()
+{
+    if (m_pFramebuffer == nullptr)
+        return false;
+
+    if (m_nIoBlockSize < 1)
+    {
+        m_nCurrentFrameIdx = 0;
+
+        switch (m_eMode)
+        {
+            case eFileIoMode_input:
+                {
+                    auto status = readBlock(m_pFramebuffer, 1);
+                    if (!status)
+                        return false;
+
+                    m_lastChlRead = -1;
+                }
+                break;
+
+            case eFileIoMode_output:
+                {
+                    auto status = writeBlock(m_pFramebuffer, 1);
+                    if (!status)
+                        return false;
+
+                    m_lastChlWritten = -1;
+                }
+                break;
+
+            default:
+                return false;
+        }
+    }
+    else
+    {
+        m_nCurrentFrameIdx++;
+        if (m_nCurrentFrameIdx >= m_nIoBlockSize)
+        {
+            switch (m_eMode)
+            {
+                case eFileIoMode_input:
+                    {
+                        auto status = readBlock(m_pFramebuffer, m_nIoBlockSize);
+                        if (!status)
+                            return false;
+
+                        m_lastChlRead = -1;
+                    }
+                    break;
+
+                case eFileIoMode_output:
+                    {
+                        auto status = writeBlock(m_pFramebuffer, m_nIoBlockSize);
+                        if (!status)
+                            return false;
+
+                        m_lastChlWritten = -1;
+                    }
+                    break;
+
+                default:
+                    return false;
+            }
+
+            m_nCurrentFrameIdx = 0;
+        }
+    }
+
+    return true;
+}
+
+
+bool CMp3FileIO::setCurrentFrame(unsigned int frameNum) 
+{
+    if (!m_bFileOpened)
+        return false;
+
+    auto totalNumFrames = m_audioFile.totalPCMFrameCount;
+
+    if (frameNum >= (unsigned int) totalNumFrames)
+        return false;
+
+    m_nCurrentFrame = frameNum;
+
+    return true;
+}
+
+
+bool CMp3FileIO::resetPlayPosition()
+{
+    setCurrentFrame(0);
+
+    CAudioFileIO::resetPlayPosition();
+
+    return true;
+}
+
+#endif  //  USE_DR_MP3
+
+
+/// Utility functions
 
 #ifndef _UTILITY_FUNCTION_DEFS_
 #define _UTILITY_FUNCTION_DEFS_

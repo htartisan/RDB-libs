@@ -144,6 +144,8 @@ class CTcpClient
 
     unsigned int                                m_nHeaderSize;
 
+    std::string                                 m_sStreamType;
+
     DataBytePtr_def                             m_pDataBuffer;
 
     unsigned int                                m_nBufferSize;
@@ -154,13 +156,30 @@ class CTcpClient
 
     std::mutex                                  m_ioLock;
 
-    //bool                                        m_bTcpNoDelay;
+    //bool                                      m_bTcpNoDelay;
+    bool                                        m_bMultiIoSession;
 
-  public:
+    unsigned long                               m_heartBeatInterval;
+
+    std::chrono::system_clock::time_point       m_heartBeatTimestamp;
+
+    void setStreamType();
+
+public:
 
     CTcpClient();
 
     ~CTcpClient();
+
+    void setMultiIoSession(bool val)
+    {
+        m_bMultiIoSession = val;
+    }
+
+    void setHeartBeatInterval(unsigned long nInt)
+    {
+        m_heartBeatInterval = nInt;
+    }
 
     void setDataType(const std::string &sType);
 
@@ -205,6 +224,13 @@ class CTcpClient
     bool close();
 
     bool isConnected();
+
+    std::string getRemoteAddress();
+
+    std::string getLastError()
+    {
+        return m_sLastError;
+    }
 
     int read(void *pTarget = nullptr, const unsigned int nLen = 0);
 

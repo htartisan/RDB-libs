@@ -253,7 +253,14 @@ public:
 
     bool writeMsgData(CNetMessageData& msgData);
 
+    bool sendMsgData(CNetMessageData& msgData);
+
     bool readMsgData(CNetMessageData& msgData);
+
+    std::string getLastError()
+    {
+        return m_sLastError;
+    }
 
 private:
 
@@ -268,34 +275,42 @@ private:
 
 class CTcpServer
 {
-    unsigned int                        m_port;
+    unsigned int                            m_port;
 
-    unsigned int                        m_bufferSize;
+    unsigned int                            m_bufferSize;
 
-    eNetIoDirection                     m_eIoDirection;
+    eNetIoDirection                         m_eIoDirection;
 
-    std::string                         m_sDataType;
+    std::string                             m_sDataType;
 
-    std::string                         m_sSrvrName;
+    std::string                             m_sSrvrName;
 
-    asio::ip::tcp::endpoint             *m_pEndpoint;
+    asio::ip::tcp::endpoint                 *m_pEndpoint;
 
-    asio::ip::tcp::acceptor             *m_pAcceptor;
+    asio::ip::tcp::acceptor                 *m_pAcceptor;
 
-    asio::io_context                    m_ioContext;
+    asio::io_context                        m_ioContext;
 
-    CServerThread<asio::io_context>     m_srvrThread;
+    CServerThread<asio::io_context>         m_srvrThread;
 
-    std::mutex                          m_inputMutex;
-    std::mutex                          m_outputMutex;
+    std::mutex                              m_inputMutex;
+    std::mutex                              m_outputMutex;
 
-    CNetMessageData                     m_inputMsg;
-    CNetMessageData                     m_outputMsg;
+    CNetMessageData                         m_inputMsg;
+    CNetMessageData                         m_outputMsg;
+    CNetMessageData                         m_ctrlMsg;
 
-    bool                                m_bInitialized;
-    bool                                m_bRunning;
-    bool                                m_bTcpNoDelay;
-    bool                                m_bMultiMsgSession;
+    unsigned long                           m_heartBeatInterval;
+
+    std::chrono::system_clock::time_point   m_heartBeatTimestamp;
+
+    bool                                    m_bInitialized;
+    bool                                    m_bRunning;
+    bool                                    m_bTcpNoDelay;
+    bool                                    m_bMultiMsgSession;
+    bool                                    m_bExitSession;
+
+    unsigned int                            m_activeSessions;
 
 public:
 
@@ -311,14 +326,24 @@ public:
 
     bool setName(const std::string &sName);
 
-    void setMultiSession(bool val)
+    void setMultiIoSession(bool val)
     {
         m_bMultiMsgSession = val;
+
+        if (val == true)
+        {
+            m_bTcpNoDelay = true;
+        }
     }
 
     void setTcpNoDelay(bool val)
     {
         m_bTcpNoDelay = val;
+    }
+
+    void setHeartBeatInterval(unsigned long nInt)
+    {
+        m_heartBeatInterval = nInt;
     }
 
     bool initialize(const unsigned int nBufize = 0);
@@ -342,11 +367,25 @@ public:
 
     void setRunning(bool bVal);
 
+    std::string getRemoteAddress(asio::ip::tcp::socket &socket)
+    {
+        auto endPoint = socket.remote_endpoint();
+
+        auto remoteAddr = endPoint.address();
+
+        return remoteAddr.to_string();
+    }
+
     int readInputData(void* pBuff, const unsigned int nMax);
 
     int writeOutputData(const void* pBuff, const unsigned int nLen);
 
     bool sendOutput();
+
+    unsigned int numActiveSessions()
+    {
+        return m_activeSessions;
+    }
 
     // Virtual function for input msg processing.
     // Override this function for app msg handling.

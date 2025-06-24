@@ -110,9 +110,7 @@ bool CUdpSession::readMsgHeader(CNetMessageData& msgData)
             return false;
         }
 
-        CNetMessageHandler msgHandler(msgData);
-
-        msgHandler.decodeMsgHeader(m_sMsgType);
+        msgData.decodeMsgHeader(m_sMsgType);
     }
     catch (std::exception e)
     {
@@ -215,9 +213,7 @@ bool CUdpSession::writeMsgData(CNetMessageData& msgData)
 
     // encode/format the msg header
 
-    CNetMessageHandler  msgHandler(msgData);
-
-    msgHandler.encodeMsgHeader(m_sMsgType);
+    msgData.encodeMsgHeader(m_sMsgType);
 
     // write the message to the net
 
@@ -727,20 +723,36 @@ bool CTcpSession::readMsgHeader(CNetMessageData &msgData)
 
     try
     {
-        auto status = asio::read(m_socket, asio::buffer(pData, nLen));
+        asio::error_code error;
+
+        error.clear();
+
+        auto status = asio::read(m_socket, asio::buffer(pData, nLen), error);
 
         msgData.releasePtr();
 
         bReleased = true;
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            return false;
+        }
+
+        m_sLastError.clear();
 
         if (status < nLen)
         {
             return false;
         }
 
-        CNetMessageHandler msgHandler(msgData);
+        if (status >= sizeof(NetworkDataHeaderInfo_def))
+        {
+            // get msg info from header
 
-        msgHandler.decodeMsgHeader(m_sMsgType);
+            msgData.decodeMsgHeader(m_sMsgType);
+        }
     }
     catch (std::exception e)
     {
@@ -767,8 +779,6 @@ bool  CTcpSession::readMsgBody(CNetMessageData& msgData)
 {
     bool bReleased = false;
 
-    msgData.clearMsgBody();
-
     auto nLen = msgData.getBodyLength();
 
     if (nLen < 1)
@@ -777,6 +787,8 @@ bool  CTcpSession::readMsgBody(CNetMessageData& msgData)
     }
 
     // read the message body
+
+    msgData.clearMsgBody();
 
     auto pData = msgData.getBodyPtr();
 
@@ -788,11 +800,26 @@ bool  CTcpSession::readMsgBody(CNetMessageData& msgData)
 
     try
     {
-        auto status = asio::read(m_socket, asio::buffer(pData, nLen));
+        asio::error_code error;
+
+        error.clear();
+
+        auto status = asio::read(m_socket, asio::buffer(pData, nLen), error);
 
         msgData.releasePtr();
 
         bReleased = true;
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            return false;
+        }
+
+        m_sLastError.clear();
+
+        msgData.setBodyLength(status);
 
         if (status < nLen)
         {
@@ -839,9 +866,7 @@ bool CTcpSession::writeMsgData(CNetMessageData &msgData)
 
     // encode/format the msg header
 
-    CNetMessageHandler  msgHandler(msgData);
-
-    msgHandler.encodeMsgHeader(m_sMsgType);
+    msgData.encodeMsgHeader(m_sMsgType);
 
     // write the message to the net
 
@@ -856,11 +881,24 @@ bool CTcpSession::writeMsgData(CNetMessageData &msgData)
 
     try
     {
-        auto status = asio::write(m_socket, asio::buffer(pData, nLen));
+        asio::error_code error;
+
+        error.clear();
+
+        auto status = asio::write(m_socket, asio::buffer(pData, nLen), error);
 
         msgData.releasePtr();
 
         bReleased = true;
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            return false;
+        }
+
+        m_sLastError.clear();
 
         if (status < nLen)
         {
@@ -884,6 +922,84 @@ bool CTcpSession::writeMsgData(CNetMessageData &msgData)
         if (bReleased == false)
             msgData.releasePtr();
         
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CTcpSession::sendMsgData(CNetMessageData& msgData)
+{
+    std::scoped_lock lock(m_mutex);
+
+    bool bReleased = false;
+
+    auto nLen = msgData.getCurDataLen();
+
+    if (nLen < 1)
+    {
+        return false;
+    }
+
+    // encode/format the msg header
+
+    msgData.encodeMsgHeader(m_sMsgType);
+
+    // write the message to the net
+
+    auto pData = msgData.getDataPtr();
+
+    if (pData == nullptr)
+    {
+        msgData.releasePtr();
+
+        return false;
+    }
+
+    try
+    {
+        asio::error_code error;
+
+        error.clear();
+
+        auto status = m_socket.send(asio::buffer(pData, nLen), (asio::socket_base::message_flags) 0, error);
+
+        msgData.releasePtr();
+
+        bReleased = true;
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            return false;
+        }
+
+        m_sLastError.clear();
+
+        if (status < nLen)
+        {
+            return false;
+        }
+
+        msgData.setUpdated(false);
+
+    }
+    catch (std::exception e)
+    {
+        if (bReleased == false)
+            msgData.releasePtr();
+
+        std::string err = e.what();
+
+        return false;
+    }
+    catch (...)
+    {
+        if (bReleased == false)
+            msgData.releasePtr();
+
         return false;
     }
 
@@ -924,10 +1040,14 @@ CTcpServer::CTcpServer(eNetIoDirection eDir, const unsigned int nPort, const uns
     m_pAcceptor(nullptr),
     m_inputMsg(MsgHeaderLen_def),
     m_outputMsg(MsgHeaderLen_def),
+    m_ctrlMsg(MsgHeaderLen_def),
+    m_heartBeatInterval(0),
     m_bInitialized(false),
     m_bRunning(false),
     m_bTcpNoDelay(TCP_NO_DELAY_DEFAULT),
-    m_bMultiMsgSession(TCP_SRVR_SESSION_LOOP_DEFAULT)
+    m_bMultiMsgSession(TCP_SRVR_SESSION_LOOP_DEFAULT),
+    m_bExitSession(false),
+    m_activeSessions(0)
 {
 
 }
@@ -989,10 +1109,19 @@ bool CTcpServer::setName(const std::string& sName)
 bool CTcpServer::initialize(const unsigned int nBufize)
 {
     if (nBufize > 0)
+    {
         m_bufferSize = nBufize;
+    }
 
     if (m_bufferSize < 1)
+    {
         return false;
+    }
+
+    if (m_ctrlMsg.allocBuffer(8) == false)
+    {
+        return false;
+    }
 
     switch (m_eIoDirection)
     {
@@ -1070,6 +1199,27 @@ bool CTcpServer::start()
             return false;
         }
 
+        // set flag to report aborted socket ops
+
+        asio::socket_base::enable_connection_aborted option(true);
+        
+        m_pAcceptor->set_option(option);
+
+        if (m_bTcpNoDelay == true)
+        {
+            LogDebugInfoMsg("setting TCP_KEEP_ALIVE and TCP_NO_DELAY");
+
+            asio::socket_base::keep_alive keepAlive(true);
+
+            m_pAcceptor->set_option(keepAlive);
+
+            asio::ip::tcp::no_delay noDelay(true);
+
+            m_pAcceptor->set_option(noDelay);
+        }
+
+        // start accepting socket connections from clients
+
         acceptConnection();
 
         m_srvrThread.setContext(&m_ioContext);
@@ -1115,6 +1265,8 @@ bool CTcpServer::stop()
 {
     if (m_bRunning == false)
         return true;
+
+    m_bExitSession = true;
 
     try
     {
@@ -1256,23 +1408,36 @@ bool CTcpServer::acceptConnection()
 {
     if (m_pAcceptor == nullptr)
     {
-        std::this_thread::sleep_for(std::chrono::microseconds(10));
+        std::this_thread::sleep_for(std::chrono::microseconds(5));
 
         acceptConnection(); // Accept next connection
 
         return false;
     }
 
-    //bool bRet = false;
+    LogDebugInfoMsg("accepting TCP connection");
 
     m_pAcceptor->async_accept
     (
-        [this](const asio::error_code& error, asio::ip::tcp::socket socket)
+        [this](const asio::error_code& acceptError, asio::ip::tcp::socket socket)
         {
-            if (!error)
+            if (!acceptError)
             {
+                m_activeSessions++;
+
+                if (m_heartBeatInterval > 0)
+                {
+                    // update timeout interval start
+                    m_heartBeatTimestamp = std::chrono::system_clock::now();
+                }
+
+                bool bExitReceivedFromClient = false;
+
+#if 0
                 if (m_bTcpNoDelay == true)
                 {
+                    LogDebugInfoMsg("setting TCP_KEEP_ALIVE and TCP_NO_DELAY");
+
                     asio::socket_base::keep_alive keepAlive(true);
 
                     socket.set_option(keepAlive);
@@ -1281,9 +1446,16 @@ bool CTcpServer::acceptConnection()
 
                     socket.set_option(noDelay);
                 }
+#endif
 
                 if (socket.is_open() == false)
                 { 
+                    LogDebugInfoMsg("TCP session ended - not open");
+
+                    m_activeSessions--;
+
+                    acceptConnection(); // Accept next connection
+
                     return;
                 }
 
@@ -1291,6 +1463,8 @@ bool CTcpServer::acceptConnection()
 
                 if (pSession != nullptr)
                 {
+                    LogDebugInfoMsg("created new TcpSession class");
+
                     // handle server session
 
                     bool bSessionLoop = false;
@@ -1298,44 +1472,251 @@ bool CTcpServer::acceptConnection()
                     if (m_bMultiMsgSession == true)
                     {
                         bSessionLoop = true;
+                        m_bExitSession = false;
                     }
+
+                    asio::error_code ioError;
 
                     do
                     {
+                        ioError.clear();
+
+                        auto bytesAvail = socket.available(ioError);
+
+                        if (ioError)
+                        {
+                            LogDebugInfoMsg("error getting TCP dataLen, ec: {}", ioError.message());
+                            bSessionLoop = false;
+                            m_bExitSession = true;
+                            break;
+                        }
+
                         switch (m_eIoDirection)
                         {
                         case eNetIoDirection::eNetIoDirection_input:
                             {
+                                // check for msg timeout
+                                if (m_heartBeatInterval > 0)
+                                {
+                                    auto now = std::chrono::system_clock::now();
+
+                                    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_heartBeatTimestamp);
+
+                                    if (dur.count() > m_heartBeatInterval)
+                                    {
+                                        bSessionLoop = false;
+                                        m_bExitSession = true;
+                                        break;
+                                    }
+                                }
+
                                 // read input msg
                                 //m_inputMsg.clearAll();
-                                pSession->readMsgData(m_inputMsg);
+
+                                auto status = pSession->readMsgData(m_inputMsg);
+                                if (status == true)
+                                {
+                                    if (m_heartBeatInterval > 0)
+                                    {
+                                        // update timeout interval start
+                                        m_heartBeatTimestamp = std::chrono::system_clock::now();
+                                    }
+
+                                    if (m_inputMsg.compareMsgData("exit", 4) == true)
+                                    {
+                                        // msg client has 'exit'ed the session
+                                        LogDebugInfoMsg("client 'exit' msg received - ending session");
+                                        bExitReceivedFromClient = true;
+                                        bSessionLoop = false;
+                                        m_bExitSession = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    LogDebugInfoMsg("error reading TCP data, ec: {} - ending session", pSession->getLastError());
+                                    bSessionLoop = false;
+                                    m_bExitSession = true;
+                                }
                             }
                             break;
 
                         case eNetIoDirection::eNetIoDirection_output:
-                            // if needed, write output msg
-                            if (m_outputMsg.isUpdated() == true)
                             {
-                                pSession->writeMsgData(m_outputMsg);
-                                //m_outputMsg.clearAll();
+                                if (m_heartBeatInterval > 0)
+                                {
+                                    auto now = std::chrono::system_clock::now();
+
+                                    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_heartBeatTimestamp);
+
+                                    if (dur.count() > m_heartBeatInterval)
+                                    {
+                                        // send heatbeat
+
+                                        m_ctrlMsg.setMsgData("beat", 4);
+
+                                        if (pSession->sendMsgData(m_ctrlMsg) == false)
+                                        {
+                                            LogDebugInfoMsg("error sebding TCP heartbeat, ec: {} - ending session", pSession->getLastError());
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+
+                                        // read 'ack' reply
+
+                                        if (pSession->readMsgData(m_ctrlMsg) == false)
+                                        {
+                                            LogDebugInfoMsg("error reading TCP heartbeat, ec: {} - ending session", pSession->getLastError());
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+
+                                        if (m_ctrlMsg.compareMsgData("ack", 3) == false)
+                                        {
+                                            LogDebugInfoMsg("error TCP data != 'ack - ending session'");
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (bytesAvail > 0)
+                                {
+                                    auto status = pSession->readMsgData(m_ctrlMsg);
+                                    if (status == true)
+                                    {
+                                        if (m_ctrlMsg.compareMsgData("exit", 4) == true)
+                                        {
+                                            // msg client has 'exit'ed the session
+                                            LogDebugInfoMsg("client 'exit' msg received - ending session");
+                                            bExitReceivedFromClient = true;
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // if needed, write output msg
+                                if (m_outputMsg.isUpdated() == true)
+                                {
+                                    auto nLen = m_outputMsg.getBodyLength();
+
+                                    if (m_bMultiMsgSession == true)
+                                    {
+                                        LogDebugInfoMsg("sending TCP data, len: {}", nLen);
+
+                                        if (pSession->sendMsgData(m_outputMsg) == false)
+                                        {
+                                            LogDebugInfoMsg("error sending TCP data, ec: {} - ending session", pSession->getLastError());
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    { 
+                                        LogDebugInfoMsg("writing TCP data, len: {}", nLen);
+
+                                        auto status = pSession->writeMsgData(m_outputMsg);
+                                        if (status == false)
+                                        {
+                                            LogDebugInfoMsg("error writing TCP data, ec: {} - ending session", pSession->getLastError());
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+                                    }
+
+                                    m_outputMsg.setUpdated(false);
+                                }
+                                //else
+                                //{
+                                //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                                //}
                             }
                             break;
 
                         case eNetIoDirection::eNetIoDirection_IO:
                             {
+                                // check for msg timeout
+                                if (m_heartBeatInterval > 0)
+                                {
+                                    auto now = std::chrono::system_clock::now();
+
+                                    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_heartBeatTimestamp);
+
+                                    if (dur.count() > m_heartBeatInterval)
+                                    {
+                                        bSessionLoop = false;
+                                        m_bExitSession = true;
+                                        break;
+                                    }
+                                }
+
                                 // read input msg
-                                //m_inputMsg.clearAll();
-                                pSession->readMsgData(m_inputMsg);
+
+                                if (pSession->readMsgData(m_inputMsg) == true)
+                                {
+                                    if (m_heartBeatInterval > 0)
+                                    {
+                                        // update timeout interval start
+                                        m_heartBeatTimestamp = std::chrono::system_clock::now();
+                                    }
+
+                                    if (m_inputMsg.compareMsgData("exit", 4) == true)
+                                    {
+                                        // msg client has 'exit'ed the session
+                                        LogDebugInfoMsg("client 'exit' msg received - ending session");
+                                        bExitReceivedFromClient = true;
+                                        bSessionLoop = false;
+                                        m_bExitSession = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    LogDebugInfoMsg("error reading TCP data, ec: {} - ending session", pSession->getLastError());
+                                    bSessionLoop = false;
+                                    m_bExitSession = true;
+                                    break;
+                                }
 
                                 // process input msg
                                 if (processInputMsg(m_inputMsg, m_outputMsg) == false)
+                                { 
+                                    LogDebugInfoMsg("error writing TCP data, ec: {} - ending session", pSession->getLastError());
+                                    bSessionLoop = false;
+                                    m_bExitSession = true;
                                     break;
+                                }
 
                                 // if needed, write output msg
                                 if (m_outputMsg.isUpdated() == true)
                                 {
-                                    pSession->writeMsgData(m_outputMsg);
-                                    //m_outputMsg.clearAll();
+                                    if (m_bMultiMsgSession == true)
+                                    {
+                                        if (pSession->sendMsgData(m_outputMsg) == false)
+                                        {
+                                            LogDebugInfoMsg("error sending TCP data, ec: {} - ending session", pSession->getLastError());
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (pSession->writeMsgData(m_outputMsg) == false)
+                                        {
+                                            LogDebugInfoMsg("error writing TCP data, ec: {} - ending session", pSession->getLastError());
+                                            bSessionLoop = false;
+                                            m_bExitSession = true;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                             break;
@@ -1345,17 +1726,77 @@ bool CTcpServer::acceptConnection()
                         { 
                             if (socket.is_open() == false)
                             {
+                                LogDebugInfoMsg("TCP socket closed - exiting session");
                                 // end of server session
                                 bSessionLoop = false;
+                                m_bExitSession = true;
                             }
+                            //else
+                            //{
+                            //    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                            //}
                         }
 
+                        if (m_bExitSession == true)
+                        {
+                            bSessionLoop = false;
+                            break;
+                        }
+
+                        if (getRemoteAddress(socket) == "")
+                        {
+                            LogDebugInfoMsg("no connected endpoint");
+                            bSessionLoop = false;
+                            break;
+                        }
                     } 
                     while (bSessionLoop == true);
 
+                    // send session exit msg
+
+                    if (bExitReceivedFromClient == false)
+                    {
+                        LogDebugInfoMsg("sending session exit msg to client");
+ 
+                        m_ctrlMsg.setMsgData("exit", 4);
+
+                        if (m_bMultiMsgSession == true)
+                        {
+                            pSession->sendMsgData(m_ctrlMsg);
+                        }
+                        else
+                        {
+                            pSession->writeMsgData(m_ctrlMsg);
+                        }
+                    }
+
+                    LogDebugInfoMsg("deleting TcpSession class");
+
                     delete pSession;
+
+                    pSession = nullptr;
                 }
+
+                try
+                {
+                    socket.shutdown(asio::ip::tcp::socket::shutdown_send);
+                }
+                catch (...)
+                {
+                }
+
+                try
+                {
+                    socket.close();
+                }
+                catch (...)
+                {
+                }
+
+                m_activeSessions--;
             }
+
+            LogDebugInfoMsg("ending TCP connection");
 
             acceptConnection(); // Accept next connection
         }

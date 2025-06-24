@@ -133,6 +133,8 @@ class CThreadBase
         }
 
         m_running = false;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     bool setThreadName(std::string &sName)
@@ -269,6 +271,8 @@ class CThreadBase
         {
             m_bThreadExitFlag = true;
         }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         if (m_running == true)
         {

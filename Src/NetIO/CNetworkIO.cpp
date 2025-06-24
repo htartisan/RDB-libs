@@ -18,11 +18,12 @@
 using namespace CNetworkIO;
 
 
+
 //*
 //* utility functions
 //*
 
-bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::string &sPort, std::string &sProtocol)
+bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::string& sPort, std::string& sProtocol)
 {
     if (sUri == "")
     {
@@ -51,7 +52,7 @@ bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::stri
 
         sServer = sUri.substr(nSkip);
         sPort = "";
-        
+
         if (nSkip > 3)
             sProtocol = sUri.substr(0, (nSkip - 3));
         else
@@ -77,11 +78,6 @@ bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::stri
     return true;
 }
 
-
-//void runSrvr(asio::io_context &ioContext)
-//{
-//    ioContext.run();
-//}
 
 
 //*
@@ -227,6 +223,16 @@ void CNetMessageData::setBodyLength(const std::size_t nLen)
 
 int CNetMessageData::getBodyLength()
 {
+    if (m_nDataLength == 0)
+    {
+        return 0;
+    }
+
+    if (m_nDataLength < m_nHeaderLength)
+    {
+        return 0;
+    }
+
     return (int) (m_nDataLength - m_nHeaderLength);
 }
 
@@ -243,54 +249,95 @@ bool CNetMessageData::isUpdated()
 }
 
 
-// CNetMessageHandler clss
-
-CNetMessageHandler::CNetMessageHandler(CNetMessageData &msgData) :
-    m_msgData(msgData)
+bool CNetMessageData::setMsgData(const void *pData, const unsigned int nLen)
 {
-
-}
-
-
-bool CNetMessageHandler::decodeMsgHeader(const std::string& sType)
-{
-    m_msgData.setBodyLength(0);
-
-    if (m_msgData.isBufferAllocated() == false)
-        return false;
-
-    NetworkDataHeaderInfo_def *pHeader = (NetworkDataHeaderInfo_def *) m_msgData.getDataPtr();
-        
-    if (pHeader->m_headerMarker != 0xFFFF)
+    if (pData == nullptr || nLen < 1)
     {
-        m_msgData.releasePtr();
         return false;
     }
 
-    if (pHeader->m_nDataLen >= (uint32_t) m_msgData.getMaxDataLen())
+    if (nLen > (m_nMaxDataSize - m_nHeaderLength))
     {
-        m_msgData.releasePtr();
         return false;
     }
 
-    m_msgData.setBodyLength(pHeader->m_nDataLen);
+    std::scoped_lock lock(m_dataLock);
 
-    m_msgData.releasePtr();
+    memcpy((m_pData + m_nHeaderLength), pData, nLen);
+
+    m_nDataLength = (unsigned int) (m_nHeaderLength + nLen);
+
+    m_bUpdated = true;
 
     return true;
 }
 
 
-bool CNetMessageHandler::encodeMsgHeader(const std::string& sType)
+bool CNetMessageData::compareMsgData(const char* pData, const unsigned int nLen)
 {
-    if (m_msgData.isBufferAllocated() == false)
+    if (pData == nullptr || nLen < 1)
+    {
+        return false;
+    }
+
+    if (nLen > (m_nMaxDataSize - m_nHeaderLength))
+    {
+        return false;
+    }
+
+    std::scoped_lock lock(m_dataLock);
+
+    for (unsigned int x = 0; x < nLen; x++)
+    {
+        if (*(pData + x) != *(m_pData + m_nHeaderLength + x))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+bool CNetMessageData::decodeMsgHeader(const std::string& sType)
+{
+    setBodyLength(0);
+
+    if (isBufferAllocated() == false)
         return false;
 
-    NetworkDataHeaderInfo_def* pMsgHeader = (NetworkDataHeaderInfo_def*) m_msgData.getDataPtr();
+    NetworkDataHeaderInfo_def *pHeader = (NetworkDataHeaderInfo_def *) getDataPtr();
+        
+    if (pHeader->m_headerMarker != 0xFFFF)
+    {
+        releasePtr();
+        return false;
+    }
 
-    pMsgHeader->initialize(sType.c_str(), (unsigned int) m_msgData.getBodyLength());
+    if (pHeader->m_nDataLen >= (uint32_t) getMaxDataLen())
+    {
+        releasePtr();
+        return false;
+    }
 
-    m_msgData.releasePtr();
+    setBodyLength(pHeader->m_nDataLen);
+
+    releasePtr();
+
+    return true;
+}
+
+
+bool CNetMessageData::encodeMsgHeader(const std::string& sType)
+{
+    if (isBufferAllocated() == false)
+        return false;
+
+    NetworkDataHeaderInfo_def* pMsgHeader = (NetworkDataHeaderInfo_def*) getDataPtr();
+
+    pMsgHeader->initialize(sType.c_str(), (unsigned int) getBodyLength());
+
+    releasePtr();
 
     return true;
 }

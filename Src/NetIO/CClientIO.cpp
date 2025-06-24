@@ -9,67 +9,12 @@
 
 #include "CClientIO.h"
 
+#include "../String/StrUtils.h"
+
+
 using namespace CNetworkIO;
 
 
-//*
-//* utility functions
-//*
-
-bool CNetworkIO::parseServerAndPort(const std::string& sUri, std::string& sServer, std::string &sPort, std::string &sProtocol)
-{
-    if (sUri == "")
-    {
-        return false;
-    }
-
-    size_t nSkip = 0;
-
-    size_t nColonPos = 0;
-
-    size_t nPtotocolPos = sUri.find("://");
-
-    if (nPtotocolPos != std::string::npos)
-    {
-        // server uri contains protocol ("://")
-
-        nSkip = (nPtotocolPos + 3);
-    }
-
-    nColonPos = sUri.rfind(":");
-
-    if (nColonPos == std::string::npos)
-    {
-        // there is no ":" in the uri
-        // return the uri chars and a blank port string 
-
-        sServer = sUri.substr(nSkip);
-        sPort = "";
-        
-        if (nSkip > 3)
-            sProtocol = sUri.substr(0, (nSkip - 3));
-        else
-            sProtocol;
-
-        return true;
-    }
-
-    // return the uri string chars and the port string chars
-
-    sServer = sUri.substr(nSkip, (nColonPos - nSkip));
-
-    if (nColonPos > nSkip + 1)
-        sPort = sUri.substr((nColonPos + 1));
-    else
-        sPort = "";
-
-    if (nSkip > 3)
-        sProtocol = sUri.substr(0, (nSkip - 3));
-    else
-        sProtocol = "";
-
-    return true;
-}
 
 
 // CUdpClient class
@@ -538,17 +483,39 @@ int CUdpClient::read(void *pTarget, const unsigned int nLen)
         {
             asio::error_code error;
 
+            error.clear();
+
             auto recv_buffer = asio::buffer(m_pDataBuffer, m_nBufferSize);
 
             //readSize = (int) asio::read(m_netSocket, recv_buffer, error);
-            readSize = (int) m_netSocket.receive_from(recv_buffer, m_netEndPoint);
+            readSize = (int) 
+                m_netSocket.receive_from
+                (
+                    recv_buffer, 
+                    m_netEndPoint, 
+                    (asio::socket_base::message_flags) 0,
+                    error
+                );
 
-            m_sLastError = error.message();
+            if (error)
+            {
+                m_sLastError = error.message();
+
+                return -4;
+            }
+            else
+            {
+                m_sLastError = "";
+            }
 
             if (readSize > 0)
+            { 
                 m_nCurrDataLen = (unsigned int) readSize;
+            }
             else
+            { 
                 m_nCurrDataLen = 0;
+            }
         }
         catch (...)
         {
@@ -591,6 +558,10 @@ int CUdpClient::write(const void *pSource, const unsigned int nLen)
 
         std::size_t dataSize = 0;
 
+        asio::error_code error;
+
+        error.clear();
+
         {
             //std::scoped_lock lock(m_ioLock);
 
@@ -615,7 +586,25 @@ int CUdpClient::write(const void *pSource, const unsigned int nLen)
             asio::const_buffer send_buffer = asio::buffer(pData, dataSize);
 
             //nWriteSize = (int) asio::write(m_netSocket, send_buffer);
-            nWriteSize = (int) m_netSocket.send_to(send_buffer, m_netEndPoint);
+            nWriteSize = (int) 
+                m_netSocket.send_to
+                (
+                    send_buffer, 
+                    m_netEndPoint,
+                    (asio::socket_base::message_flags) 0,
+                    error
+                );
+
+            if (error)
+            {
+                m_sLastError = error.message();
+
+                return -4;
+            }
+            else
+            {
+                m_sLastError = "";
+            }
         }
 
         if (nWriteSize > 0)
@@ -649,8 +638,10 @@ CTcpClient::CTcpClient() :
     m_nHeaderSize(0),
     m_pDataBuffer(nullptr),
     m_nBufferSize(0),
-    m_nCurrDataLen(0) //,
+    m_nCurrDataLen(0),
     //m_bTcpNoDelay(TCP_NO_DELAY_DEFAULT)
+    m_bMultiIoSession(false),
+    m_heartBeatInterval(0)
 {
     m_sURI = "";
     m_sPort = "";
@@ -667,15 +658,23 @@ CTcpClient::~CTcpClient()
 }
 
 
-void CTcpClient::setDataType(const std::string& sType)
+void CTcpClient::setStreamType()
 {
     for (unsigned int x = 0; x < NET_STREAM_TYPE_LEN; x++)
     {
-        if (x >= (unsigned int) sType.length())
+        if (x >= (unsigned int) m_sStreamType.length())
             break;
 
-        m_pBufferHeader->m_StreamType[x] = sType[x];
+        m_pBufferHeader->m_StreamType[x] = m_sStreamType[x];
     }
+}
+
+
+void CTcpClient::setDataType(const std::string& sType)
+{
+    m_sStreamType = sType;
+
+    setStreamType();
 }
 
 
@@ -978,31 +977,10 @@ bool CTcpClient::open()
         //m_netSocket.set_option(noDelay);
     //}
 
-#if 0
-    if (m_bConnected == true || m_pNetResolver != nullptr)
-    {
-        try
-        {
-            m_netSocket.close();
-        }
-        catch (...)
-        { }
-
-        if (m_pNetResolver != nullptr)
-        {
-            delete m_pNetResolver;
-
-            m_pNetResolver = nullptr;
-        }
-
-        m_bConnected = false;
-    }
-#else
     if (m_bConnected == true)
     {
         return true;
     }
-#endif
 
     try
     {
@@ -1010,6 +988,8 @@ bool CTcpClient::open()
     }
     catch (...)
     {
+        m_sLastError = "unknown exception creating resolver";
+
         m_bConnected = false;
 
         return false;
@@ -1035,6 +1015,8 @@ bool CTcpClient::open()
     }
     catch (...)
     {
+        m_sLastError = "unknown exception during 'resolve'";
+
         m_bConnected = false;
 
         return false;
@@ -1042,13 +1024,44 @@ bool CTcpClient::open()
 
     try
     {
-        asio::connect(m_netSocket, m_netEndPoints);
+        // open TCP socket
+
+        asio::error_code error;
+
+        error.clear();
+
+        asio::connect(m_netSocket, m_netEndPoints, error);
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            close();
+
+            m_bConnected = false;
+
+            return false;
+        }
+        else
+        {
+            m_sLastError = "";
+        }
+
+        // set flag to report aborted socket ops
+
+        asio::socket_base::enable_connection_aborted option(true);
+
+        m_netSocket.set_option(option);
+
+        m_sLastError.clear();
     }
     catch (...)
     {
         delete m_pNetResolver;
 
         m_pNetResolver = nullptr;
+
+        m_sLastError = "unknown exception during 'connect'";
 
         m_bConnected = false;
 
@@ -1057,12 +1070,28 @@ bool CTcpClient::open()
 
     m_bConnected = true;
 
+    LogDebugInfoMsg("TCP connection opened");
+
     return true;
 }
 
 
 bool CTcpClient::close()
 {
+    LogDebugInfoMsg("sending 'exit' msg to server");
+
+    write("exit", 4);
+
+    //std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    try
+    {
+        m_netSocket.shutdown(asio::ip::tcp::socket::shutdown_send);
+    }
+    catch (...)
+    {
+    }
+
     try
     {
         m_netSocket.close();
@@ -1080,6 +1109,8 @@ bool CTcpClient::close()
 
     m_bConnected = false;
 
+    LogDebugInfoMsg("TCP connection closed");
+
     return true;
 }
 
@@ -1087,11 +1118,35 @@ bool CTcpClient::close()
 bool CTcpClient::isConnected()
 {
     if (m_bConnected == false)
+    { 
         return false;
+    }
 
     try
     { 
         m_bConnected = m_netSocket.is_open();
+
+        if (m_bConnected == false || getRemoteAddress() == "")
+        {
+            m_netSocket.close();
+
+            m_bConnected = false;
+        }
+
+        asio::error_code error;
+
+        error.clear();
+
+        auto bytesAvail = m_netSocket.available(error);
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            m_bConnected = false;
+
+            return false;
+        }
     }
     catch (...)
     {
@@ -1102,13 +1157,73 @@ bool CTcpClient::isConnected()
 }
 
 
+std::string CTcpClient::getRemoteAddress()
+{
+    if (m_bConnected == false)
+    {
+        return "";
+    }
+
+    try
+    { 
+        asio::error_code error;
+
+        error.clear();
+
+        auto endPoint = m_netSocket.remote_endpoint(error);
+
+        if (error)
+        {
+            m_sLastError = error.message();
+
+            m_bConnected = false;
+
+            return "";
+        }
+
+        auto remoteAddr = endPoint.address();
+
+        return remoteAddr.to_string();
+    }
+    catch (...)
+    {
+        m_sLastError = "unknown exception getting remote endpoint";
+
+        m_bConnected = false;
+    }
+
+    return "";
+}
+
+
 int CTcpClient::read(void *pTarget, const unsigned int nLen)
 {
     if (m_pDataBuffer == nullptr && (pTarget == nullptr || nLen < 1))
+    { 
         return -1;
+    }
 
-    if (nLen > m_nBufferSize)
+    int8_t *pTargetBuf = nullptr;
+
+    unsigned int nBytesToRead = 0;
+
+    if (pTarget != nullptr)
+    {
+        pTargetBuf = (int8_t *) pTarget;
+
+        nBytesToRead = nLen;
+    }
+    else
+    {
+        pTargetBuf = (int8_t*) m_pDataBuffer;
+
+        nBytesToRead = m_nBufferSize;
+    }
+
+    if (nBytesToRead < 1)
+    {
         return -2;
+    }
 
     clearBuffer();
 
@@ -1121,19 +1236,98 @@ int CTcpClient::read(void *pTarget, const unsigned int nLen)
 
         try
         {
+            if (m_netSocket.is_open() == false)
+            {
+                m_bConnected = false;
+
+                return -20;
+            }
+
             asio::error_code error;
 
-            readSize = (int) asio::read(m_netSocket, asio::buffer(m_pDataBuffer, m_nBufferSize), error);
+            error.clear();
 
-            m_sLastError = error.message();
+            auto bytesAvail = m_netSocket.available(error);
+
+            if (error)
+            {
+                m_sLastError = error.message();
+
+                m_bConnected = false;
+
+                return -20;
+            }
+
+            auto minMsgSize = 8;
+
+            if (bytesAvail < minMsgSize)
+            {
+                // check for msg timeout
+                if (m_heartBeatInterval > 0)
+                {
+                    auto now = std::chrono::system_clock::now();
+
+                    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_heartBeatTimestamp);
+
+                    if (dur.count() > m_heartBeatInterval)
+                    {
+                        // signal timeout
+
+                        m_bConnected = false;
+
+                        return -10;
+                    }
+                }
+
+                return 0;
+            }
+
+            error.clear();
+
+            readSize = (int) asio::read(m_netSocket, asio::buffer(m_pDataBuffer, bytesAvail), error);
+
+            if (error)
+            {
+                m_sLastError = error.message();
+
+                m_bConnected = false;
+
+                return -20;
+            }
+
+            m_sLastError.clear();
 
             if (readSize > 0)
+            { 
+                if (readSize >= 4)
+                {
+                    std::string sTmp = (char *) (m_pDataBuffer + m_nHeaderSize);
+
+                    if (StrUtils::strCompare("exit", sTmp, 4) == 0)
+                    {
+                        LogDebugInfoMsg("server 'exit' msg received");
+
+                        m_nCurrDataLen = 0;
+
+                        m_bConnected = false;
+
+                        return -30;
+                    }
+                }
+
                 m_nCurrDataLen = (unsigned int) readSize;
+            }
             else
+            { 
                 m_nCurrDataLen = 0;
+            }
         }
         catch (...)
         {
+            m_netSocket.close();
+
+            m_bConnected = false;
+
             return -5;
         }
 
@@ -1147,9 +1341,13 @@ int CTcpClient::read(void *pTarget, const unsigned int nLen)
         if (pTarget != nullptr && nLen > 0)
         {
             if (nPayloadSize < (int) nLen)
+            { 
                 memcpy(pTarget, (m_pDataBuffer + m_nHeaderSize), nPayloadSize);
+            }
             else
+            { 
                 memcpy(pTarget, (m_pDataBuffer + m_nHeaderSize), nLen);
+            }
         }
     }
 
@@ -1165,12 +1363,16 @@ int CTcpClient::write(const void *pSource, const unsigned int nLen)
     if ((pSource != nullptr && nLen < 1) || (pSource == nullptr && nLen > 0))
         return -2;
 
+    if (pSource != nullptr && nLen > m_nBufferSize)
+        return -3;
+
+    if (pSource == nullptr && m_nCurrDataLen < 1)
+        return -4;
+
     int nWriteSize = 0;
 
     try
     {
-        void *pData = nullptr;
-
         std::size_t dataSize = 0;
 
         {
@@ -1178,40 +1380,63 @@ int CTcpClient::write(const void *pSource, const unsigned int nLen)
 
             if (pSource != nullptr)
             { 
-                pData = (void *) pSource;
+                dataSize = (std::size_t) (m_nHeaderSize + nLen);
 
-                dataSize = (std::size_t) nLen;
+                if (m_nHeaderSize == sizeof(NetworkDataHeaderInfo_def))
+                {
+                    m_pBufferHeader = (NetworkDataHeaderInfo_def *) m_pDataBuffer;
+
+                    m_pBufferHeader->initialize();
+
+                    setStreamType();
+
+                    m_pBufferHeader->m_nDataLen = nLen;
+                }
+
+                memcpy((((int8_t *) m_pDataBuffer) + m_nHeaderSize), pSource, nLen);
+
+                m_nCurrDataLen = nLen;
             }
             else
             { 
-                pData = (void *) m_pDataBuffer;
-
                 dataSize = (std::size_t) (m_nHeaderSize + m_nCurrDataLen);
 
                 if (m_nHeaderSize == sizeof(NetworkDataHeaderInfo_def))
                 {
-                    m_pBufferHeader->m_nDataLen = (uint32_t) dataSize;
+                    m_pBufferHeader = (NetworkDataHeaderInfo_def*) m_pDataBuffer;
+
+                    m_pBufferHeader->m_nDataLen = (uint32_t) m_nCurrDataLen;
                 }
             }
 
-            asio::const_buffer send_buffer = asio::buffer(pData, dataSize);
+            asio::error_code error;
 
-            nWriteSize = (int) asio::write(m_netSocket, send_buffer);
+            error.clear();
+
+            asio::const_buffer send_buffer = asio::buffer(m_pDataBuffer, dataSize);
+
+            nWriteSize = (int) asio::write(m_netSocket, send_buffer, error);
+
+            if (error)
+            {
+                m_sLastError = error.message();
+
+                return -20;
+            }
+
+            m_sLastError.clear();
         }
 
-        if (nWriteSize > 0)
-        {
-            m_sLastError = "";
-        }
-        else
-        {
-            m_sLastError = "write failed";
-        }
+        m_sLastError.clear();
 
         m_nCurrDataLen = 0;
     }
     catch (...)
     {
+        m_netSocket.close();
+
+        m_bConnected = false;
+
         return -5;
     }
 

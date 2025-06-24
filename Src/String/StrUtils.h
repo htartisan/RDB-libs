@@ -104,6 +104,21 @@ inline std::string toLower(const std::string &sIn)
 }
 
 
+inline std::string toUpper(const std::string& sIn)
+{
+	std::string sOut = "";
+
+	std::string::size_type nLen = sIn.length();
+
+	for (std::string::size_type x = 0; x < nLen; ++x)
+	{
+		sOut += (char) ((isalpha((int) (sIn[x])) != (int) 0) ? toupper(sIn[x]) : sIn[x]);
+	}
+
+	return sOut;
+}
+
+
 //#define toString(x)	tos(x)
 
 //***************************************************************
@@ -251,6 +266,43 @@ inline bool toBool(const std::string &sVal)
 	throw std::runtime_error("toBool - ERROR: Invalid input string value");
 }
 
+
+inline int strCompare(const std::string sStr1, const std::string sStr2, const unsigned int nLen = 0)
+{
+	unsigned int nCmpLen = nLen;
+
+	if (nLen > 0)
+	{
+		if (nCmpLen > (unsigned int) sStr1.length())
+		{
+			nCmpLen = (unsigned int) sStr1.length();
+		}
+	}
+	else
+	{
+		nCmpLen = (unsigned int) sStr1.length();
+	}
+
+	if (nCmpLen > (unsigned int) sStr2.length())
+	{
+		nCmpLen = (unsigned int) sStr2.length();
+	}
+
+	for (unsigned int x = 0; x < nCmpLen; x++)
+	{
+		if (sStr1[x] < sStr2[x])
+		{
+			return -1;
+		}
+
+		if (sStr1[x] > sStr2[x])
+		{
+			return 1;
+		}
+	}
+
+	return 0;
+}
 
 #ifndef _TOHEXSTR_
 #define _TOHEXSTR_

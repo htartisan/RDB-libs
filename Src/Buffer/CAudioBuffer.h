@@ -26,7 +26,7 @@
 template <class T> 
 class CSimpleAudioBuffer : public CErrorHandler
 {
-    unsigned int  m_numChannels;  // number of channels to buffer
+    unsigned int  m_numChls;  // number of channels to buffer
     unsigned int  m_blockSize;    // if interleaved, number of frames per block, if not, number of samples per channel
     unsigned int  m_arraySize;    // arraySize = total numner of samples in a block
 
@@ -43,7 +43,7 @@ class CSimpleAudioBuffer : public CErrorHandler
   public:
 
     CSimpleAudioBuffer(bool bInterleaved = false) :
-        m_numChannels(1),
+        m_numChls(1),
         m_bAllocated(false)
     {
         m_bInterleaved  = bInterleaved;
@@ -75,12 +75,12 @@ class CSimpleAudioBuffer : public CErrorHandler
             return;
         }
         
-        m_numChannels = numChls;
+        m_numChls = numChls;
     }
 
     unsigned int getNumChannels()
     {
-        return m_numChannels;
+        return m_numChls;
     }
 
     void setSamplesPerBlock(unsigned int blockSize)
@@ -105,7 +105,7 @@ class CSimpleAudioBuffer : public CErrorHandler
             return;
         }
 
-        m_numChannels = numChls;
+        m_numChls = numChls;
         m_blockSize   = blockSize;
     }
 
@@ -131,12 +131,12 @@ class CSimpleAudioBuffer : public CErrorHandler
              return false;
         }
 
-        if (m_numChannels < 1)
+        if (m_numChls < 1)
         {
             return false;
         }
 
-        m_arraySize = (m_blockSize * m_numChannels); // arraySize = total numner of samples in the buffer
+        m_arraySize = (m_blockSize * m_numChls); // arraySize = total numner of samples in the buffer
 
         m_pBuffer = (T*) calloc(m_arraySize, sizeof(T));
 
@@ -166,6 +166,11 @@ class CSimpleAudioBuffer : public CErrorHandler
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
+        if (m_bAllocated == false)
+        {
+            return;
+        }
+
         if (m_pBuffer != nullptr)
         {
             try
@@ -176,6 +181,8 @@ class CSimpleAudioBuffer : public CErrorHandler
             {
             }
         }
+
+        m_pBuffer = nullptr;
 
         m_bAllocated = false;
     }
@@ -225,7 +232,7 @@ class CSimpleAudioBuffer : public CErrorHandler
         unsigned int offset;
 
         if (m_bInterleaved)
-            offset = index * m_numChannels; // interleaved offset = frame_number = (index * size_of_a_frame)   
+            offset = index * m_numChls; // interleaved offset = frame_number = (index * size_of_a_frame)   
         else
             offset = index * m_blockSize;   // non-interleaved offset = channel_number = (index * size_of_a_channel_block)
 
@@ -249,7 +256,7 @@ class CSimpleAudioBuffer : public CErrorHandler
             return nullptr;
         }
 
-        if (chan >= m_numChannels)
+        if (chan >= m_numChls)
         {
             return nullptr;
         }
@@ -281,7 +288,7 @@ class CSimpleAudioBuffer : public CErrorHandler
             return nullptr;
         }
 
-        auto offset = frame * m_numChannels; // frame offset = (frame_number * size_of_a_frame)
+        auto offset = frame * m_numChls; // frame offset = (frame_number * size_of_a_frame)
 
         if (offset >= m_arraySize)
         {
@@ -305,7 +312,7 @@ class CSimpleAudioBuffer : public CErrorHandler
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_numChannels < 1 || chan > m_numChannels || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_numChls < 1 || chan > m_numChls || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
         {            
             return 0;
         }
@@ -313,7 +320,7 @@ class CSimpleAudioBuffer : public CErrorHandler
         unsigned int offset;
 
         if (m_bInterleaved)
-            offset = (frame * m_numChannels) + chan; // interleaved offset = (frame_number * size_of_a_frame) + channel_number
+            offset = (frame * m_numChls) + chan; // interleaved offset = (frame_number * size_of_a_frame) + channel_number
         else
             offset = (chan * m_blockSize) + frame;   // non-interleaved offset = (channel_number * size_of_channel_block) + frame_number
 
@@ -329,14 +336,14 @@ class CSimpleAudioBuffer : public CErrorHandler
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_numChannels < 1 || chan > m_numChannels || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_numChls < 1 || chan > m_numChls || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
         {
             return;
         }
 
         unsigned int offset;
         if (m_bInterleaved)
-            offset = (frame * m_numChannels) + chan; // interleaved offset = (frame_number * size_of_a_frame) + channel_number
+            offset = (frame * m_numChls) + chan; // interleaved offset = (frame_number * size_of_a_frame) + channel_number
         else
             offset = (chan * m_blockSize) + frame;   // non-interleaved offset = (channel_number * size_of_channel_block) + frame_number
 
@@ -479,14 +486,14 @@ class CSimpleAudioBuffer : public CErrorHandler
             return 0;
         }
 
-        unsigned int frameOffset = (frameNum * m_numChannels);
+        unsigned int frameOffset = (frameNum * m_numChls);
 
         T * pFrame = ((T*) m_pBuffer + frameOffset);
 
-        for (unsigned int x = 0; x < m_numChannels; x++)
+        for (unsigned int x = 0; x < m_numChls; x++)
             buf[x] = *(pFrame + x);
 
-        return m_numChannels;
+        return m_numChls;
     }
 
     // write a single sample at the current write offset, and
@@ -602,14 +609,14 @@ class CSimpleAudioBuffer : public CErrorHandler
             return 0;
         }
 
-        unsigned int frameOffset = (frameNum * m_numChannels);
+        unsigned int frameOffset = (frameNum * m_numChls);
 
         T *pFrame = (m_pBuffer + frameOffset);
 
-        for (unsigned int x = 0; x < m_numChannels; x++)
+        for (unsigned int x = 0; x < m_numChls; x++)
             *(pFrame + x) = buf[x];
 
-        return m_numChannels;
+        return m_numChls;
     }
 };
 

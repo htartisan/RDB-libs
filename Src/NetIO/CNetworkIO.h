@@ -18,6 +18,14 @@
 
 #include "../Thread/ThreadBase.h"
 
+#include "../Logging/Logging.h"
+
+
+#ifdef DEBUG
+#define LogDebugInfoMsg         LogInfo
+#else
+#define LogDebugInfoMsg         LogDebug
+#endif
 
 
 #define DEFAULT_TCP_BUFFER_SIZE             4096
@@ -37,6 +45,11 @@
 
 //#define USE_ASIO_ASYNC_READ
 //#define USE_ASIO_ASYNC_WRIRE
+
+
+// Utility functions
+
+bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::string& sPort, std::string& sProtocol);
 
 
 namespace CNetworkIO
@@ -91,12 +104,6 @@ struct NetworkDataHeaderInfo_def
 typedef int8_t                                      DataByte_def;
 
 typedef DataByte_def *                              DataBytePtr_def;
-
-
-// Utility functions
-
-bool parseServerAndPort(const std::string &sUri, std::string &sServer, std::string &sPort, std::string &sProtocol);
-
 
 
 //*
@@ -197,27 +204,20 @@ public:
 
     int setDataType(const char* pType, const unsigned int nLen);
 
+    bool setMsgData(const void* pData, const unsigned int nLen);
+
+    bool compareMsgData(const char* pData, const unsigned int nLen);
+
     void setUpdated(bool val);
 
     bool isUpdated();
-};
 
-
-// CNetMessageHandler class
-
-class CNetMessageHandler
-{
-    CNetMessageData &m_msgData;
-
-public:
-
-    CNetMessageHandler(CNetMessageData& msgData);
-
-    bool decodeMsgHeader(const std::string &sType);
+    bool decodeMsgHeader(const std::string& sType);
 
     bool encodeMsgHeader(const std::string& sType);
 
 };
+
 
 
 };  //  namespace CNetworkIO
