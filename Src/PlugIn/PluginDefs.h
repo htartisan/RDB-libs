@@ -11,6 +11,9 @@
 #define PLUGIN_MODULE_DEFS
 
 
+#include <string>
+
+
 #ifdef EXPORT_LIB
 
 // if this is included from a "plugin lib" module,

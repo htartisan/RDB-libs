@@ -18,7 +18,8 @@
 #include "../Error/CError.h"
 
 
-template <class T> class CSimpleDataBuffer : public CErrorHandler
+template <class T> class CSimpleDataBuffer : 
+    public CErrorHandler
 {
     unsigned int  m_frameSize;      // number of elements in a frame
     unsigned int  m_blockSize;      // number of frames per buffer

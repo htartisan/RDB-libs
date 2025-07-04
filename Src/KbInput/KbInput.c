@@ -6,16 +6,21 @@
 
 #pragma once
 
-
-#include <stdio.h>
-#include <sys/select.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <unistd.h>
+#include "KbInput.h"
 
 
-// Initialize new terminal i/o settings (ECHO)
-void initTermiosEcho(const bool bEcho, struct termios &save) 
+// Save the current terminal i/o settings
+void saveTermios(struct termios &save) 
+{
+    static const int STDIN = 0;
+	
+    // save old terminal i/o settings 
+    tcgetattr(STDIN, &save);    
+}
+
+
+// Set terminal i/o settings (set KB Echo)
+void setTermiosEcho(const bool bEcho, struct termios &save) 
 {
     static const int STDIN = 0;
 	
@@ -43,8 +48,8 @@ void initTermiosEcho(const bool bEcho, struct termios &save)
 }
 
 
-// Initialize new terminal i/o settings (ECHO)
-void initTermiosBuffering(struct termios &save) 
+// Initialize new terminal i/o settings (no KB Buffering)
+void setTermiosBuffering(const bool bBuffering, struct termios &save) 
 {
     static const int STDIN = 0;
 	
@@ -55,7 +60,15 @@ void initTermiosBuffering(struct termios &save)
     struct termios termIO;
     
     termIO = save;
-    termIO.c_lflag &= ~ICANON;             // disable buffered i/o 
+
+    if (bBuffering == true) 
+    {
+        termIO.c_lflag &= ICANON;          // ensable buffered i/o 
+    }
+    else
+    {
+        termIO.c_lflag &= ~ICANON;         // disable buffered i/o 
+    }
 
     tcsetattr(STDIN, TCSANOW, &termIO);    // use these new terminal i/o settings now 
 
@@ -63,7 +76,7 @@ void initTermiosBuffering(struct termios &save)
 }
 
 
-// Restore old terminal i/o settings
+// Restore old terminal i/o settings (restore)
 void resetTermios(struct termios &old) 
 {
     tcsetattr(0, TCSANOW, &old);
@@ -77,7 +90,7 @@ int _kbhit()
 	
     struct termios save;
 
-    initTermiosBuffering(save);
+    setTermiosBuffering(false, save);
 
     int bytesWaiting;
 	
@@ -97,7 +110,7 @@ char getachar(const bool bEcho)
 
     struct termios save;
 
-    initTermiosEcho(bEcho, save);
+    setTermiosEcho(bEcho, save);
 
     ch = getchar();
 
@@ -107,15 +120,27 @@ char getachar(const bool bEcho)
 }
 
 
+// Read 1 character 
+char getachar() 
+{
+    char ch;
+
+    ch = getchar();
+
+    return ch;
+}
+
+
 // Read 1 character without echo 
 char _getch(void) 
 {
-    return getachar(false);
+    //return getachar(false);
+    return getachar();
 }
 
 
 // Read 1 character with echo 
 char _getche(void) 
 {
-    return getachar(true);
+    return getachar();
 }
