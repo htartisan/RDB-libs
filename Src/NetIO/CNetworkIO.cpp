@@ -80,6 +80,269 @@ bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::stri
 
 
 
+bool parseUriParams(const std::string& sPrmsStr, UriParamList_def& prmList)
+{
+    if (sPrmsStr == "")
+    {
+        return false;
+    }
+
+    std::string sParamName = "";
+    std::string sParamValue = "";
+
+    unsigned int nParamStrLen = (unsigned int) sPrmsStr.length();
+
+    // first look for HTTP stype params (starting with '?')
+
+    auto nParamStart = sPrmsStr.find("?");
+
+    if (nParamStart != std::string::npos)
+    {
+        // found question mark
+
+        nParamStart++;
+
+        if (nParamStart >= nParamStrLen)
+        {
+            // no param data
+
+            return false;
+        }
+
+        while (nParamStart < nParamStrLen)
+        {
+            auto nEqualSign = sPrmsStr.find("=", nParamStart);
+
+            if (nEqualSign == std::string::npos)
+            {
+                // no equal sign found 
+
+                sParamName = sPrmsStr.substr(nParamStart);
+
+                if (sParamName == "")
+                {
+                    // no param name
+
+                    return false;
+                }
+
+                // save just the param name
+
+                UriParamData_def newParam(sParamName);
+
+                prmList.push_back(newParam);
+
+                return true;
+            }
+
+            sParamName = sPrmsStr.substr(nParamStart, nEqualSign);
+
+            nParamStart = (nEqualSign + 1);
+
+            // find start of next param
+
+            auto nAndlSign = sPrmsStr.find("&", nParamStart);
+
+            if (nAndlSign == std::string::npos)
+            {
+                // no 'next param' symbole 
+
+                sParamValue = sPrmsStr.substr(nParamStart);
+
+                if (sParamValue == "")
+                {
+                    // no param value
+
+                    return false;
+                }
+
+                // save param, and exit
+
+                UriParamData_def newParam(sParamName, sParamValue);
+
+                prmList.push_back(newParam);
+
+                return true;
+            }
+
+            // save param, and look for next param
+
+            sParamValue = sPrmsStr.substr(nParamStart, nAndlSign);
+
+            nParamStart = (nAndlSign + 1);
+
+            UriParamData_def newParam(sParamName, sParamValue);
+
+            prmList.push_back(newParam);
+        }
+
+        return true;
+    }
+
+    // If not found, look for XML style params
+
+    auto nOpenBrace = sPrmsStr.find("{");
+
+    if (nOpenBrace == std::string::npos)
+    {
+        // no start of XML
+
+        return false;
+    }
+
+    auto nCloseBrace = sPrmsStr.rfind("}");
+
+    if (nCloseBrace == std::string::npos)
+    {
+        // no end of XML
+
+        return false;
+    }
+
+    nParamStart = (nOpenBrace + 1);
+
+    if (nParamStart >= nCloseBrace)
+    {
+        // no XML data
+
+        return false;
+    }
+
+    while (nParamStart < nCloseBrace)
+    { 
+        // find param name
+
+        {
+            auto nOpenQuote = sPrmsStr.find("\"", nParamStart);
+
+            if (nOpenQuote == std::string::npos)
+            {
+                // no open quote
+
+                return false;
+            }
+
+            nParamStart = (nOpenQuote + 1);
+
+            auto nCloseQuote = sPrmsStr.find("\"", nParamStart);
+
+            if (nCloseQuote == std::string::npos)
+            {
+                // no close quote
+
+                return false;
+            }
+
+            sParamName = sPrmsStr.substr(nParamStart, nCloseQuote);
+
+            nParamStart = (nCloseQuote + 1);
+        }
+
+        auto nColon = sPrmsStr.find(":", nParamStart);
+
+        if (nColon == std::string::npos)
+        {
+            // no colon symbol
+
+            auto nComma = sPrmsStr.find(",", nParamStart);
+
+            UriParamData_def newParam(sParamName);
+
+            prmList.push_back(newParam);
+
+            if (nComma == std::string::npos)
+            {
+                // no comma (no more params)
+
+                return true;
+            }
+
+            nParamStart = (nComma + 1);
+
+            continue;
+        }
+
+        nParamStart = (nColon + 1);
+
+        // find param value
+
+        {
+            auto nOpenQuote = sPrmsStr.find("\"", nParamStart);
+
+            if (nOpenQuote == std::string::npos)
+            {
+                // no open quote, treat as non-quoted value
+
+                std::string sTmp = "";
+
+                auto nComma = sPrmsStr.find(",", nParamStart);
+
+                if (nComma == std::string::npos)
+                {
+                    sTmp = sPrmsStr.substr(nParamStart, nComma);
+                }
+                else
+                { 
+                    sTmp = sPrmsStr.substr(nParamStart);
+                }
+
+                for (unsigned int i = 0; i < sTmp.length(); i++)
+                {
+                    // skip any leading spaces
+
+                    if (sTmp[i] > ' ')
+                    {
+                        sParamValue = sTmp.substr(i);
+
+                        nParamStart += sTmp.length();
+
+                        goto saveParam;
+                    }
+                }
+
+                // no non-quoted value
+
+                return false;
+            }
+
+            nParamStart = (nOpenQuote + 1);
+
+            auto nCloseQuote = sPrmsStr.find("\"", nParamStart);
+
+            if (nCloseQuote == std::string::npos)
+            {
+                // no close quote
+
+                return false;
+            }
+
+            sParamValue = sPrmsStr.substr(nParamStart, nCloseQuote);
+
+            nParamStart = (nCloseQuote + 1);
+        }
+
+      saveParam:
+
+        UriParamData_def newParam(sParamName, sParamValue);
+
+        prmList.push_back(newParam);
+
+        auto nComma = sPrmsStr.find(",", nParamStart);
+
+        if (nComma == std::string::npos)
+        {
+            break;
+        }
+
+        nParamStart = (nComma + 1);
+
+        // continue looking for next param
+    }
+
+    return true;
+}
+
+
 //*
 //* CNetMessageData utility class defs
 //*

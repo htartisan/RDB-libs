@@ -232,7 +232,7 @@ class CSimpleAudioBuffer : public CErrorHandler
         unsigned int offset;
 
         if (m_bInterleaved)
-            offset = index * m_numChls; // interleaved offset = frame_number = (index * size_of_a_frame)   
+            offset = index * m_numChls;     // interleaved offset = frame_number = (index * size_of_a_frame)   
         else
             offset = index * m_blockSize;   // non-interleaved offset = channel_number = (index * size_of_a_channel_block)
 

@@ -513,6 +513,11 @@ int CUdpServer::readInputData(void* pBuff, const unsigned int nMax)
 
     auto nMsgLen = m_inputMsg.getBodyLength();
 
+    if (nMsgLen == 0)
+    {
+        return 0;
+    }
+
     if (nMsgLen < nCopyLen)
     {
         nCopyLen = (size_t)nMsgLen;
@@ -531,7 +536,7 @@ int CUdpServer::readInputData(void* pBuff, const unsigned int nMax)
 
     m_inputMsg.releasePtr();
 
-    return (int)nCopyLen;
+    return (int) nCopyLen;
 }
 
 

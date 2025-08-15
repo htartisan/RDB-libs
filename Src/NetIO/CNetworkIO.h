@@ -49,7 +49,27 @@
 
 // Utility functions
 
+
 bool parseServerAndPort(const std::string& sUri, std::string& sServer, std::string& sPort, std::string& sProtocol);
+
+
+typedef struct UriParamData_tag
+{
+    std::string     m_sName;
+    std::string     m_sValue;
+
+    UriParamData_tag(const std::string &sName = "", const std::string& sValue = "")
+    {
+        m_sName = sName;
+        m_sValue = sValue;
+    }
+
+} UriParamData_def;
+
+typedef std::vector<UriParamData_def>      UriParamList_def;
+
+
+bool parseUriParams(const std::string& sPrmsStr, UriParamList_def& prmList);
 
 
 namespace CNetworkIO
