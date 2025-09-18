@@ -47,8 +47,82 @@ std::string getFileExt(std::string &sPath);
 std::string getFileName(std::string& sPath);
 
 
-/// class CRawFileIO;
-/// class CWavFileIO;
+/// Utility functions
+
+#ifndef _UTILITY_FUNCTION_DEFS_
+#define _UTILITY_FUNCTION_DEFS_
+
+std::string removeLeadingSpaces(std::string& sStr)
+{
+    std::string sOut = "";
+
+    bool bFirstCharFound = false;
+
+    // skip leading spaces
+    for (auto x = sStr.begin(); x != sStr.end(); x++)
+    {
+        if (bFirstCharFound == false && (*x) == ' ')
+        {
+            continue;
+        }
+
+        bFirstCharFound = true;
+
+        sOut.push_back((*x));
+    }
+
+    return sOut;
+}
+
+
+std::string removeTrailingSpaces(std::string& sStr)
+{
+    std::string sOut = "";
+
+    int nLen = (int)sStr.size();
+
+    // find string len - num trailing spaces
+    for (auto x = (sStr.end() - 1); x != sStr.begin(); x--)
+    {
+        if ((*x) != ' ')
+        {
+            break;
+        }
+
+        nLen--;
+    }
+
+    sOut.append(sStr.substr(0, nLen));
+
+    return sOut;
+
+}
+
+
+std::string getFileDir(std::string& sPath)
+{
+    std::filesystem::path filePath(sPath);
+
+    return (filePath.parent_path().string());
+}
+
+
+std::string getFileExt(std::string& sPath)
+{
+    std::filesystem::path filePath(sPath);
+
+    return (filePath.extension().string());
+}
+
+
+std::string getFileName(std::string& sPath)
+{
+    std::filesystem::path filePath(sPath);
+
+    return (filePath.stem().string());
+}
+
+#endif
 
 
 std::string audioFileTypeToString(eAudioFileType_def value)
@@ -57,8 +131,11 @@ std::string audioFileTypeToString(eAudioFileType_def value)
     {
         {eFileType_raw, "raw"},   
         {eFileType_wav, "wav"},   
-        {eFileType_mp3, "mp3"},   
         {eFileType_aiff, "aiff"},
+        {eFileType_mp3, "mp3"},   
+        {eFileType_mp3, "aac"},   
+        {eFileType_ec3, "ec3"},   
+        {eFileType_ac3, "ac3"},   
         {eFileType_info, "info"}, 
         {eFileType_text, "text"},
     };
@@ -88,11 +165,20 @@ eAudioFileType_def getAudioFileType(const std::string &filepath)
     if (ext == ".wav")
         return eFileType_wav;
 
+    if (ext == ".aiff")
+        return eFileType_aiff;
+
     if (ext == ".mp3")
         return eFileType_mp3;
 
-    if (ext == ".aiff")
-        return eFileType_aiff;
+    if (ext == ".aac")
+        return eFileType_aac;
+
+    if (ext == ".ac3")
+        return eFileType_ac3;
+
+    if (ext == ".ec3")
+        return eFileType_ec3;
 
     if (ext == ".info")
         return eFileType_info;
@@ -2987,81 +3073,3 @@ bool CMp3FileIO::resetPlayPosition()
 #endif  //  USE_DR_MP3
 
 
-/// Utility functions
-
-#ifndef _UTILITY_FUNCTION_DEFS_
-#define _UTILITY_FUNCTION_DEFS_
-
-
-std::string removeLeadingSpaces(std::string& sStr)
-{
-    std::string sOut = "";
-
-    bool bFirstCharFound = false;
-
-    // skip leading spaces
-    for (auto x = sStr.begin(); x != sStr.end(); x++)
-    {
-        if (bFirstCharFound == false && (*x) == ' ')
-        { 
-            continue;
-        }
-
-        bFirstCharFound = true;
-
-        sOut.push_back((*x));
-    }
-
-    return sOut;
-}
-
-
-std::string removeTrailingSpaces(std::string& sStr)
-{
-    std::string sOut = "";
-
-    int nLen = (int) sStr.size();
-
-    // find string len - num trailing spaces
-    for (auto x = (sStr.end() - 1); x != sStr.begin(); x--)
-    {
-        if ((*x) != ' ')
-        {
-            break;
-        }
-
-        nLen--;
-    }
-
-    sOut.append(sStr.substr(0, nLen));
-
-    return sOut;
-
-}
-
-
-std::string getFileDir(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.parent_path().string());
-}
-
-
-std::string getFileExt(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.extension().string());
-}
-
-
-std::string getFileName(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.stem().string());
-}
-
-
-#endif

@@ -20,6 +20,9 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdio.h>
+
+#include <cstdarg>
 
 
 #ifdef WINDOWS
@@ -51,6 +54,29 @@ inline std::string eol() throw()
 }
 
 #endif
+
+
+inline std::string strPrintf(const char *pFmt, ...)
+{
+	char szTmp[2048];
+
+	memset(szTmp, 0, sizeof(szTmp));
+
+	va_list args;
+	va_start(args, pFmt); // Initialize va_list
+
+#ifdef WINDOWS
+	::sprintf_s(szTmp, sizeof(szTmp), pFmt, args);
+#else
+	::sprintf(szTmp, pFmt, args);
+#endif
+
+	va_end(args); // Clean up va_list
+
+	std::string sOut(szTmp);
+
+	return sOut;
+}
 
 
 inline std::string tab() throw()

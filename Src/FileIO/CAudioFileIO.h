@@ -41,12 +41,12 @@ enum eAudioFileType_def
     eFileType_raw,
     eFileType_wav,
     eFileType_aiff,
-    eFileType_info,
-    eFileType_text,
-    eFileType_ec3,
-    eFileType_ac3,
     eFileType_mp3,
     eFileType_aac,
+    eFileType_ac3,
+    eFileType_ec3,
+    eFileType_info,
+    eFileType_text,
 };
 
 
