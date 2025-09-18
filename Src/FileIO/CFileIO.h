@@ -20,6 +20,12 @@
 
 #define MAX_LINE_IO_SIZE        1024
 
+#ifdef WINDOWS
+#define DIR_SEPERATOR_CHAR      '\\'
+#else
+#define DIR_SEPERATOR_CHAR      '/'
+#endif
+
 
 enum eFileIoMode_def
 {
@@ -38,6 +44,9 @@ class CFileIO
 
     FILE           *m_pFileHandle;
     std::string     m_sFilePath;
+    std::string     m_sFileDir;
+    std::string     m_sFileName;
+    std::string     m_sFileExt;
     eFileIoMode_def m_eMode;
     unsigned int    m_nLastIoSize;
     std::string     m_sLastErrorStr;
@@ -50,6 +59,9 @@ class CFileIO
     explicit CFileIO(const std::string &sFilePath = "") :
         m_sFilePath(sFilePath)
     {
+        m_sFileDir      = "";
+        m_sFileName     = "";
+        m_sFileExt      = "";
         m_pFileHandle   = nullptr;
         m_eMode         = eFileIoMode_def::eFileIoMode_unknown;
         m_nLastIoSize   = 0;
@@ -63,6 +75,75 @@ class CFileIO
     {
         if (m_pFileHandle != nullptr)
             closeFile();
+    }
+
+    bool setFileDir(const std::string &sDir)
+    {
+        m_sFileDir = sDir;
+
+        m_sFilePath = m_sFileDir;
+        if (m_sFileDir.length() > 0)
+        {
+            auto nLen = (m_sFileDir.length() - 1);
+            if (m_sFileDir[nLen] != DIR_SEPERATOR_CHAR)
+            {
+                m_sFilePath.append(1, DIR_SEPERATOR_CHAR);
+            }
+        }
+        m_sFilePath.append(m_sFileName);
+        if (m_sFileExt.length() > 0)
+        {
+            m_sFilePath.append(1, '.');
+            m_sFilePath.append(m_sFileExt);
+        }
+
+        return true;
+    }
+
+    bool setFileName(const std::string& sName)
+    {
+        m_sFileName = sName;
+
+        m_sFilePath = m_sFileDir;
+        if (m_sFileDir.length() > 0)
+        {
+            auto nLen = (m_sFileDir.length() - 1);
+            if (m_sFileDir[nLen] != DIR_SEPERATOR_CHAR)
+            {
+                m_sFilePath.append(1, DIR_SEPERATOR_CHAR);
+            }
+        }
+        m_sFilePath.append(m_sFileName);
+        if (m_sFileExt.length() > 0)
+        {
+            m_sFilePath.append(1, '.');
+            m_sFilePath.append(m_sFileExt);
+        }
+
+        return true;
+    }
+
+    bool setFileExt(const std::string& sExt)
+    {
+        m_sFileExt = sExt;
+
+        m_sFilePath = m_sFileDir;
+        if (m_sFileDir.length() > 0)
+        {
+            auto nLen = (m_sFileDir.length() - 1);
+            if (m_sFileDir[nLen] != DIR_SEPERATOR_CHAR)
+            {
+                m_sFilePath.append(1, DIR_SEPERATOR_CHAR);
+            }
+        }
+        m_sFilePath.append(m_sFileName);
+        if (m_sFileExt.length() > 0)
+        {
+            m_sFilePath.append(1, '.');
+            m_sFilePath.append(m_sFileExt);
+        }
+
+        return true;
     }
 
     unsigned int getLastIoSize()
@@ -94,6 +175,13 @@ class CFileIO
         return true;
     }
 
+    bool setFileMode(const eFileIoMode_def eMode)
+    {
+        m_eMode = eMode;
+
+        return true;
+    }
+
     void setBinaryMode(const bool val = true)
     {
         m_bBinary = val;
@@ -107,7 +195,7 @@ class CFileIO
         return false;
     }
 
-    bool openFile(const eFileIoMode_def eMode, const std::string &sFilePath = "")
+    bool openFile(const eFileIoMode_def eMode = eFileIoMode_def::eFileIoMode_unknown, const std::string &sFilePath = "")
     {
         if (m_pFileHandle != nullptr)
         {
@@ -116,35 +204,36 @@ class CFileIO
             return false;
         }
 
+        if (eMode != eFileIoMode_def::eFileIoMode_unknown)
+        {
+            m_eMode = eMode;
+        }
+
         std::string sFileMode;
 
-        switch (eMode)
+        switch (m_eMode)
         {
             case eFileIoMode_def::eFileIoMode_input:
                 {
                     sFileMode = "r";
-                    m_eMode   = eMode;
                 }
                 break;
 
             case eFileIoMode_def::eFileIoMode_output:
                 {
                     sFileMode = "w";
-                    m_eMode   = eMode;
                 }
                 break;
 
             case eFileIoMode_def::eFileIoMode_IO:
                 {
                     sFileMode = "r+";
-                    m_eMode   = eMode;
                 }
                 break;
 
             case eFileIoMode_def::eFileIoMode_append:
                 {
                     sFileMode = "a+";
-                    m_eMode   = eMode;
                 }
                 break;
 

@@ -6,7 +6,7 @@
 //*
 
 
-#ifdef WIN32
+#ifdef WINDOWS
 #include <windows.h>
 #else
 #include "win32_unix.h"
@@ -20,9 +20,9 @@
 //#include <typeinfo>       // operator typeid
 #include <exception> 
 
-#include <file/CFileIO.h>
+#include <FileIO/CFileIO.h>
 
-#include <stl/stringUtils.h>
+#include <String/StrUtils.h>
 //#include "urlUtils.h"
 #include <xml/XmlUtils.h>
 
@@ -281,9 +281,9 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 			{
 #ifdef UNICODE
 				std::wstring sTmp = stringUtil::str2wstr(pFolder);
-				bStatus = cFileManager.SetFileDir((WCHAR *) sTmp.c_str());
+				bStatus = cFileManager.setFileDir((WCHAR *) sTmp.c_str());
 #else
-				bStatus = cFileManager.SetFileDir((char *)pFolder);
+				bStatus = cFileManager.setFileDir((char *) pFolder);
 #endif
 				if (bStatus == false)
 				{
@@ -296,10 +296,10 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 #ifdef UNICODE
 		{
 			std::wstring sTmp = stringUtil::str2wstr(pFileName);
-			bStatus = cFileManager.SetFileName((WCHAR *) sTmp.c_str());
+			bStatus = cFileManager.setFileName((WCHAR *) sTmp.c_str());
 		}
 #else
-		bStatus = cFileManager.SetFileName((char *) pFileName);
+		bStatus = cFileManager.setFileName((char *) pFileName);
 #endif
 		if (bStatus == false)
 		{
@@ -307,21 +307,16 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 			return false;
 		}
 
-		//* open file for "r" (read only) mode
-#ifdef UNICODE
-		cFileManager.SetFileMode(L"r");
-#else
-		cFileManager.SetFileMode("r");
-#endif
+		cFileManager.setFileMode(eFileIoMode_def::eFileIoMode_output);
 
-		bStatus = cFileManager.Open();
+		bStatus = cFileManager.openFile();
 		if (bStatus == false)
 		{
 			//throw std::runtime_error("Problem opening XML file");
 			return false;
 		}
 
-		LONG lFileLen = cFileManager.GetFileLen();
+		LONG lFileLen = cFileManager.getFileSize();
 		if (lFileLen < 1)
 		{
 			//throw std::runtime_error("XML file length error");
@@ -334,19 +329,19 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 			goto CloseAndExit;
 		}
 
-		cFileManager.SetFilePointer(0);
+		cFileManager.setFilePosition(0);
 
 #ifdef UNICODE
 		{
 			std::wstring sTmp = stringUtil::str2wstr(m_pXmlBuffer);
-			bStatus = cFileManager.ReadBuffer((WCHAR *) sTmp.c_str(), lFileLen);
+			bStatus = cFileManager.readBlock((WCHAR *) sTmp.c_str(), lFileLen, 1);
 		}
 #else
-		bStatus = cFileManager.ReadBuffer(m_pXmlBuffer, lFileLen);
+		bStatus = cFileManager.readBlock(m_pXmlBuffer, lFileLen, 1);
 #endif
 		if (bStatus == false)
 		{
-			if (cFileManager.CheckEOF() != true)
+			if (cFileManager.checkEof() != true)
 			{
 				//throw std::runtime_error("Error reading XML file");
 				goto CloseAndExit;
@@ -373,7 +368,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 
   CloseAndExit:
 
-	cFileManager.Close();
+	cFileManager.closeFile();
 
 	return  bStatus;
 }
@@ -420,9 +415,9 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 		{
 #ifdef UNICODE
 			std::wstring sTmp = stringUtil::str2wstr(pFolder);
-			bStatus = cFileManager.SetFileDir((WCHAR *) sTmp.c_str());
+			bStatus = cFileManager.setFileDir((WCHAR *) sTmp.c_str());
 #else
-			bStatus = cFileManager.SetFileDir((char *) pFolder);
+			bStatus = cFileManager.setFileDir((char *) pFolder);
 #endif
 			if (bStatus == FALSE)
 			{
@@ -434,10 +429,10 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 #ifdef UNICODE
 		{
 			std::wstring sTmp = stringUtil::str2wstr(pFileName);
-			bStatus = cFileManager.SetFileName((WCHAR *) sTmp.c_str());
+			bStatus = cFileManager.setFileName((WCHAR *) sTmp.c_str());
 		}
 #else
-		bStatus = cFileManager.SetFileName((char *) pFileName);
+		bStatus = cFileManager.setFileName((char *) pFileName);
 #endif
 		if (bStatus == false)
 		{
@@ -445,14 +440,9 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 			return false;
 		}
 
-		//* open file for "w" (write only) mode
-#ifdef UNICODE
-		cFileManager.SetFileMode(L"w");
-#else
-		cFileManager.SetFileMode("w");
-#endif
+		cFileManager.setFileMode(eFileIoMode_def::eFileIoMode_output);
 
-		bStatus = cFileManager.Open();
+		bStatus = cFileManager.openFile();
 		if (bStatus == false)
 		{
 			//throw std::runtime_error("Problem opening XML file");
@@ -466,10 +456,10 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 #ifdef UNICODE
 		{
 			std::wstring sTmp = stringUtil::str2wstr(sOut);
-			bStatus = cFileManager.WriteBuffer((WCHAR *) (sTmp.c_str()), (LONG) (sTmp.length()));
+			bStatus = cFileManager.writeBlock((WCHAR *) (sTmp.c_str()), (LONG) (sTmp.length()), 1);
 		}
 #else
-		bStatus = cFileManager.WriteBuffer((char *) (sOut.c_str()), (LONG) (sOut.length()));
+		bStatus = cFileManager.writeBlock((char *) (sOut.c_str()), (LONG) (sOut.length()), 1);
 #endif
 	}
 	catch(...)
@@ -477,7 +467,7 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 		bStatus = false;
 	}
 
-	cFileManager.Close();
+	cFileManager.closeFile();
 
 	return ((bStatus == TRUE) ? true : false);
 }
@@ -528,9 +518,9 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 		{
 #ifdef UNICODE
 			std::wstring sTmp = stringUtil::str2wstr(pFolder);
-			bStatus = cFileManager.SetFileDir((WCHAR *) sTmp.c_str());
+			bStatus = cFileManager.setFileDir((WCHAR *) sTmp.c_str());
 #else
-			bStatus = cFileManager.SetFileDir((char *) pFolder);
+			bStatus = cFileManager.setFileDir((char *) pFolder);
 #endif
 			if (bStatus == false)
 			{
@@ -540,23 +530,19 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 
 #ifdef UNICODE
 		std::wstring sTmp = stringUtil::str2wstr(sDumpFile);
-		bStatus = cFileManager.SetFileName((WCHAR *) sTmp.c_str());
+		bStatus = cFileManager.setFileName((WCHAR *) sTmp.c_str());
 #else
-		bStatus = cFileManager.SetFileName((char *) sDumpFile.c_str());
+		bStatus = cFileManager.setFileName((char *) sDumpFile.c_str());
 #endif
 		if (bStatus == false)
 		{
 			return false;
 		}
 
-		//* open file for "w" (write only) mode
-#ifdef UNICODE
-		cFileManager.SetFileMode(L"w");
-#else
-		cFileManager.SetFileMode("w");
-#endif
+		//* open file for 'write only' mode
+		cFileManager.setFileMode(eFileIoMode_def::eFileIoMode_output);
 
-		bStatus = cFileManager.Open();
+		bStatus = cFileManager.openFile();
 		if (bStatus == false)
 		{
 			return false;
@@ -588,19 +574,19 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 #ifdef UNICODE
 				{
 					std::wstring sTmp = stringUtil::str2wstr(pTemp);
-					bStatus = cFileManager.WriteBuffer((WCHAR *) sTmp.c_str(), (LONG) sTmp.length());
+					bStatus = cFileManager.writeBlock((WCHAR *) sTmp.c_str(), (LONG) sTmp.length(), 1);
 				}
 #else
-				bStatus = cFileManager.WriteBuffer(pTemp, (LONG) m_lXmlBufLen);
+				bStatus = cFileManager.writeBlock(pTemp, (LONG) m_lXmlBufLen, 1);
 #endif
 			}
 			else
 			{
 #ifdef UNICODE
 				std::wstring sTmp = stringUtil::str2wstr(m_pXmlBuffer, m_lXmlBufLen);
-				bStatus = cFileManager.WriteBuffer((WCHAR *) sTmp.c_str(), (LONG) sTmp.length());
+				bStatus = cFileManager.writeBlock((WCHAR *) sTmp.c_str(), (LONG) sTmp.length(), 1);
 #else
-				bStatus = cFileManager.WriteBuffer((char *) m_pXmlBuffer, (LONG) m_lXmlBufLen);
+				bStatus = cFileManager.writeBlock((char *) m_pXmlBuffer, (LONG) m_lXmlBufLen, 1);
 #endif
 			}
 		}
@@ -608,9 +594,9 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 		{
 #ifdef UNICODE
 			std::wstring sTmp = stringUtil::str2wstr(m_pXmlBuffer, m_lXmlBufLen);
-			bStatus = cFileManager.WriteBuffer((WCHAR *)sTmp.c_str(), (LONG) sTmp.length());
+			bStatus = cFileManager.writeBlock((WCHAR *)sTmp.c_str(), (LONG) sTmp.length(), 1);
 #else
-			bStatus = cFileManager.WriteBuffer((char *) m_pXmlBuffer, (LONG) m_lXmlBufLen);
+			bStatus = cFileManager.writeBlock((char *) m_pXmlBuffer, (LONG) m_lXmlBufLen, 1);
 #endif
 		}
 	}
@@ -619,7 +605,7 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 
 	}
 
-	cFileManager.Close();
+	cFileManager.closeFile();
 
 	return bStatus;
 }
@@ -913,11 +899,19 @@ bool XmlParserUtil::LoadXmlParamBuf(xml_node<XML_TYPE>*pNode, char *pParam, char
 					char *pParamValue = xmlSearch->value();			
 					if (nParamLen > nLen)
 					{
-						strncpy(pTarget, pParamValue, nLen);	
+#ifdef WINDOWS
+						strncpy_s(pTarget, nLen, pParamValue, nLen);
+#else
+						strncpy(pTarget, pParamValue, nLen);
+#endif
 					}
 					else
 					{
-						strncpy(pTarget, pParamValue, nParamLen);	
+#ifdef WINDOWS
+						strncpy_s(pTarget, nParamLen, pParamValue, nParamLen);
+#else
+						strncpy(pTarget, pParamValue, nParamLen);
+#endif
 					}
 					m_pLastNode = xmlSearch;
 					bRet = true;
@@ -939,11 +933,19 @@ bool XmlParserUtil::LoadXmlParamBuf(xml_node<XML_TYPE>*pNode, char *pParam, char
 					char *pParamValue = xmlSearch->value();			
 					if (nDefLen > nLen)
 					{
-						strncpy(pTarget, pParamValue, nLen);	
+#ifdef WINDOWS
+						strncpy_s(pTarget, nLen, pParamValue, nLen);
+#else
+						strncpy(pTarget, pParamValue, nLen);
+#endif
 					}
 					else
 					{
-						strncpy(pTarget, pParamValue, nDefLen);	
+#ifdef WINDOWS
+						strncpy_s(pTarget, nDefLen, pParamValue, nDefLen);
+#else
+						strncpy(pTarget, pParamValue, nDefLen);
+#endif
 					}
 				}
 			}
@@ -957,7 +959,7 @@ bool XmlParserUtil::LoadXmlParamBuf(xml_node<XML_TYPE>*pNode, char *pParam, char
 	return bRet;
 }
 
-bool XmlParserUtil::LoadXmlParamString(xml_node<XML_TYPE>*pNode, char *pParam, std::string &sTarget, char *pDefault, bool bFirst)
+bool XmlParserUtil::LoadXmlParamString(xml_node<XML_TYPE>* pNode, const char* pParam, std::string& sTarget, const char* pDefault, bool bFirst)
 {
 	if (m_pXmlParser == NULL)
 	{

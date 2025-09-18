@@ -28,6 +28,8 @@ using namespace rapidxml;
 
 #define MAX_XML_BUFFER_SIZE		20480		// this is the maximum size buffer we can send via a "weblet"
 
+#define MAX_XML_STRING_LEN		1024
+
 #define LoadXmlAttributeString	LoadXmlSubParamString
 
 #define DEFAULT_XML_DUMP_FILE	"XML_Dump.txt"
@@ -604,8 +606,8 @@ public:
 		return false;
 	}
 
-	bool LoadXmlParamString(xml_node<XML_TYPE>* pNode, char *pParam, std::string &sTarget, char *pDefault, bool bFirst = false);
-	bool LoadXmlParamString(xml_node<XML_TYPE>* pNode, std::string sParam, std::string &sTarget, char *pDefault, bool bFirst = false)
+	bool LoadXmlParamString(xml_node<XML_TYPE>* pNode, const char *pParam, std::string &sTarget, const char *pDefault, bool bFirst = false);
+	bool LoadXmlParamString(xml_node<XML_TYPE>* pNode, const std::string &sParam, std::string &sTarget, const char *pDefault, bool bFirst = false)
 	{
 		if (pNode == nullptr)
 		{
@@ -624,7 +626,7 @@ public:
 
 		return false;
 	}
-	bool LoadXmlParamString(char *pParam, std::string &sTarget, char *pDefault, bool bFirst = false)
+	bool LoadXmlParamString(const char *pParam, std::string &sTarget, char *pDefault, bool bFirst = false)
 	{
 		if (pParam == nullptr)
 		{
@@ -642,7 +644,7 @@ public:
 
 		return false;
 	}
-	bool LoadXmlParamString(std::string sParam, std::string &sTarget, char *pDefault, bool bFirst = false)
+	bool LoadXmlParamString(const std::string &sParam, std::string &sTarget, char *pDefault, bool bFirst = false)
 	{
 		try
 		{
@@ -2155,7 +2157,11 @@ public:
 
 			if (bAddHeader == true)
 			{
+#ifdef WINDOWS
+				sprintf_s(target, MAX_XML_STRING_LEN, "<?xml version=\"1.0\" encoding=\"utf-8\"?> \n ");
+#else
 				sprintf(target, "<?xml version=\"1.0\" encoding=\"utf-8\"?> \n ");
+#endif
 				nLen = (long) strlen(target);
 			}
 
