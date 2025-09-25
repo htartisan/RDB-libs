@@ -18,7 +18,8 @@
 #include "rapidxml.hpp"
 #include "rapidxml_print.hpp"
 
-#include <String/strUtils.h>
+#include <String/StrUtils.h>
+
 
 using namespace std;
 using namespace rapidxml;
@@ -251,8 +252,7 @@ public:
 		}
 	}
 
-	//bool AllocXmlBuffer(int nLen) throw(std::runtime_error);
-	bool AllocXmlBuffer(int nLen);
+	bool AllocXmlBuffer(int nLen);  //throw(std::runtime_error);
 
 	void FreeXmlBuffer()
 	{
@@ -283,8 +283,8 @@ public:
 
 	bool Parse();
 
-	bool LoadXmlBuffer(char *pBuffer, int nLen) throw(std::runtime_error);
-	bool LoadXmlBuffer(std::string sBuffer) throw(std::runtime_error)
+	bool LoadXmlBuffer(char *pBuffer, int nLen);  //throw(std::runtime_error);
+	bool LoadXmlBuffer(std::string sBuffer)  //throw(std::runtime_error)
 	{
 		try
 		{
@@ -300,8 +300,8 @@ public:
 		return false;
 	}
 
-	bool LoadXmlFile(char *pFolder, char *pFileName) throw(std::runtime_error);
-	bool LoadXmlFile(std::string sFolder, std::string sFileName) throw(std::runtime_error)
+	bool LoadXmlFile(char *pFolder, char *pFileName);  //throw(std::runtime_error);
+	bool LoadXmlFile(std::string sFolder, std::string sFileName)  //throw(std::runtime_error)
 	{
 		try
 		{
@@ -317,8 +317,8 @@ public:
 		return false;
 	}
 
-	bool WriteXmlFile(char *pFolder, char *pFileName) throw(std::runtime_error);
-	bool WriteXmlFile(std::string sFolder, std::string sFileName) throw(std::runtime_error)
+	bool WriteXmlFile(char *pFolder, char *pFileName);  //throw(std::runtime_error);
+	bool WriteXmlFile(std::string sFolder, std::string sFileName)  //throw(std::runtime_error)
 	{
 		try
 		{
@@ -334,8 +334,8 @@ public:
 		return false;
 	}
 
-	bool DumpXmlBuffer(char *pFolder = nullptr, char *pFileName = nullptr, bool bSpaceFill = false) throw(std::runtime_error);
-	bool DumpXmlBuffer(std::string sFolder, std::string sFileName = "", bool bSpaceFill = false) throw(std::runtime_error)
+	bool DumpXmlBuffer(char *pFolder = nullptr, char *pFileName = nullptr, bool bSpaceFill = false);  //throw(std::runtime_error);
+	bool DumpXmlBuffer(std::string sFolder, std::string sFileName = "", bool bSpaceFill = false)  //throw(std::runtime_error)
 	{
 		try
 		{
@@ -2360,5 +2360,5 @@ public:
 
 
 
-#endif xmlUtils_H_
+#endif  //  xmlUtils_H_
 

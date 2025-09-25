@@ -6,7 +6,6 @@
 //*
 
 
-
 #ifndef win32_unix_H_
 #define win32_unix_H_
 
@@ -17,13 +16,19 @@
 
 #else
 
+#include <cassert>
 #include <time.h>
-#include "threading/thread.h"
+//#include "Thread/thread.h"
 #include <vector>
+#include <chrono>
+#include <stdexcept>
 
-void Sleep(int s) throw();
-int timeGetTime() throw();
+
+void Sleep(int s);  //throw();
+int timeGetTime();  //throw();
+
 #define DWORD int
+
 typedef const char * LPCTSTR;
 typedef char * LPTSTR;
 typedef int INT;
@@ -45,15 +50,9 @@ typedef char TCHAR;
 #endif
 
 
-inline void GetSystemTime(struct tm *ttm) throw()
+inline void GetSystemTime(const time_t *pTime)   //throw()
 {
-    time_t t = ::time(0);
-    localtime_r(&t,ttm);
-}
-
-inline void GetLocalTime(struct tm *ttm) throw()
-{
-    GetSystemTime(ttm);
+    std::localtime(pTime);
 }
 
 
@@ -69,7 +68,11 @@ inline bool CoInitialize(void *)
 
 inline void CoUninitialize() {}
 
-typedef Win32SyncObject* HANDLE;
+#ifdef WINDOWS
+#define Win32SyncObject*    HANDLE
+#else
+#define Win32SyncObject    void
+#endif
 
 DWORD GetPrivateProfileString(
     LPCTSTR lpAppName,
@@ -78,14 +81,14 @@ DWORD GetPrivateProfileString(
     LPTSTR lpReturnedString,
     DWORD nSize,
     LPCTSTR lpFileName
-) throw();
+);  //throw();
 
 UINT GetPrivateProfileInt(
     LPCTSTR lpAppName,
     LPCTSTR lpKeyName,
     INT nDefault,
     LPCTSTR lpFileName
-) throw();
+);  //throw();
 
 
 ////// reference count base stuff

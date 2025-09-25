@@ -16,6 +16,8 @@
 
 #include "../String/StrUtils.h"
 
+#include "FileUtils.h"
+
 
 #ifdef  USE_DR_WAV
 
@@ -33,96 +35,6 @@
 
 #endif
 
-
-// Utility functions defs
-
-std::string removeLeadingSpaces(std::string &sStr);
-
-std::string removeTrailingSpaces(std::string& sStr);
-
-std::string getFileDir(std::string& sPath);
-
-std::string getFileExt(std::string &sPath);
-
-std::string getFileName(std::string& sPath);
-
-
-/// Utility functions
-
-#ifndef _UTILITY_FUNCTION_DEFS_
-#define _UTILITY_FUNCTION_DEFS_
-
-std::string removeLeadingSpaces(std::string& sStr)
-{
-    std::string sOut = "";
-
-    bool bFirstCharFound = false;
-
-    // skip leading spaces
-    for (auto x = sStr.begin(); x != sStr.end(); x++)
-    {
-        if (bFirstCharFound == false && (*x) == ' ')
-        {
-            continue;
-        }
-
-        bFirstCharFound = true;
-
-        sOut.push_back((*x));
-    }
-
-    return sOut;
-}
-
-
-std::string removeTrailingSpaces(std::string& sStr)
-{
-    std::string sOut = "";
-
-    int nLen = (int)sStr.size();
-
-    // find string len - num trailing spaces
-    for (auto x = (sStr.end() - 1); x != sStr.begin(); x--)
-    {
-        if ((*x) != ' ')
-        {
-            break;
-        }
-
-        nLen--;
-    }
-
-    sOut.append(sStr.substr(0, nLen));
-
-    return sOut;
-
-}
-
-
-std::string getFileDir(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.parent_path().string());
-}
-
-
-std::string getFileExt(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.extension().string());
-}
-
-
-std::string getFileName(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.stem().string());
-}
-
-#endif
 
 
 std::string audioFileTypeToString(eAudioFileType_def value)
@@ -190,6 +102,8 @@ eAudioFileType_def getAudioFileType(const std::string &filepath)
 }
 
 
+// class CAudioFileIO static functions
+
 std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
     (
         const std::string &sFilePath, 
@@ -224,8 +138,8 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
             return pAFIO;
         }
 
-        std::shared_ptr<CRawFileIO> pRawFileIO = 
-            std::make_shared<CRawFileIO>(numChannels);
+        std::shared_ptr<CRawAudioFileIO> pRawFileIO = 
+            std::make_shared<CRawAudioFileIO>(numChannels);
 
         if (frameRate > 0)
             pRawFileIO->setSampleRate(frameRate);
@@ -487,9 +401,9 @@ bool CAudioFileIO::resetPlayPosition()
 }
 
 
-/// CRawFileIO class functions
+/// CRawAudioFileIO class functions
 
-int CRawFileIO::getNumericStringAt(const std::string &sText, const unsigned int pos)
+int CRawAudioFileIO::getNumericStringAt(const std::string &sText, const unsigned int pos)
 {
     auto len = sText.length();
 
@@ -509,7 +423,7 @@ int CRawFileIO::getNumericStringAt(const std::string &sText, const unsigned int 
 }
 
 
-CRawFileIO::CRawFileIO(const unsigned int numChannels) :
+CRawAudioFileIO::CRawAudioFileIO(const unsigned int numChannels) :
     CAudioFileIO(numChannels)
 {
     LogTrace("class created");
@@ -526,7 +440,7 @@ CRawFileIO::CRawFileIO(const unsigned int numChannels) :
 }
 
 
-CRawFileIO::CRawFileIO(const unsigned int numChannels, const std::string &sFilePath) :
+CRawAudioFileIO::CRawAudioFileIO(const unsigned int numChannels, const std::string &sFilePath) :
     CAudioFileIO(numChannels, sFilePath)
 {
     LogTrace("class created");
@@ -544,7 +458,7 @@ CRawFileIO::CRawFileIO(const unsigned int numChannels, const std::string &sFileP
 }
 
 
-CRawFileIO::~CRawFileIO()
+CRawAudioFileIO::~CRawAudioFileIO()
 {
     LogTrace("class being destroyed");
 
@@ -553,13 +467,13 @@ CRawFileIO::~CRawFileIO()
 }
 
 
-void CRawFileIO::createInfoTextFile(const bool value)
+void CRawAudioFileIO::createInfoTextFile(const bool value)
 {
     m_bCreateInfoTextFile = value;
 }
 
 
-bool CRawFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
+bool CRawAudioFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
 {
     std::fstream infoFile;
 
@@ -659,7 +573,7 @@ bool CRawFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
 }
 
 
-bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
+bool CRawAudioFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
 {
     LogTrace("file path={}", sFilePath);
 
@@ -811,7 +725,7 @@ bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 }
 
 
-long CRawFileIO::getNumFrames()
+long CRawAudioFileIO::getNumFrames()
 {
     LogTrace("getting number of frame in the file");
 
@@ -831,7 +745,7 @@ long CRawFileIO::getNumFrames()
 }
 
 
-bool CRawFileIO::closeFile()
+bool CRawAudioFileIO::closeFile()
 {
     LogTrace("file being closed");
 
@@ -843,7 +757,7 @@ bool CRawFileIO::closeFile()
     {
         if (!m_fileIO.closeFile())
         {
-            LogCritical("CRawFileIO - Error: unable to close file ");
+            LogCritical("CRawAudioFileIO - Error: unable to close file ");
             return false;
         }
 
@@ -873,7 +787,7 @@ bool CRawFileIO::closeFile()
 }
 
 
-bool CRawFileIO::isEOF()
+bool CRawAudioFileIO::isEOF()
 {
     if (m_nCurrentFrameIdx >= m_nFramesInFile)
     {
@@ -886,7 +800,7 @@ bool CRawFileIO::isEOF()
 
 
 /// Read a sample from a "raw" data file
-bool CRawFileIO::readSample(int16_t &data, const unsigned int chl)
+bool CRawAudioFileIO::readSample(int16_t &data, const unsigned int chl)
 {
     LogTrace("channel={}", chl);
 
@@ -926,7 +840,7 @@ bool CRawFileIO::readSample(int16_t &data, const unsigned int chl)
 }
 
 
-bool CRawFileIO::readSample(int32_t &data, const unsigned int chl)
+bool CRawAudioFileIO::readSample(int32_t &data, const unsigned int chl)
 {
     LogTrace("channel={}", chl);
 
@@ -966,7 +880,7 @@ bool CRawFileIO::readSample(int32_t &data, const unsigned int chl)
 }
 
 
-bool CRawFileIO::readBlock(void *pData, const unsigned int numFrames)
+bool CRawAudioFileIO::readBlock(void *pData, const unsigned int numFrames)
 {
     LogTrace("numFrames={}", numFrames);
 
@@ -1093,7 +1007,7 @@ bool CRawFileIO::readBlock(void *pData, const unsigned int numFrames)
 }
 
 
-bool CRawFileIO::writeSample(const int16_t data, const unsigned int chl)
+bool CRawAudioFileIO::writeSample(const int16_t data, const unsigned int chl)
 {
     if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr || m_nBitsPerSample != 16)
     {
@@ -1138,7 +1052,7 @@ bool CRawFileIO::writeSample(const int16_t data, const unsigned int chl)
 }
 
 
-bool CRawFileIO::writeSample(const int32_t data, const unsigned int chl)
+bool CRawAudioFileIO::writeSample(const int32_t data, const unsigned int chl)
 {
     if (chl >= m_numChls || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr || m_nBitsPerSample != 32)
     {
@@ -1182,7 +1096,7 @@ bool CRawFileIO::writeSample(const int32_t data, const unsigned int chl)
 }
 
 
-bool CRawFileIO::writeBlock(const void *pData, const unsigned int numFrames)
+bool CRawAudioFileIO::writeBlock(const void *pData, const unsigned int numFrames)
 {
     if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
     {
@@ -1216,7 +1130,7 @@ bool CRawFileIO::writeBlock(const void *pData, const unsigned int numFrames)
 
 
 /// Move to next input/output frame
-bool CRawFileIO::nextFrame()
+bool CRawAudioFileIO::nextFrame()
 {
     if (m_pFramebuffer == nullptr)
         return false;
@@ -1301,7 +1215,7 @@ bool CRawFileIO::nextFrame()
 }
 
 
-bool CRawFileIO::setCurrentFrame(unsigned int frameNum) 
+bool CRawAudioFileIO::setCurrentFrame(unsigned int frameNum) 
 {
     if (!m_bFileOpened)
         return false;
@@ -1322,7 +1236,7 @@ bool CRawFileIO::setCurrentFrame(unsigned int frameNum)
 }
 
 
-bool CRawFileIO::resetPlayPosition()
+bool CRawAudioFileIO::resetPlayPosition()
 {
     setCurrentFrame(0);
 

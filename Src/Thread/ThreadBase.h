@@ -1,14 +1,14 @@
 //**********************************************************************************
-// FILE:    ThreadBase.h
-//
-// DEESC:   This header file defines a std thread base class.
-//          Derrive new thread classes from this class to 
-//          easaly create thread objects.
-//          NOTE: The derrived class MUST define a threadProce
-//          ("void threadProc(void)")
-//
-// AUTHOR:  Russ Barker
-//
+//* FILE:    ThreadBase.h
+//*
+//* DEESC:   This header file defines a std thread base class.
+//*          Derrive new thread classes from this class to 
+//*          easaly create thread objects.
+//*          NOTE: The derrived class MUST define a threadProce
+//*          ("void threadProc(void)")
+//*
+//* AUTHOR:  Russ Barker
+//*
 
 
 #ifndef THREAD_BASE_H

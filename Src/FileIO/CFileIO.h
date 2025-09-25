@@ -472,7 +472,7 @@ class CFileIO
         if (m_pFileHandle == nullptr)
         {
             m_sLastErrorStr = "File checkEof called but file not open";
-            return false;
+            return -1;
         }
 
         int retCode = 0;

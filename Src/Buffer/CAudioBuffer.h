@@ -865,7 +865,7 @@ template <class T> class CAudioBufferBase
             {
                 case eFileType_raw:
                     {
-                        m_pFileReader = (CAudioFileIO *) new CRawFileIO(m_numChls);
+                        m_pFileReader = (CAudioFileIO *) new CRawAudioFileIO(m_numChls);
                         if (m_pFileReader == nullptr)
                             return false;
                     }
@@ -917,11 +917,11 @@ template <class T> class CAudioBufferBase
             {
                 case eFileType_raw:
                     {
-                        m_pFileWriter = (CAudioFileIO *)new CRawFileIO(m_numChls);
+                        m_pFileWriter = (CAudioFileIO *)new CRawAudioFileIO(m_numChls);
                         if (m_pFileWriter == nullptr)
                             return false;
 
-                        ((CRawFileIO *)m_pFileWriter)->createInfoTextFile(true);
+                        ((CRawAudioFileIO *)m_pFileWriter)->createInfoTextFile(true);
                     }
                     break;
 

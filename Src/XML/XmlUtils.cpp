@@ -9,7 +9,7 @@
 #ifdef WINDOWS
 #include <windows.h>
 #else
-#include "win32_unix.h"
+#include "../Other/win32_unix.h"
 #endif
 
 #include <stdio.h>
@@ -24,7 +24,7 @@
 
 #include <String/StrUtils.h>
 //#include "urlUtils.h"
-#include <xml/XmlUtils.h>
+#include <XML/XmlUtils.h>
 
 //using namespace std;
 //using namespace stringUtil;
@@ -171,8 +171,7 @@ bool XmlParserUtil::Parse()
 }
 
 
-//bool XmlParserUtil::AllocXmlBuffer(int nLen) throw(std::runtime_error)
-bool XmlParserUtil::AllocXmlBuffer(int nLen)
+bool XmlParserUtil::AllocXmlBuffer(int nLen)  //throw(std::runtime_error)
 {
 	if (nLen < 3)
 	{
@@ -203,7 +202,7 @@ bool XmlParserUtil::AllocXmlBuffer(int nLen)
 	return false;
 }
 
-bool XmlParserUtil::LoadXmlBuffer(char *pBuffer, int nLen) throw(std::runtime_error)
+bool XmlParserUtil::LoadXmlBuffer(char *pBuffer, int nLen)  //throw(std::runtime_error)
 {
 	if (m_pXmlParser == NULL)
 	{
@@ -254,7 +253,7 @@ bool XmlParserUtil::LoadXmlBuffer(char *pBuffer, int nLen) throw(std::runtime_er
 
 
 
-bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runtime_error)
+bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName)  //throw(std::runtime_error)
 {
 	if (m_pXmlParser == NULL)
 	{
@@ -316,7 +315,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 			return false;
 		}
 
-		LONG lFileLen = cFileManager.getFileSize();
+		long lFileLen = cFileManager.getFileSize();
 		if (lFileLen < 1)
 		{
 			//throw std::runtime_error("XML file length error");
@@ -341,7 +340,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 #endif
 		if (bStatus == false)
 		{
-			if (cFileManager.checkEof() != true)
+			if (cFileManager.checkEof() != 1)
 			{
 				//throw std::runtime_error("Error reading XML file");
 				goto CloseAndExit;
@@ -375,7 +374,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runti
 
 
 
-bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runtime_error)
+bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName)  //throw(std::runtime_error)
 {
 	if (m_pXmlParser == NULL)
 	{
@@ -456,10 +455,10 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 #ifdef UNICODE
 		{
 			std::wstring sTmp = stringUtil::str2wstr(sOut);
-			bStatus = cFileManager.writeBlock((WCHAR *) (sTmp.c_str()), (LONG) (sTmp.length()), 1);
+			bStatus = cFileManager.writeBlock((WCHAR *) (sTmp.c_str()), (long) (sTmp.length()), 1);
 		}
 #else
-		bStatus = cFileManager.writeBlock((char *) (sOut.c_str()), (LONG) (sOut.length()), 1);
+		bStatus = cFileManager.writeBlock((char *) (sOut.c_str()), (long) (sOut.length()), 1);
 #endif
 	}
 	catch(...)
@@ -473,7 +472,7 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runt
 }
 
 
-bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFill) throw(std::runtime_error)
+bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFill)  //throw(std::runtime_error)
 {
 	if (m_pXmlBuffer == NULL)
 	{
@@ -574,19 +573,19 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 #ifdef UNICODE
 				{
 					std::wstring sTmp = stringUtil::str2wstr(pTemp);
-					bStatus = cFileManager.writeBlock((WCHAR *) sTmp.c_str(), (LONG) sTmp.length(), 1);
+					bStatus = cFileManager.writeBlock((WCHAR *) sTmp.c_str(), (long) sTmp.length(), 1);
 				}
 #else
-				bStatus = cFileManager.writeBlock(pTemp, (LONG) m_lXmlBufLen, 1);
+				bStatus = cFileManager.writeBlock(pTemp, (long) m_lXmlBufLen, 1);
 #endif
 			}
 			else
 			{
 #ifdef UNICODE
 				std::wstring sTmp = stringUtil::str2wstr(m_pXmlBuffer, m_lXmlBufLen);
-				bStatus = cFileManager.writeBlock((WCHAR *) sTmp.c_str(), (LONG) sTmp.length(), 1);
+				bStatus = cFileManager.writeBlock((WCHAR *) sTmp.c_str(), (long) sTmp.length(), 1);
 #else
-				bStatus = cFileManager.writeBlock((char *) m_pXmlBuffer, (LONG) m_lXmlBufLen, 1);
+				bStatus = cFileManager.writeBlock((char *) m_pXmlBuffer, (long) m_lXmlBufLen, 1);
 #endif
 			}
 		}
@@ -594,9 +593,9 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 		{
 #ifdef UNICODE
 			std::wstring sTmp = stringUtil::str2wstr(m_pXmlBuffer, m_lXmlBufLen);
-			bStatus = cFileManager.writeBlock((WCHAR *)sTmp.c_str(), (LONG) sTmp.length(), 1);
+			bStatus = cFileManager.writeBlock((WCHAR *)sTmp.c_str(), (long) sTmp.length(), 1);
 #else
-			bStatus = cFileManager.writeBlock((char *) m_pXmlBuffer, (LONG) m_lXmlBufLen, 1);
+			bStatus = cFileManager.writeBlock((char *) m_pXmlBuffer, (long) m_lXmlBufLen, 1);
 #endif
 		}
 	}

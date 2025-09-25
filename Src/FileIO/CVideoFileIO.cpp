@@ -17,103 +17,16 @@
 
 #include "../String/StrUtils.h"
 
+#include "FileUtils.h"
 
 
 // Utility functions defs
 
-std::string removeLeadingSpaces(std::string &sStr);
-
-std::string removeTrailingSpaces(std::string& sStr);
-
-std::string getFileDir(std::string& sPath);
-
-std::string getFileExt(std::string &sPath);
-
-std::string getFileName(std::string& sPath);
-
-int getNumericStringAt(const std::string& sText, const unsigned int pos);
 
 std::string FourCC2String(uint32_t fourcc);
 
 uint32_t String2FourCC(const std::string& fourcc);
 
-
-/// Utility function defs;
-
-#ifndef _UTILITY_FUNCTION_DEFS_
-#define _UTILITY_FUNCTION_DEFS_
-
-std::string removeLeadingSpaces(std::string& sStr)
-{
-    std::string sOut = "";
-
-    bool bFirstCharFound = false;
-
-    // skip leading spaces
-    for (auto x = sStr.begin(); x != sStr.end(); x++)
-    {
-        if (bFirstCharFound == false && (*x) == ' ')
-        {
-            continue;
-        }
-
-        bFirstCharFound = true;
-
-        sOut.push_back((*x));
-    }
-
-    return sOut;
-}
-
-
-std::string removeTrailingSpaces(std::string& sStr)
-{
-    std::string sOut = "";
-
-    int nLen = (int)sStr.size();
-
-    // find string len - num trailing spaces
-    for (auto x = (sStr.end() - 1); x != sStr.begin(); x--)
-    {
-        if ((*x) != ' ')
-        {
-            break;
-        }
-
-        nLen--;
-    }
-
-    sOut.append(sStr.substr(0, nLen));
-
-    return sOut;
-
-}
-
-
-std::string getFileDir(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.parent_path().string());
-}
-
-
-std::string getFileExt(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.extension().string());
-}
-
-
-std::string getFileName(std::string& sPath)
-{
-    std::filesystem::path filePath(sPath);
-
-    return (filePath.stem().string());
-}
-
-#endif
 
 
 std::string videpFileTypeToString(eVideoFileType_def value)
@@ -185,26 +98,6 @@ eVideoFileType_def getVideoFileType(const std::string &filepath)
 }
 
 
-int getNumericStringAt(const std::string& sText, const unsigned int pos)
-{
-    auto len = sText.length();
-
-    if (pos >= len)
-        return -1;
-
-    std::string sTemp = sText.substr(pos);
-
-    sTemp = removeLeadingSpaces(sTemp);
-
-    sTemp = removeTrailingSpaces(sTemp);
-
-    if (!StrUtils::isNumeric(sTemp))
-        return -1;
-
-    return std::stoi(sTemp);
-}
-
-
 std::string FourCC2String(uint32_t fourcc)
 {
     std::string out;
@@ -266,8 +159,8 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
     {
         // Open video file using 'raw' IO functions
 
-        std::shared_ptr<CRawFileIO> pRawFileIO = 
-            std::make_shared<CRawFileIO>();
+        std::shared_ptr<CRawVideoFileIO> pRawFileIO = 
+            std::make_shared<CRawVideoFileIO>();
 
         if (width > 0 || height > 0)
             pRawFileIO->setFrameSize(width, height);
@@ -501,9 +394,9 @@ bool CVideoFileIO::resetPlayPosition()
 }
 
 
-/// CRawFileIO class functions
+/// CRawVideoFileIO class functions
 
-CRawFileIO::CRawFileIO() :
+CRawVideoFileIO::CRawVideoFileIO() :
     CVideoFileIO()
 {
     LogTrace("class created");
@@ -521,7 +414,7 @@ CRawFileIO::CRawFileIO() :
 }
 
 
-CRawFileIO::CRawFileIO(const unsigned int width, const unsigned int height, const unsigned int bitsPerPixel) :
+CRawVideoFileIO::CRawVideoFileIO(const unsigned int width, const unsigned int height, const unsigned int bitsPerPixel) :
     CVideoFileIO(width, height, bitsPerPixel)
 {
     LogTrace("class created");
@@ -544,7 +437,7 @@ CRawFileIO::CRawFileIO(const unsigned int width, const unsigned int height, cons
 }
 
 
-CRawFileIO::CRawFileIO(const std::string &sFilePath) :
+CRawVideoFileIO::CRawVideoFileIO(const std::string &sFilePath) :
     CVideoFileIO(sFilePath)
 {
     LogTrace("class created");
@@ -563,7 +456,7 @@ CRawFileIO::CRawFileIO(const std::string &sFilePath) :
 }
 
 
-CRawFileIO::~CRawFileIO()
+CRawVideoFileIO::~CRawVideoFileIO()
 {
     LogTrace("class being destroyed");
 
@@ -572,13 +465,13 @@ CRawFileIO::~CRawFileIO()
 }
 
 
-void CRawFileIO::createInfoTextFile(const bool value)
+void CRawVideoFileIO::createInfoTextFile(const bool value)
 {
     m_bCreateInfoTextFile = value;
 }
 
 
-bool CRawFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
+bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
 {
     std::fstream infoFile;
 
@@ -680,7 +573,7 @@ bool CRawFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
 }
 
 
-bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
+bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
 {
     LogTrace("file path={}", sFilePath);
 
@@ -848,7 +741,7 @@ bool CRawFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 }
 
 
-long CRawFileIO::getNumFrames()
+long CRawVideoFileIO::getNumFrames()
 {
     LogTrace("getting number of frame in the file");
 
@@ -868,7 +761,7 @@ long CRawFileIO::getNumFrames()
 }
 
 
-bool CRawFileIO::closeFile()
+bool CRawVideoFileIO::closeFile()
 {
     LogTrace("file being closed");
 
@@ -880,7 +773,7 @@ bool CRawFileIO::closeFile()
     {
         if (!m_fileIO.closeFile())
         {
-            LogCritical("CRawFileIO - Error: unable to close file ");
+            LogCritical("CRawVideoFileIO - Error: unable to close file ");
             return false;
         }
 
@@ -910,7 +803,7 @@ bool CRawFileIO::closeFile()
 }
 
 
-bool CRawFileIO::isEOF()
+bool CRawVideoFileIO::isEOF()
 {
     if (m_nCurrentFrameIdx >= m_nFramesInFile)
     {
@@ -923,7 +816,7 @@ bool CRawFileIO::isEOF()
 
 
 /// Read a frame from a "raw" data file
-bool CRawFileIO::readFrame(void *pData)
+bool CRawVideoFileIO::readFrame(void *pData)
 {
     if (!m_bFileOpened || m_pFramebuffer == nullptr)
     {
@@ -949,7 +842,7 @@ bool CRawFileIO::readFrame(void *pData)
 }
 
 
-bool CRawFileIO::readBlock(void *pData, const unsigned int numFrames)
+bool CRawVideoFileIO::readBlock(void *pData, const unsigned int numFrames)
 {
     LogTrace("numFrames={}", numFrames);
 
@@ -1076,7 +969,7 @@ bool CRawFileIO::readBlock(void *pData, const unsigned int numFrames)
 }
 
 
-bool CRawFileIO::writeFrame(const void *pData)
+bool CRawVideoFileIO::writeFrame(const void *pData)
 {
     if (m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
     {
@@ -1102,7 +995,7 @@ bool CRawFileIO::writeFrame(const void *pData)
 }
 
 
-bool CRawFileIO::writeBlock(const void *pData, const unsigned int numFrames)
+bool CRawVideoFileIO::writeBlock(const void *pData, const unsigned int numFrames)
 {
     if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
     {
@@ -1135,7 +1028,7 @@ bool CRawFileIO::writeBlock(const void *pData, const unsigned int numFrames)
 }
 
 
-bool CRawFileIO::setCurrentFrame(unsigned int frameNum) 
+bool CRawVideoFileIO::setCurrentFrame(unsigned int frameNum) 
 {
     if (!m_bFileOpened)
         return false;
@@ -1156,7 +1049,7 @@ bool CRawFileIO::setCurrentFrame(unsigned int frameNum)
 }
 
 
-bool CRawFileIO::resetPlayPosition()
+bool CRawVideoFileIO::resetPlayPosition()
 {
     setCurrentFrame(0);
 

@@ -31,12 +31,12 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 #include <iostream>
 
 #if 0
-#include "..\..\..\libgwavi\inc\gwavi.h"
-#include "..\..\..\libgwavi\src\gwavi_private.h"
+#include "../../../libgwavi/inc/gwavi.h"
+#include "../../../libgwavi/src/gwavi_private.h"
 #endif
 
-#include <opencv2\opencv.hpp>
-#include <opencv2\videoio.hpp>
+#include "opencv2/opencv.hpp"
+#include "opencv2/videoio.hpp"
 
 
 enum eVideoFileType_def
@@ -66,11 +66,9 @@ eVideoFileType_def getVideoFileType(const std::string &filepath);
 
 
 /// This is defined in several different files.
+#ifndef UPDATE_FILE_POSITION
 #define UPDATE_FILE_POSITION
-
-#define ConvertInt16ToFloat(frame16) (((float)frame16) / 0x7FFF)
-
-#define ConvertFloatToInt16(fFrame)  ((int16_t)(fFrame * 0x7FFF))
+#endif
 
 
 // class CVideoFileIO
@@ -177,9 +175,9 @@ class CVideoFileIO
 };
 
 
-// class CRawFileIO
+// class CRawVideoFileIO
 
-class CRawFileIO : 
+class CRawVideoFileIO : 
     public CVideoFileIO
 {
   public:
@@ -221,25 +219,25 @@ class CRawFileIO :
 
   public:
 
-    CRawFileIO();
+    CRawVideoFileIO();
 
-    CRawFileIO(unsigned int width, unsigned int height, unsigned int bitsPerPixel);
+    CRawVideoFileIO(unsigned int width, unsigned int height, unsigned int bitsPerPixel);
 
-    CRawFileIO(const std::string &sFilePath);
+    CRawVideoFileIO(const std::string &sFilePath);
 
-    ~CRawFileIO() override;
+    ~CRawVideoFileIO() override;
 
     void createInfoTextFile(bool value);
 
     bool parseInfoTextFile(const std::string &sFile, SRawFileInfo &info);
 
-    bool openFile(eFileIoMode_def mode, const std::string &sFilePath) override;
+    virtual bool openFile(eFileIoMode_def mode, const std::string &sFilePath) override;
 
-    bool closeFile() override;
+    virtual bool closeFile() override;
 
-    long getNumFrames();
+    virtual long getNumFrames();
 
-    bool isEOF();
+    virtual bool isEOF() override;
 
     /// Read a frame from a "raw" data file
     bool readFrame(void* pData) override;
@@ -309,13 +307,13 @@ public:
 
     ~CAviFileIO() override;
 
-    bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
+    virtual bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
 
-    long getNumFrames();
+    virtual bool closeFile() override;
 
-    bool closeFile() override;
+    virtual long getNumFrames();
 
-    bool isEOF();
+    virtual bool isEOF() override;
 
     /// Read a frame from an "AVI" data file
     bool readFrame(void* pData) override;
@@ -384,13 +382,13 @@ public:
 
     ~COcvFileIO() override;
 
-    bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
+    virtual bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
 
-    bool closeFile() override;
+    virtual bool closeFile() override;
 
-    long getNumFrames();
+    virtual long getNumFrames();
 
-    bool isEOF();
+    virtual bool isEOF() override;
 
     /// Read a frame from an "AVI" data file
     bool readFrame(void* pData) override;

@@ -86,7 +86,9 @@ eAudioFileType_def getAudioFileType(const std::string &filepath);
 #endif
 
 /// This is defined in several different files.
+#ifndef UPDATE_FILE_POSITION
 #define UPDATE_FILE_POSITION
+#endif
 
 #define ConvertInt16ToFloat(sample16) (((float)sample16) / 0x7FFF)
 
@@ -131,10 +133,8 @@ class CAudioFileIO
             int bitsPerSasmple = 16
         );
 
-    //explicit CAudioFileIO();
     CAudioFileIO();
 
-    //explicit CAudioFileIO(unsigned int numChannels);
     CAudioFileIO(unsigned int numChannels);
 
     CAudioFileIO(unsigned int numChannels, const std::string &sFilePath);
@@ -202,7 +202,7 @@ class CAudioFileIO
 };
 
 
-class CRawFileIO : 
+class CRawAudioFileIO : 
     public CAudioFileIO
 {
   public:
@@ -242,11 +242,11 @@ class CRawFileIO :
 
   public:
 
-    CRawFileIO(unsigned int numChannels);
+    CRawAudioFileIO(unsigned int numChannels);
 
-    CRawFileIO(unsigned int numChannels, const std::string &sFilePath);
+    CRawAudioFileIO(unsigned int numChannels, const std::string &sFilePath);
 
-    ~CRawFileIO() override;
+    ~CRawAudioFileIO() override;
 
     void createInfoTextFile(bool value);
 

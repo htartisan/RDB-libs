@@ -72,37 +72,48 @@ class CPluginFileMgr
     int findPluginFiles(const std::string &sExt = "")
     {
         if (sExt != "")
+        { 
             m_sPluginFileExt = sExt;
-
-        if (m_sDirPath.empty() || m_sPluginFileExt.empty())
-            return -1;
-
-        std::filesystem::path dirPath = m_sDirPath;
-
-        if (std::filesystem::exists(dirPath) == false)
-        {
-            std::string sCWD = (std::filesystem::current_path().string() + "\\");
-
-            auto sTmp = (sCWD + m_sDirPath);
-
-            LogError("findPluginFiles called with invalid path {}", sTmp);
-
-            return -2;
         }
 
-        for (const auto & entry : std::filesystem::directory_iterator(dirPath)) 
+        try
         {
-            if (std::filesystem::is_directory(entry) == false) 
+            if (m_sDirPath.empty() || m_sPluginFileExt.empty())
+            { 
+                return -1;
+            }
+
+            std::filesystem::path dirPath = m_sDirPath;
+
+            if (std::filesystem::exists(dirPath) == false)
             {
-                std::string sCurrFilePath = entry.path().string();
+                std::string sCWD = (std::filesystem::current_path().string() + "\\");
 
-                std::string sCurrFileExt = entry.path().extension().string();
+                auto sTmp = (sCWD + m_sDirPath);
 
-                if (sCurrFileExt == ("." + m_sPluginFileExt))
+                LogWarning("findPluginFiles called with invalid path {}", sTmp);
+
+                return -2;
+            }
+
+            for (const auto & entry : std::filesystem::directory_iterator(dirPath)) 
+            {
+                if (std::filesystem::is_directory(entry) == false) 
                 {
-                    m_pluginFileList.push_back(sCurrFilePath);
+                    std::string sCurrFilePath = entry.path().string();
+
+                    std::string sCurrFileExt = entry.path().extension().string();
+
+                    if (sCurrFileExt == ("." + m_sPluginFileExt))
+                    {
+                        m_pluginFileList.push_back(sCurrFilePath);
+                    }
                 }
             }
+        }
+        catch (...)
+        {
+            return -3;
         }
 
         return (int) m_pluginFileList.size();
