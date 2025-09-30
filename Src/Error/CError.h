@@ -41,7 +41,7 @@ public:
         m_sErrorText = "";
     }
 
-    void SetErrorText(std::string sText)
+    void SetErrorText(const std::string &sText)
     {
         m_sErrorText = sText;
     }

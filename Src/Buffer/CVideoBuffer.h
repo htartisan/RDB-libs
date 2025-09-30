@@ -29,6 +29,8 @@ class CSimpleVideoBuffer : public CErrorHandler
     unsigned int    m_blockSize;    // number of video frames per data block (default 1)
     unsigned int    m_frameSize;    // frameSize = total numner of pixels in a block
 
+    unsigned int    m_nBytesPerPixel;
+
     unsigned long   m_nVideoFormat; // 0 = uncopressed/raw video
 
     unsigned long   m_readIdx;      // current frame/pixel read offset
@@ -51,6 +53,10 @@ class CSimpleVideoBuffer : public CErrorHandler
         m_readIdx       = 0;
         m_writeIdx      = 0;
 
+        m_nBytesPerPixel = 0;
+
+        m_nVideoFormat  = 0;
+
         m_pBuffer       = nullptr;
     }
 
@@ -65,7 +71,17 @@ class CSimpleVideoBuffer : public CErrorHandler
         free();
     }
 
-    void setResolution(unsigned int frameWidth, unsigned int frameHeight)
+    void setPixelSize(const unsigned int nBytesPerPixel)
+    {
+        m_nBytesPerPixel = nBytesPerPixel;
+    }
+
+    void setVideoFormat(const unsigned int nFmt)
+    {
+        m_nVideoFormat = nFmt;
+    }
+
+    void setResolution(const unsigned int frameWidth, const unsigned int frameHeight)
     {
         if (m_bAllocated)
         {
@@ -76,7 +92,7 @@ class CSimpleVideoBuffer : public CErrorHandler
         m_frameHeight = frameHeight;
     }
 
-    void setFrameWidth(unsigned int frameWidth)
+    void setFrameWidth(const unsigned int frameWidth)
     {
         if (m_bAllocated)
         {
@@ -86,7 +102,7 @@ class CSimpleVideoBuffer : public CErrorHandler
         m_frameWidth = frameWidth;
     }
 
-    void setFrameHeight(unsigned int frameHeight)
+    void setFrameHeight(const unsigned int frameHeight)
     {
         if (m_bAllocated)
         {
@@ -106,7 +122,7 @@ class CSimpleVideoBuffer : public CErrorHandler
         return m_frameHeight;
     }
 
-    void setFramesPerBlock(unsigned int blockSize)
+    void setFramesPerBlock(const unsigned int blockSize)
     {
         if (m_bAllocated)
         {
@@ -121,7 +137,7 @@ class CSimpleVideoBuffer : public CErrorHandler
         return m_blockSize;
     }
 
-    bool alloc(unsigned int blockSize = 0)
+    bool alloc(const unsigned int blockSize = 0)
     {
         if (blockSize > 0)
             m_blockSize = blockSize;
@@ -131,12 +147,77 @@ class CSimpleVideoBuffer : public CErrorHandler
              return false;
         }
 
-        if (m_frameWidth > 0 && m_frameHeight > 0 && m_nVideoFormat == 0)
+        unsigned int nBytesPerPixel = 0;
+
+        if (m_frameWidth > 0 && m_frameHeight > 0)
         {
-            m_frameSize = (m_frameWidth * m_frameHeight);   // frameSize = total numner of pixels in the buffer
+            // frameSize = total numner of pixels in the buffer
+            if (m_frameSize < 1)
+            {
+                m_frameSize = (m_frameWidth * m_frameHeight);
+            }
+
+            // calc num bytes for each picel
+            switch (m_nVideoFormat)
+            {
+                case 0:
+                {
+                    nBytesPerPixel = m_nBytesPerPixel;
+                }
+                break;
+
+                case 1:
+                {
+                    if (m_nBytesPerPixel < 1)
+                    {
+                        nBytesPerPixel = sizeof(T);
+                    }
+                    else
+                    {
+                        nBytesPerPixel = m_nBytesPerPixel;
+                    }
+                }
+                break;
+
+                case 2:
+                {
+                    if (m_nBytesPerPixel < 1)
+                    {
+                        nBytesPerPixel = (sizeof(T) * 2);
+                    }
+                    else
+                    {
+                        nBytesPerPixel = m_nBytesPerPixel;
+                    }
+                }
+                break;
+
+                case 3:
+                {
+                    if (m_nBytesPerPixel < 1)
+                    {
+                        nBytesPerPixel = (sizeof(T) * 3);
+                    }
+                    else
+                    {
+                        nBytesPerPixel = m_nBytesPerPixel;
+                    }
+                }
+                break;
+
+                default:
+                    return false;
+            }
         }
 
-        m_pBuffer = (T*) calloc(m_frameSize, sizeof(T));
+        if (nBytesPerPixel <1 || m_frameSize < 1)
+        {
+            m_frameSize = 0;
+
+            return false;
+        }
+
+        m_pBuffer = (T*) calloc(m_frameSize, nBytesPerPixel);
 
         if (m_pBuffer == nullptr)
         {
@@ -252,7 +333,7 @@ class CSimpleVideoBuffer : public CErrorHandler
         m_ioLock.unlock();
     }
 
-    bool getFrame(T* target, unsigned int frame)
+    bool getFrame(T* target, const unsigned int frame)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
@@ -270,7 +351,7 @@ class CSimpleVideoBuffer : public CErrorHandler
         return true;;
     }
 
-    bool setFrame(unsigned int frame, T* value)
+    bool setFrame(const unsigned int frame, T* value)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
@@ -738,7 +819,7 @@ template <class T> class CVideoBufferBase
         m_pBuffer = nullptr;
     }
 
-    void setResolution(unsigned int frameWidth, unsigned int frameHeight)
+    void setResolution(const unsigned int frameWidth, const unsigned int frameHeight)
     {
         if (m_bAllocated)
         {
@@ -749,7 +830,7 @@ template <class T> class CVideoBufferBase
         m_frameHeight = frameHeight;
     }
 
-    void setFrameWidth(unsigned int frameWidth)
+    void setFrameWidth(const unsigned int frameWidth)
     {
         if (m_bAllocated)
         {
@@ -759,7 +840,7 @@ template <class T> class CVideoBufferBase
         m_frameWidth = frameWidth;
     }
 
-    void setFrameHeight(unsigned int frameHeight)
+    void setFrameHeight(const unsigned int frameHeight)
     {
         if (m_bAllocated)
         {
@@ -779,7 +860,7 @@ template <class T> class CVideoBufferBase
         return m_frameHeight;
     }
 
-    void setFramesPerBlock(unsigned int blockSize)
+    void setFramesPerBlock(const unsigned int blockSize)
     {
         if (m_bAllocated)
         {

@@ -73,6 +73,7 @@ public:
 
         m_hLib = nullptr;
 
+        m_bLoaded = false;
 
         m_createFileInfoFunc= nullptr;
         m_createClassInstFunc = nullptr;
@@ -86,11 +87,18 @@ public:
 
         if (m_hLib != nullptr)
         {
+            try
+            { 
 #ifdef WINDOWS
-            FreeLibrary(m_hLib);
+                FreeLibrary(m_hLib);
 #else
-            free(m_hLib);
+                free(m_hLib);
 #endif
+            }
+            catch(...)
+            {
+            }
+
             m_hLib = 0;
         }
     }
@@ -115,6 +123,7 @@ public:
         m_sFilePath = sPath;  
 
         ClearError();
+
         return true;
     }
 
@@ -134,7 +143,8 @@ public:
 
         if (m_hLib == nullptr)
         {
-            SetErrorText("Failed to load lib at specified path");
+            DWORD error = GetLastError();
+            SetErrorText("Failed to load lib at specified path - error" + error);
             return false;
         }
 
@@ -186,7 +196,7 @@ public:
             SetErrorText("Failed to load CreatePluginFileInfoInstance - lib type not supported");
             return false;
         }
-        else
+
         {
             void *pFileInfoMgr = nullptr;
 
@@ -210,15 +220,17 @@ public:
             return false;
         }
 
-        if (m_pPluginFileInfoMgr != nullptr)
+        if (m_pPluginFileInfoMgr == nullptr)
         {
-            ClearError();
-            return true;
+            SetErrorText("Failed to create pligin functions / interfaces");
+            return false;
         }
 
-        SetErrorText("Failed to create pligin functions / interfaces");
+        ClearError();
 
-        return false;
+        m_bLoaded = true;
+
+        return true;
     }
 
     std::shared_ptr<CPluginFileInfoMgrBase> GetPluginFileInfoMgr()

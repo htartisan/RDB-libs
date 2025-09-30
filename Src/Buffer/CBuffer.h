@@ -67,7 +67,7 @@ public:
 				this->clear();
 			}
 
-			unsigned long nLen = sVal.size();
+			unsigned long nLen = (unsigned long) sVal.size();
 
 			if (nLen > 0)
 			{
@@ -193,7 +193,7 @@ public:
 	{
 		std::string sOut = "";
 
-		unsigned long nLen = this->size();
+		unsigned long nLen = (unsigned long) this->size();
 
 		if (nLen > 0)
 		{
@@ -231,9 +231,9 @@ public:
 	{
 		try
 		{
-			unsigned long nCurBufSize = this->size();
+			unsigned long nCurBufSize = (unsigned long) this->size();
 
-			unsigned long nCopySize = rVal.size();
+			unsigned long nCopySize = (unsigned long) rVal.size();
 			if (nCopySize > 0)
 			{
 				//* copy the new buffer data to the end of the current buffer data
@@ -261,9 +261,9 @@ public:
 	{
 		try
 		{
-			unsigned long nCurBufSize = this->size();
+			unsigned long nCurBufSize = (unsigned long) this->size();
 
-			unsigned long nCopySize = sVal.size();
+			unsigned long nCopySize = (unsigned long) sVal.size();
 			if (nCopySize > 0)
 			{
 				//* copy the new buffer data to the end of the current buffer data
@@ -296,7 +296,7 @@ public:
 
 		try
 		{
-			unsigned long nCurBufSize = this->size();
+			unsigned long nCurBufSize = (unsigned long) this->size();
 
 			if (nLen > 0)
 			{

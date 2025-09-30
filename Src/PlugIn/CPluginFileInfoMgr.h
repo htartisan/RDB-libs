@@ -50,6 +50,8 @@ public:
         m_sPluginApiType = "";
 
         clear();
+
+        m_nPluginType = 0;
     }
 
     ~CPluginFileInfoMgrBase()
