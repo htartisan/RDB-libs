@@ -39,6 +39,27 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 #include "opencv2/videoio.hpp"
 
 
+#ifndef E_VIDEO_DATA_FOTMAT_DEF
+#define E_VIDEO_DATA_FOTMAT_DEF
+typedef enum
+{
+    eVideoDataIoFormat_uknown = 0,
+    eVideoDataIoFormat_yuv,
+    eVideoDataIoFormat_rgb,
+    eVideoDataIoFormat_mjpeg,
+    eVideoDataIoFormat_mpeg1,
+    eVideoDataIoFormat_mpeg2,
+    eVideoDataIoFormat_mpeg4,
+    eVideoDataIoFormat_h264,
+    eVideoDataIoFormat_h265,
+    eVideoDataIoFormat_divx,
+    eVideoDataIoFormat_webm,
+
+
+} eVideoDataIoFormat_def;
+#endif
+
+
 enum eVideoFileType_def
 {
     eFileType_unknown = 0,
@@ -52,6 +73,7 @@ enum eVideoFileType_def
     eFileType_webm,
     eFileType_info,
     eFileType_text,
+
 };
 
 
@@ -77,28 +99,30 @@ class CVideoFileIO
 {
   protected:
 
-    unsigned int        m_frameRate;        ///< frame rate
-    unsigned int        m_width;            ///< number of pixels wide for video frame
-    unsigned int        m_height;           ///< number of pixels high for video frame
-    unsigned int        m_bitsPerPixel;
+    unsigned int            m_frameRate;        ///< frame rate
+    unsigned int            m_width;            ///< number of pixels wide for video frame
+    unsigned int            m_height;           ///< number of pixels high for video frame
+    unsigned int            m_bitsPerPixel;
 	
-    unsigned int        m_nFrameSize;
+    unsigned int            m_nFrameSize;
 
-    std::string         m_sFilePath;        ///< stream containug the file patrh/name
+    std::string             m_sFilePath;        ///< stream containug the file patrh/name
 
-    bool                m_bFileOpened;      ///< is file currently open
+    bool                    m_bFileOpened;      ///< is file currently open
 
-    eFileIoMode_def     m_eMode;            ///< file mode (input, output, ...)
+    eFileIoMode_def         m_eMode;            ///< file mode (input, output, ...)
 
-    int                 m_nIoBlockSize;     ///< number of frames in an I/O block read/write
-    long                m_nFramesInFile;    ///< total number of frames (currently) in the file
-    int                 m_nCurrentFrameIdx; ///< current frame index within I/O block
-    int                 m_nIoCntr;
-    long                m_nCurrentFrame;    ///< current frame read/write position within the file
+    int                     m_nIoBlockSize;     ///< number of frames in an I/O block read/write
+    long                    m_nFramesInFile;    ///< total number of frames (currently) in the file
+    int                     m_nCurrentFrameIdx; ///< current frame index within I/O block
+    int                     m_nIoCntr;
+    long                    m_nCurrentFrame;    ///< current frame read/write position within the file
     
-    bool                m_bUseLoopingRead;  ///< flag = if EOF reached, restart reading at beginning
+    bool                    m_bUseLoopingRead;  ///< flag = if EOF reached, restart reading at beginning
     
-    eVideoFileType_def  m_eFileType;
+    eVideoFileType_def      m_eFileType;
+
+    eVideoDataIoFormat_def  m_eVideoFormat;
     
   public:
 
@@ -121,57 +145,67 @@ class CVideoFileIO
 
     virtual ~CVideoFileIO();
 
-    void               setFile(std::string &sFilePath);
+    void                setFile(std::string &sFilePath);
 
-    void               setLoopingRead(bool value);
+    void                setLoopingRead(bool value);
 
-    void               setFrameSize(unsigned int width, unsigned int height, unsigned int bitsPerPixel = 0);
+    void                setFrameSize(unsigned int width, unsigned int height, unsigned int bitsPerPixel = 0);
 
-    virtual void       setFrameRate(unsigned int rate);
+    virtual void        setFrameRate(unsigned int rate);
 
-    virtual void       setIoBlockSize(int numFrames);
+    virtual void        setIoBlockSize(int numFrames);
 
-    virtual void       setBitsPerPixel(int numBits);
+    virtual void        setBitsPerPixel(int numBits);
 
-    bool               isFileOpened() const;
+    void                setVideoFormat(int fmt)
+                        {
+                            m_eVideoFormat = (eVideoDataIoFormat_def) fmt;
+                        }
 
-    std::string        getFilePath();
+    bool                isFileOpened() const;
 
-    eVideoFileType_def getFileType();
+    std::string         getFilePath();
 
-    virtual int        getFrameRate()
-    {
-        return m_frameRate;
-    }
+    eVideoFileType_def  getFileType();
 
-    virtual bool       openFile(const eFileIoMode_def mode, const std::string &sFilePath) = 0;
-    virtual bool       closeFile() = 0;
+    virtual int         getFrameRate()
+                        {
+                            return m_frameRate;
+                        }
 
-    virtual bool       isEOF() = 0;
+    virtual bool        openFile(const eFileIoMode_def mode, const std::string &sFilePath) = 0;
+    virtual bool        closeFile() = 0;
 
-    virtual long       getNumFrames();
+    virtual bool        isEOF() = 0;
+
+    virtual long        getNumFrames();
+
+    unsigned int        getVideoFormat()
+                        {
+                            return (unsigned int) m_eVideoFormat;
+                        }
 
     /// Read a single frame, at the current frame offset.
-    virtual bool readFrame(void *pData) = 0;
+    virtual bool        readFrame(void *pData) = 0;
 
     /// Read a block of frames, for the specified number of frames, at the current frame offset.
-    virtual bool readBlock(void *pData, unsigned int numFrames) = 0;
+    virtual bool        readBlock(void *pData, unsigned int numFrames) = 0;
 
     /// Write a single frame, at the current frame offset.
-    virtual bool writeFrame(const void *pData) = 0;
+    virtual bool        writeFrame(const void *pData) = 0;
 
     /// Write a block of frames, for the specified number of frames, at the current frame offset.
-    virtual bool writeBlock(const void *pData, unsigned int numFrames) = 0;
+    virtual bool        writeBlock(const void *pData, unsigned int numFrames) = 0;
 
-    unsigned int getIoCount() const;
+    unsigned int        getIoCount() const;
 
-    virtual bool setCurrentFrame(unsigned int frameNum) = 0;
+    virtual bool        setCurrentFrame(unsigned int frameNum) = 0;
 
-    int          getCurrentFrame() const;
+    int                 getCurrentFrame() const;
 
-    int          getCurrentFrameIndex() const;
+    int                 getCurrentFrameIndex() const;
 
-    virtual bool resetPlayPosition();
+    virtual bool        resetPlayPosition();
 };
 
 
@@ -336,7 +370,7 @@ public:
 class COcvFileIO :
     public CVideoFileIO
 {
-public:
+  public:
 
     struct SOcvFileInfo
     {
@@ -359,7 +393,59 @@ public:
         }
     };
 
-private:
+  protected:
+
+    inline std::string cvFormatToStr(const int fmt)
+    {
+        // Convert the integer FOURCC to a string
+        std::string sOut = "";
+
+        sOut += static_cast<char>(fmt & 0xFF);         // Extract the first character
+        sOut += static_cast<char>((fmt >> 8) & 0xFF);  // Extract the second character
+        sOut += static_cast<char>((fmt >> 16) & 0xFF); // Extract the third character
+        sOut += static_cast<char>((fmt >> 24) & 0xFF); // Extract the fourth character
+
+        return sOut;
+    }
+
+    inline eVideoDataIoFormat_def cvFourCcToVideoFmt(const int fourCC)
+    {
+        auto sFourCC = cvFormatToStr(fourCC);
+
+        if (sFourCC == "YUV")
+            return eVideoDataIoFormat_yuv;
+
+        if (sFourCC == "RGB")
+            return eVideoDataIoFormat_rgb;
+
+        if (sFourCC == "MJPG")
+            return eVideoDataIoFormat_mjpeg;
+
+        if (sFourCC == "H264")
+            return eVideoDataIoFormat_h264;
+
+        if (sFourCC == "H265")
+            return eVideoDataIoFormat_h265;
+
+        if (sFourCC == "MPG4")
+            return eVideoDataIoFormat_mpeg4;
+
+        if (sFourCC == "MPG2")
+            return eVideoDataIoFormat_mpeg2;
+
+        if (sFourCC == "MPEG" || sFourCC == "MPG1")
+            return eVideoDataIoFormat_mpeg1;
+
+        if (sFourCC == "DIVX")
+            return eVideoDataIoFormat_divx;
+
+        if (sFourCC == "WEBM")
+            return eVideoDataIoFormat_webm;
+
+        return eVideoDataIoFormat_uknown;
+    }
+
+  private:
 
     cv::VideoCapture    *m_pFileInput;
 
@@ -371,6 +457,38 @@ private:
     
     int                 m_lastFrameRead;
     int                 m_lastFrameWritten;
+
+    inline bool writeToCvFrame(cv::Mat& frame, const void* pSrc, const unsigned int copySize)
+    {
+        size_t frameDataSize = (frame.total() * frame.elemSize());
+
+        if (copySize > frameDataSize)
+        {
+            memcpy((void *) frame.data, pSrc, frameDataSize);
+
+            return false;
+        }
+
+        memcpy((void*) frame.data, pSrc, copySize);
+
+        return true;
+    }
+
+    inline bool readFromCvFrame(void* pTrgt, cv::Mat& frame, const unsigned int maxCopySize)
+    {
+        size_t frameDataSize = (frame.total() * frame.elemSize());
+
+        if (frameDataSize > maxCopySize)
+        {
+            memcpy(pTrgt, (void*) frame.data, maxCopySize);
+
+            return false;
+        }
+
+        memcpy(pTrgt, (void*) frame.data, frameDataSize);
+
+        return true;
+    }
 
 public:
 

@@ -154,7 +154,7 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
 
         if (!pRawFileIO->openFile(mode, sFilePath))
         {
-            LogDebug("unable to open file={}", sFilePath);
+            LogDebug("unable to open file:{}", sFilePath);
             return pAFIO;
         }
 
@@ -181,7 +181,7 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
 
         if (!pWavFileIO->openFile(mode, sFilePath))
         {
-            LogDebug("unable to open file={}", sFilePath);
+            LogDebug("unable to open file:{}", sFilePath);
             return pAFIO;
         }
 
@@ -212,7 +212,7 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
 
         if (!pWavFileIO->openFile(mode, sFilePath))
         {
-            LogDebug("unable to open file={}", sFilePath);
+            LogDebug("unable to open file:{}", sFilePath);
             return pAFIO;
         }
 
@@ -575,7 +575,7 @@ bool CRawAudioFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
 
 bool CRawAudioFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
 {
-    LogTrace("file path={}", sFilePath);
+    LogTrace("file path:{}", sFilePath);
 
     if (m_bFileOpened || m_numChls < 1)
         return false;
@@ -700,13 +700,13 @@ bool CRawAudioFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
 
                         /// write "raw" file into to new text file
                         if (!fileInfo.writeBlock(infoText.c_str(), (unsigned int) infoText.size(), 1))
-                            LogDebug("write failed to audio output text info file failed, path={}", sFilePath);
+                            LogDebug("write failed to audio output text info file failed, path:{}", sFilePath);
 
                         fileInfo.closeFile();
                     }
                     else
                     {
-                        LogDebug("failed to create audio output text info file, path={}", sFilePath);
+                        LogDebug("failed to create audio output text info file, path:{}", sFilePath);
                     }
                 }
             }
@@ -802,7 +802,7 @@ bool CRawAudioFileIO::isEOF()
 /// Read a sample from a "raw" data file
 bool CRawAudioFileIO::readSample(int16_t &data, const unsigned int chl)
 {
-    LogTrace("channel={}", chl);
+    LogTrace("channel:{}", chl);
 
     if (!m_bFileOpened || m_pFramebuffer == nullptr || chl >= m_numChls || m_nBitsPerSample != 16)
     {
@@ -842,7 +842,7 @@ bool CRawAudioFileIO::readSample(int16_t &data, const unsigned int chl)
 
 bool CRawAudioFileIO::readSample(int32_t &data, const unsigned int chl)
 {
-    LogTrace("channel={}", chl);
+    LogTrace("channel:{}", chl);
 
     if (!m_bFileOpened || m_pFramebuffer == nullptr || chl >= m_numChls || m_nBitsPerSample != 32)
     {
@@ -882,7 +882,7 @@ bool CRawAudioFileIO::readSample(int32_t &data, const unsigned int chl)
 
 bool CRawAudioFileIO::readBlock(void *pData, const unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
+    LogTrace("numFrames:{}", numFrames);
 
     if (!m_bFileOpened || pData == nullptr || numFrames < 1)
     {
@@ -1013,7 +1013,7 @@ bool CRawAudioFileIO::writeSample(const int16_t data, const unsigned int chl)
     {
         LogDebug
         (
-            "bad param - chl={}, numChannels={}, eMode={}", 
+            "bad param - chl:{}, numChannels:{}, eMode:{}", 
             chl, 
             m_numChls,
             (int) m_eMode
@@ -1058,7 +1058,7 @@ bool CRawAudioFileIO::writeSample(const int32_t data, const unsigned int chl)
     {
         LogDebug
         (
-            "bad param - chl={}, numChannels={}, eMode={}", 
+            "bad param - chl:{}, numChannels:{}, eMode:{}", 
             chl, 
             m_numChls,
             (int) m_eMode
@@ -1102,7 +1102,7 @@ bool CRawAudioFileIO::writeBlock(const void *pData, const unsigned int numFrames
     {
         LogDebug
         (
-            "bad param - bFileOpened={}, eMode={}", 
+            "bad param - bFileOpened:{}, eMode:{}", 
             m_bFileOpened, 
             (int) m_eMode
         );
@@ -1303,7 +1303,7 @@ CWavFileIO::~CWavFileIO()
 
 bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
 {
-    LogTrace("file path={}", sFilePath);
+    LogTrace("file path:{}", sFilePath);
 
     if (m_pFramebuffer != nullptr)
     {
@@ -1363,7 +1363,7 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
                 LogTrace("loading WAV file for input");
                 if (!drwav_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
                 {
-                    LogDebug("problem during dr_wav input file init, file={}", m_sFilePath);
+                    LogDebug("problem during dr_wav input file init, file:{}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
@@ -1437,7 +1437,7 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
                 if (!drwav_init_file_write(&m_audioFile, m_sFilePath.c_str(), &dataFormat, nullptr))
                 {
-                    LogDebug("problem during dr_wav output file init, file={}", m_sFilePath);
+                    LogDebug("problem during dr_wav output file init, file:{}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
@@ -1493,7 +1493,7 @@ bool CWavFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
                 if (!drwav_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
                 {
-                    LogDebug("problem during dr_wav file I/O init, file={}", m_sFilePath);
+                    LogDebug("problem during dr_wav file I/O init, file:{}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
@@ -1672,7 +1672,7 @@ bool CWavFileIO::isEOF()
 
 bool CWavFileIO::readSample(int16_t &data, const unsigned int chl)
 {
-    LogTrace("channel={}", chl);
+    LogTrace("channel:{}", chl);
 
     if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 16)
         return false;
@@ -1743,7 +1743,7 @@ bool CWavFileIO::readSample(int16_t &data, const unsigned int chl)
 
 bool CWavFileIO::readSample(int32_t &data, const unsigned int chl)
 {
-    LogTrace("channel={}", chl);
+    LogTrace("channel:{}", chl);
 
     if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 32)
         return false;
@@ -1860,13 +1860,13 @@ bool CWavFileIO::getSamples(void *pData, unsigned int numFrames)
 
 bool CWavFileIO::readBlock(void *pData, const unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
+    LogTrace("numFrames:{}", numFrames);
 
     if (pData == nullptr || m_eMode == eFileIoMode_output)
     {
         LogDebug
         (
-            "bad param - eMode={}", 
+            "bad param - eMode:{}", 
             (int) m_eMode
         );
 
@@ -1968,7 +1968,7 @@ bool CWavFileIO::writeSample(const int16_t data, const unsigned int chl)
     {
         LogDebug
         (
-            "bad param - chl={}, numChannels={}, eMode={}", 
+            "bad param - chl:{}, numChannels:{}, eMode:{}", 
             chl, 
             m_numChls,
             (int) m_eMode
@@ -2026,7 +2026,7 @@ bool CWavFileIO::writeSample(const int32_t data, const unsigned int chl)
     {
         LogDebug
         (
-            "bad param - chl={}, numChannels={}, eMode={}", 
+            "bad param - chl:{}, numChannels:{}, eMode:{}", 
             chl, 
             m_numChls,
             (int) m_eMode
@@ -2349,7 +2349,7 @@ CMp3FileIO::~CMp3FileIO()
 
 bool CMp3FileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
 {
-    LogTrace("file path={}", sFilePath);
+    LogTrace("file path:{}", sFilePath);
 
     if (m_pFramebuffer != nullptr)
     {
@@ -2377,7 +2377,7 @@ bool CMp3FileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
                 LogTrace("loading MP3 file for input");
                 if (!drmp3_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
                 {
-                    LogError("problem during dr_wav input file init, file={}", m_sFilePath);
+                    LogError("problem during dr_wav input file init, file:{}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
@@ -2439,7 +2439,7 @@ bool CMp3FileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
                 if (!drmp3_init_file_write(&m_audioFile, m_sFilePath.c_str(), &dataFormat, nullptr))
                 {
-                    LogError("problem during dr_wav output file init, file={}", m_sFilePath);
+                    LogError("problem during dr_wav output file init, file:{}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
@@ -2481,7 +2481,7 @@ bool CMp3FileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePa
 
                 if (!drmp3_init_file(&m_audioFile, m_sFilePath.c_str(), nullptr))
                 {
-                    LogError("problem during dr_wav file I/O init, file={}", m_sFilePath);
+                    LogError("problem during dr_wav file I/O init, file:{}", m_sFilePath);
                     m_bFileOpened = false;
                     return false;
                 }
@@ -2609,7 +2609,7 @@ int CMp3FileIO::getNumFrames() const
 
 bool CMp3FileIO::readSample(int16_t &data, const unsigned int chl)
 {
-    LogTrace("channel={}", chl);
+    LogTrace("channel:{}", chl);
 
     if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 16)
         return false;
@@ -2657,7 +2657,7 @@ bool CMp3FileIO::readSample(int16_t &data, const unsigned int chl)
 
 bool CMp3FileIO::readSample(int32_t &data, const unsigned int chl)
 {
-    LogTrace("channel={}", chl);
+    LogTrace("channel:{}", chl);
 
     if (chl >= m_numChls || m_eMode == eFileIoMode_output || m_nBitsPerSample != 32)
         return false;
@@ -2705,13 +2705,13 @@ bool CMp3FileIO::readSample(int32_t &data, const unsigned int chl)
 
 bool CMp3FileIO::readBlock(void *pData, const unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
+    LogTrace("numFrames:{}", numFrames);
 
     if (pData == nullptr || m_eMode == eFileIoMode_output)
     {
         LogDebug
         (
-            "bad param - eMode={}", 
+            "bad param - eMode:{}", 
             (int) m_eMode
         );
         return false;
@@ -2762,7 +2762,7 @@ bool CMp3FileIO::writeSample(const int16_t data, const unsigned int chl)
     {
         LogDebug
         (
-            "bad param - chl={}, numChannels={}, eMode={}", 
+            "bad param - chl:{}, numChannels:{}, eMode:{}", 
             chl, 
             m_numChls,
             (int) m_eMode
@@ -2808,7 +2808,7 @@ bool CMp3FileIO::writeSample(const int32_t data, const unsigned int chl)
     {
         LogDebug
         (
-            "bad param - chl={}, numChannels={}, eMode={}", 
+            "bad param - chl:{}, numChannels:{}, eMode:{}", 
             chl, 
             m_numChls,
             (int) m_eMode

@@ -285,7 +285,8 @@ class CSimpleVideoBuffer : public CErrorHandler
             return;
         }
 
-        memset(m_pBuffer, 0, (sizeof(T) * m_frameSize));
+        //memset(m_pBuffer, 0, (sizeof(T) * m_frameSize));
+        memset(m_pBuffer, 0, m_frameSize);
 
         m_readIdx  = 0;
         m_writeIdx = 0;

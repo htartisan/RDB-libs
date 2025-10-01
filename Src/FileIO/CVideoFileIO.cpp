@@ -178,7 +178,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
 
         if (!pRawFileIO->openFile(mode, sFilePath))
         {
-            LogDebug("unable to open file={}", sFilePath);
+            LogDebug("unable to open file:{}", sFilePath);
             return pVFIO;
         }
 
@@ -205,7 +205,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
 
         if (!pAviFileIO->openFile(mode, sFilePath))
         {
-            LogDebug("unable to open file={}", sFilePath);
+            LogDebug("unable to open file:{}", sFilePath);
             return pVFIO;
         }
 
@@ -230,7 +230,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
 
         if (!pOcvFileIO->openFile(mode, sFilePath))
         {
-            LogDebug("unable to open file={}", sFilePath);
+            LogDebug("unable to open file:{}", sFilePath);
             return pVFIO;
         }
 
@@ -260,6 +260,7 @@ CVideoFileIO::CVideoFileIO()
     m_nCurrentFrame     = -1;
     m_bUseLoopingRead   = false;
     m_eFileType         = eVideoFileType_def::eFileType_unknown;
+    m_eVideoFormat      = eVideoDataIoFormat_uknown;
 }
 
 
@@ -284,6 +285,7 @@ CVideoFileIO::CVideoFileIO(unsigned int width, unsigned int height, unsigned int
     m_nCurrentFrame     = -1;
     m_bUseLoopingRead   = false;
     m_eFileType         = eVideoFileType_def::eFileType_unknown;
+    m_eVideoFormat      = eVideoDataIoFormat_uknown;
 }
 
 
@@ -575,7 +577,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
 
 bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sFilePath)
 {
-    LogTrace("file path={}", sFilePath);
+    LogTrace("file path:{}", sFilePath);
 
     if (m_bFileOpened)
         return false;
@@ -716,13 +718,13 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
 
                         /// write "raw" file into to new text file
                         if (!fileInfo.writeBlock(infoText.c_str(), (unsigned int) infoText.size(), 1))
-                            LogDebug("write failed to videp output text info file failed, path={}", sFilePath);
+                            LogDebug("write failed to videp output text info file failed, path:{}", sFilePath);
 
                         fileInfo.closeFile();
                     }
                     else
                     {
-                        LogDebug("failed to create videp output text info file, path={}", sFilePath);
+                        LogDebug("failed to create videp output text info file, path:{}", sFilePath);
                     }
                 }
             }
@@ -844,7 +846,7 @@ bool CRawVideoFileIO::readFrame(void *pData)
 
 bool CRawVideoFileIO::readBlock(void *pData, const unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
+    LogTrace("numFrames:{}", numFrames);
 
     if (!m_bFileOpened || pData == nullptr || numFrames < 1)
     {
@@ -975,7 +977,7 @@ bool CRawVideoFileIO::writeFrame(const void *pData)
     {
         LogDebug
         (
-            "bad param - eMode={}", 
+            "bad param - eMode:{}", 
             (int) m_eMode
         );
         return false;
@@ -1001,7 +1003,7 @@ bool CRawVideoFileIO::writeBlock(const void *pData, const unsigned int numFrames
     {
         LogDebug
         (
-            "bad param - bFileOpened={}, eMode={}", 
+            "bad param - bFileOpened:{}, eMode:{}", 
             m_bFileOpened, 
             (int) m_eMode
         );
@@ -1131,7 +1133,7 @@ CAviFileIO::~CAviFileIO()
 
 bool CAviFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePath)
 {
-    LogTrace("file path={}", sFilePath);
+    LogTrace("file path:{}", sFilePath);
 
     if (m_bFileOpened)
         return false;
@@ -1250,7 +1252,7 @@ bool CAviFileIO::readFrame(void* pData)
 
 bool CAviFileIO::readBlock(void* pData, const unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
+    LogTrace("numFrames:{}", numFrames);
 
     if (!m_bFileOpened || pData == nullptr || numFrames < 1)
     {
@@ -1381,7 +1383,7 @@ bool CAviFileIO::writeFrame(const void* pData)
     {
         LogDebug
         (
-            "bad param - eMode={}",
+            "bad param - eMode:{}",
             (int)m_eMode
         );
         return false;
@@ -1407,7 +1409,7 @@ bool CAviFileIO::writeBlock(const void* pData, const unsigned int numFrames)
     {
         LogDebug
         (
-            "bad param - bFileOpened={}, eMode={}",
+            "bad param - bFileOpened:{}, eMode:{}",
             m_bFileOpened,
             (int)m_eMode
         );
@@ -1517,7 +1519,7 @@ COcvFileIO::~COcvFileIO()
 
 bool COcvFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePath)
 {
-    LogTrace("file path={}", sFilePath);
+    LogTrace("file path:{}", sFilePath);
 
     if (m_bFileOpened)
         return false;
@@ -1537,12 +1539,17 @@ bool COcvFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePa
             m_pFileInput = new cv::VideoCapture(sFilePath);
             if (m_pFileInput == nullptr)
                 return false;
+            auto openCvFormat = (int) m_pFileInput->get(cv::CAP_PROP_FOURCC);
+            auto eVideoFmt = cvFourCcToVideoFmt(openCvFormat);
+            setVideoFormat((int)eVideoFmt);
         }
         break;
 
     case eFileIoMode_def::eFileIoMode_output:
         {
-            int nFourCC = String2FourCC(m_sFourCC);
+            auto nFourCC = String2FourCC(m_sFourCC);
+            auto eVideoFmt = cvFourCcToVideoFmt(nFourCC);
+            setVideoFormat((int) eVideoFmt);
             cv::Size frameSize;
             frameSize.width = m_width;
             frameSize.height = m_height;
@@ -1666,15 +1673,21 @@ bool COcvFileIO::readFrame(void* pData)
     //    return false;
     //}
 
+    bool bRetValue = true;
+
     try
     {
         cv::Mat     frame;
+        //cv::Mat     frame(m_height, m_width, CV_8SC3);
 
         m_pFileInput->read(frame);
+        //*m_pFileInput >> frame;
 
-        auto pFrameData = frame.ptr();
+        if (frame.empty())
+            return false;
 
-        memcpy(pData, pFrameData, m_nFrameSize);
+        if (readFromCvFrame(pData, frame, m_nFrameSize) == false)
+            bRetValue = false;
 
         m_nCurrentFrame++;
 
@@ -1685,13 +1698,13 @@ bool COcvFileIO::readFrame(void* pData)
         return false;
     }
 
-    return true;
+    return bRetValue;
 }
 
 
 bool COcvFileIO::readBlock(void* pData, const unsigned int numFrames)
 {
-    LogTrace("numFrames={}", numFrames);
+    LogTrace("numFrames:{}", numFrames);
 
     if (!m_bFileOpened || pData == nullptr || numFrames < 1)
     {
@@ -1732,7 +1745,7 @@ bool COcvFileIO::writeFrame(const void* pData)
     {
         LogDebug
         (
-            "bad param - eMode={}",
+            "bad param - eMode:{}",
             (int)m_eMode
         );
         return false;
@@ -1747,15 +1760,14 @@ bool COcvFileIO::writeFrame(const void* pData)
     if (m_nFrameSize < 1)
         return false;
 
+    bool bRetValue = true;
+
     try
     {
-        cv::Mat     frame;
+        cv::Mat     frame(m_height, m_width, CV_8UC3);
 
-        frame.resize(m_nFrameSize);
-
-        auto pFrameData = frame.ptr();
-
-        memcpy(pFrameData, pData, m_nFrameSize);
+        if (writeToCvFrame(frame, pData, m_nFrameSize) == false)
+            bRetValue = false;
 
         m_pFileOutput->write(frame);
 
@@ -1768,7 +1780,7 @@ bool COcvFileIO::writeFrame(const void* pData)
         return false;
     }
 
-    return true;
+    return bRetValue;
 }
 
 
@@ -1778,7 +1790,7 @@ bool COcvFileIO::writeBlock(const void* pData, const unsigned int numFrames)
     {
         LogDebug
         (
-            "bad param - bFileOpened={}, eMode={}",
+            "bad param - bFileOpened:{}, eMode:{}",
             m_bFileOpened,
             (int)m_eMode
         );
