@@ -40,7 +40,19 @@ class CSimpleVideoBuffer : public CErrorHandler
 
     T*              m_pBuffer;
 
+    std::vector<unsigned long>  m_frameDataLen;   // Length of actual frame data (in byts)
+
     std::mutex      m_ioLock;
+
+  protected:
+
+    void resetFrameLen()
+    {
+        for (auto i = m_frameDataLen.begin(); i != m_frameDataLen.end(); i++)
+        {
+            (*i) = 0;
+        }
+    }
 
   public:
 
@@ -58,6 +70,10 @@ class CSimpleVideoBuffer : public CErrorHandler
         m_nVideoFormat  = 0;
 
         m_pBuffer       = nullptr;
+
+        m_frameDataLen.clear();
+        m_frameDataLen.resize(m_blockSize);
+        resetFrameLen();
     }
 
     ~CSimpleVideoBuffer()
@@ -67,6 +83,8 @@ class CSimpleVideoBuffer : public CErrorHandler
 
         m_readIdx       = 0;
         m_writeIdx      = 0;
+
+        m_frameDataLen.clear();
 
         free();
     }
@@ -130,6 +148,10 @@ class CSimpleVideoBuffer : public CErrorHandler
         }
 
         m_blockSize = blockSize;
+
+        m_frameDataLen.resize(blockSize);
+
+        resetFrameLen();
     }
 
     unsigned int getFramesPerBlock()
@@ -226,6 +248,8 @@ class CSimpleVideoBuffer : public CErrorHandler
             return false;
         }
 
+        resetFrameLen();
+
         m_bAllocated = true;
 
         return true;
@@ -263,12 +287,32 @@ class CSimpleVideoBuffer : public CErrorHandler
 
         m_pBuffer = nullptr;
 
+        resetFrameLen();
+
         m_bAllocated = false;
     }
 
-    unsigned int getLength()
+    unsigned int getFrameLength()
     {
         return m_frameSize;
+    }
+
+    void setFrameDataLen(const unsigned long nLen, const unsigned int nFrame = 0)
+    {
+        if (m_frameDataLen.size() > nFrame)
+        {
+            m_frameDataLen[nFrame] = nLen;
+        }
+    }
+
+    unsigned long getFrameDataLen(const unsigned int nFrame = 0)
+    {
+        if (m_frameDataLen.size() > nFrame)
+        {
+            return m_frameDataLen[nFrame];
+        }
+
+        return 0;
     }
 
     void clear()
@@ -290,6 +334,8 @@ class CSimpleVideoBuffer : public CErrorHandler
 
         m_readIdx  = 0;
         m_writeIdx = 0;
+
+        resetFrameLen();
     }
 
     T *getBuffPtr()
@@ -347,7 +393,16 @@ class CSimpleVideoBuffer : public CErrorHandler
 
         offset = m_frameSize * frame;   
 
-        memcpy(target, (((T *) m_pBuffer) + offset), (sizeof(T) * m_frameSize));
+        try
+        {
+            memcpy(target, (((T *) m_pBuffer) + offset), (sizeof(T) * m_frameSize));
+
+            m_frameDataLen[frame] = 0;
+        }
+        catch(...)
+        {
+            return false;
+        }
 
         return true;;
     }
@@ -365,7 +420,16 @@ class CSimpleVideoBuffer : public CErrorHandler
 
         offset = m_frameSize * frame;   
 
-        memcpy((((T *) m_pBuffer) + offset), value, (sizeof(T) * m_frameSize));
+        try
+        {
+            memcpy((((T *) m_pBuffer) + offset), value, (sizeof(T) * m_frameSize));
+
+            m_frameDataLen[frame] = (sizeof(T) * m_frameSize);
+        }
+        catch (...)
+        {
+            return false;
+        }
 
         return true;;
     }
@@ -475,26 +539,33 @@ class CSimpleVideoBuffer : public CErrorHandler
 
     // read a block of size 'count' (pixels) starting at the current read offset,
     // and then update the current read offset. return the updated read offset
-    unsigned long readPixels(T buf[], const unsigned int count)
+    long readPixels(T buf[], const unsigned int count)
     {
         // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            return 0;
+            return -1;
         }
 
         if ((m_readIdx + count) >= (m_frameSize * m_blockSize))
         {
-            return 0;
+            return -1;
         }
 
-        for (unsigned int x = 0; x < count; x++)
+        try
         {
-            buf[x] = *(((T *) m_pBuffer) + x);
+            for (unsigned int x = 0; x < count; x++)
+            {
+                buf[x] = *(((T *) m_pBuffer) + x);
+            }
         }
-        
+        catch(...)
+        {
+            return -1;
+        }
+
         m_readIdx += count;
 
         return m_readIdx;
@@ -503,93 +574,123 @@ class CSimpleVideoBuffer : public CErrorHandler
     // read a block of size 'm_frameSize' (pixels)
     // starting at the 'frame' number read offset.
     // return: m_frameSize
-    unsigned long readFrame(T buf[], const unsigned int frame = 0)
+    long readFrame(T buf[], const unsigned int frame = 0)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            return 0;
+            return -1;
         }
 
         if (frame >= m_blockSize)
         {
-            return 0;
+            return -1;
         }
 
-        for (unsigned int x = 0; x < m_frameSize; x++)
-            buf[x] = *(((T *) m_pBuffer) + ((m_frameSize * frame) + x));
+        try
+        {
+            for (unsigned int x = 0; x < m_frameSize; x++)
+            {
+                buf[x] = *(((T *) m_pBuffer) + ((m_frameSize * frame) + x));
+            }
+        }
+        catch(...)
+        {
+            return -1;
+        }
 
         return m_frameSize;
     }
 
     // write a single pixel at the current write offset, and
     // then increment the offset, return the updated write offset.
-    unsigned long writePixel(const T &value)
+    long writePixel(const T &value)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            return 0;
+            return -1;
         }
 
         if (m_writeIdx >= (unsigned long) (m_frameSize * m_blockSize))
         {
-            return 0;
+            return -1;
         }
 
-        *(((T *) m_pBuffer) + (m_writeIdx++)) = value;
+        try
+        {
+            *(((T *) m_pBuffer) + (m_writeIdx++)) = value;
+        }
+        catch (...)
+        {
+            return -1;
+        }
 
         return m_writeIdx;
     }
 
     // write a single pixel at 'index' write offset.
     // return: the write offset    
-    unsigned long writePixel(const T &value, unsigned long index)
+    long writePixel(const T &value, unsigned long index)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            return 0;
+            return -1;
         }
 
         if (index >= (unsigned long) (m_frameSize * m_blockSize))
         {
-            return 0;
+            return -1;
         }
 
-        *(((T *) m_pBuffer) + (index++)) = value;
+        try
+        {
+            *(((T *) m_pBuffer) + (index++)) = value;
+        }
+        catch (...)
+        {
+            return -1;
+        }
 
         return index;
     }
 
     // write a single pixel at 'index' offset.
     // return: the write offset    
-    unsigned long writePixel(const T &value, const unsigned long xPos, const unsigned long yPos, const unsigned long frame = 0)
+    long writePixel(const T &value, const unsigned long xPos, const unsigned long yPos, const unsigned long frame = 0)
     {
         // make sure multiple functions are not modifying the buffer at the same time
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated || m_frameWidth < 1 || m_frameHeight < 1 || m_frameSize < 1 || m_nVideoFormat != 0)
         {
-            return 0;
+            return -1;
         }
 
         if (m_frameWidth <= xPos || m_frameHeight <= yPos)
         {
-            return 0;
+            return -1;
         }
 
         unsigned long index = ((frame * m_frameSize) + (yPos * m_frameWidth) + yPos);
 
         if (index >= (m_frameSize * m_blockSize))
         {
-            return 0;
+            return -1;
         }
 
-        *(((T *) m_pBuffer) + index) = value;
+        try
+        {
+            *(((T *) m_pBuffer) + index) = value;
+        }
+        catch (...)
+        {
+            return -1;
+        }
 
         return index;
     }
@@ -598,22 +699,31 @@ class CSimpleVideoBuffer : public CErrorHandler
     // starting at the current write offset,
     // and then update the current write offset.
     // return:  the updated write offset.
-    unsigned long writePixels(const T buf[], const unsigned int count)
+    long writePixels(const T buf[], const unsigned int count)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            return 0;
+            return -1;
         }
 
         if ((m_writeIdx + count) >= (m_frameSize * m_blockSize))
         {
-            return 0;
+            return -1;
         }
 
-        for (unsigned int x = 0; x < count; x++)
-            *(((T *) m_pBuffer) +  (m_writeIdx + x)) = buf[x];
+        try
+        {
+            for (unsigned int x = 0; x < count; x++)
+            {
+                *(((T *) m_pBuffer) +  (m_writeIdx + x)) = buf[x];
+            }
+        }
+        catch (...)
+        {
+            return -1;
+        }
 
         m_writeIdx += count;
 
@@ -623,22 +733,31 @@ class CSimpleVideoBuffer : public CErrorHandler
     // write a block of size 'm_frameSize' (pixels)
     // starting at the 'frame' * 'm_frameSize' write offset
     // return: m_frameSize
-    unsigned long writeFrame(T buf[], const unsigned int frame)
+    long writeFrame(T buf[], const unsigned int frame)
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
         if (!m_bAllocated)
         {
-            return 0;
+            return -1;
         }
 
         if (frame >= m_blockSize)
         {
-            return 0;
+            return -1;
         }
 
-        for (unsigned int x = 0; x < m_frameSize; x++)
-            *(((T *) m_pBuffer) + ((m_frameSize * frame) + x)) = buf[x];
+        try
+        {
+            for (unsigned int x = 0; x < m_frameSize; x++)
+            { 
+                *(((T *) m_pBuffer) + ((m_frameSize * frame) + x)) = buf[x];
+            }
+        }
+        catch (...)
+        {
+            return -1;
+        }
 
         return m_frameSize;
     }

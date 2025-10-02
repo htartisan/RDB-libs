@@ -436,6 +436,11 @@ CRawVideoFileIO::CRawVideoFileIO(const unsigned int width, const unsigned int he
     m_lFileSize           	= 0;
     m_lCurrentFilePos     	= 0;
     m_bCreateInfoTextFile 	= false;
+
+    m_fileInfo.width        = m_width;
+    m_fileInfo.height       = m_height;
+    m_fileInfo.frameRate    = m_frameRate;
+    m_fileInfo.bitsPerPixel = m_bitsPerPixel;
 }
 
 
@@ -467,12 +472,6 @@ CRawVideoFileIO::~CRawVideoFileIO()
 }
 
 
-void CRawVideoFileIO::createInfoTextFile(const bool value)
-{
-    m_bCreateInfoTextFile = value;
-}
-
-
 bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
 {
     std::fstream infoFile;
@@ -500,7 +499,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
         if (sInputText.empty())
             continue;
 
-        std::string sSearchText = "NumberOfChannels:";
+        std::string sSearchText = "FrameWidth:";
 
         auto        pos         = sInputText.find(sSearchText);
         if (pos != std::string::npos)
@@ -510,7 +509,26 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
             if (val < 0)
                 break;
 
-            bOut             = true;
+            info.width = val;
+
+            bOut = true;
+
+            continue;
+        }
+
+        sSearchText = "FrameHeight:";
+
+        pos = sInputText.find(sSearchText);
+        if (pos != std::string::npos)
+        {
+            int val = getNumericStringAt(sInputText, (unsigned int)sSearchText.length());
+
+            if (val < 0)
+                break;
+
+            info.height = val;
+
+            bOut = true;
 
             continue;
         }
@@ -532,7 +550,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
             continue;
         }
 
-        sSearchText = "FrameSize:";
+        sSearchText = "PixelSize:";
 
         pos         = sInputText.find(sSearchText);
         if (pos != std::string::npos)
@@ -559,6 +577,10 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
             {
                 info.bitsPerPixel = 32;    
             }
+            else if (sTemp == "int48_t")
+            {
+                info.bitsPerPixel = 48;
+            }
             else
             {
                 LogWarning("parseInfoFile(): WARNING: invalid 'frameSize' ({}) in 'raw' videp info file: {}", sTemp, sFile);
@@ -572,6 +594,73 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
     infoFile.close();
 
     return bOut;
+}
+
+
+bool CRawVideoFileIO::writeInfoTextFile(const std::string& sFile, SRawFileInfo& info)
+{
+    std::fstream infoFile;
+
+    infoFile.open(sFile, std::ios::out);
+    if (!infoFile.is_open())
+    {
+        LogDebug("parseInfoFile(): ERROR: unable to create 'raw' videp info file: {}", sFile);
+        return false;
+    }
+
+    std::string sParamText;
+
+    sParamText = ("FrameWidth: " + StrUtils::tos(info.width));
+
+    infoFile << sParamText << std::endl;
+
+    sParamText = ("FrameHeight: " + StrUtils::tos(info.height));
+
+    infoFile << sParamText << std::endl;
+
+    sParamText = ("FrameRate: " + StrUtils::tos(info.frameRate));
+
+    infoFile << sParamText << std::endl;
+
+    sParamText = "PixelSize: ";
+        
+    std::string sSize = "";
+
+    switch (info.bitsPerPixel)
+    {
+        case 8:
+            sSize = "int8_t";
+            infoFile << sParamText << sSize << std::endl;
+            break;
+
+        case 16:
+            sSize = "int16_t";
+            infoFile << sParamText << sSize << std::endl;
+            break;
+
+        case 24:
+            sSize = "int24_t";
+            infoFile << sParamText << sSize << std::endl;
+            break;
+
+        case 32:
+            sSize = "int32_t";
+            infoFile << sParamText << sSize << std::endl;
+            break;
+
+        case 48:
+            sSize = "int48_t";
+            infoFile << sParamText << sSize << std::endl;
+            break;
+
+        default:
+            LogWarning("parseInfoFile(): WARNING: invalid 'PixelSize' ({}) in 'raw' videp info file: {}", info.bitsPerPixel, sFile);
+            return false;
+    }
+
+    infoFile.close();
+
+    return true;
 }
 
 
@@ -646,6 +735,32 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                     return false;
                 }
 
+                /// Create out videp info text file
+                std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in
+
+                std::string sFileName = getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
+
+                if (sInfoFilePath.empty() == false)
+                    sInfoFilePath.append("/" + sFileName);
+                else
+                    sInfoFilePath.assign(sFileName);
+
+                sInfoFilePath.append("-FileInfo.txt");                  /// append "-FileInfo.txt" to the filename
+
+                parseInfoTextFile(sInfoFilePath, m_fileInfo);
+
+                if (m_fileInfo.width > 0)
+                    m_width = m_fileInfo.width;
+
+                if (m_fileInfo.height > 0)
+                    m_height = m_fileInfo.height;
+
+                if (m_fileInfo.frameRate > 0)
+                    m_frameRate = m_fileInfo.frameRate;
+
+                if (m_fileInfo.bitsPerPixel > 0)
+                    m_bitsPerPixel = m_fileInfo.bitsPerPixel;
+
                 m_lFileSize       = len;
                 m_nFramesInFile   = (len / m_nFrameSize);
 
@@ -665,8 +780,13 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                 m_lCurrentFilePos = m_lFileSize;
 
                 /// If "CreateInfoTextFile" option selected..
-                if (m_eFileType == eVideoFileType_def::eFileType_raw && m_bCreateInfoTextFile)
+                if (m_bCreateInfoTextFile)
                 {
+                    m_fileInfo.width =          m_width;
+                    m_fileInfo.height =         m_height;
+                    m_fileInfo.frameRate =      m_frameRate;
+                    m_fileInfo.bitsPerPixel =   m_bitsPerPixel;
+
                     /// Create out videp info text file
                     std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in
 
@@ -679,53 +799,7 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
 
                     sInfoFilePath.append("-FileInfo.txt");                  /// append "-FileInfo.txt" to the filename
 
-                    CFileIO fileInfo;
-
-                    if (fileInfo.openFile(eFileIoMode_output, sInfoFilePath))
-                    {
-                        /// create a text buffer with into about the "raw" file we just created
-                        std::string infoText;
-
-                        std::string sTmp = "";
-
-                        switch (m_bitsPerPixel)
-                        {
-                            case 8:
-                                sTmp = "int8_t";
-                                break;
-
-                            case 16:
-                                sTmp = "int16_t";
-                                break;
-
-                            case 24:
-                                sTmp = "int24_t";
-                                break;
-
-                            case 32:
-                                sTmp = "int32_t";
-                                break;
-
-                            default:
-                                sTmp = "unknown";
-                                break;
-                        }
-
-                        infoText.append("FrameSize: " + sTmp + " \n");
-
-                        if (m_frameRate != 0)
-                            infoText.append("FrameRate: " + std::to_string(m_frameRate) + " \n");
-
-                        /// write "raw" file into to new text file
-                        if (!fileInfo.writeBlock(infoText.c_str(), (unsigned int) infoText.size(), 1))
-                            LogDebug("write failed to videp output text info file failed, path:{}", sFilePath);
-
-                        fileInfo.closeFile();
-                    }
-                    else
-                    {
-                        LogDebug("failed to create videp output text info file, path:{}", sFilePath);
-                    }
+                    writeInfoTextFile(sInfoFilePath, m_fileInfo);
                 }
             }
             break;
@@ -1456,6 +1530,7 @@ COcvFileIO::COcvFileIO() :
 
     m_pFileInput = nullptr;
     m_pFileOutput = nullptr;
+    m_pCvFrame = nullptr;
 
     m_bitsPerPixel = 24;
     m_width = 0;
@@ -1474,6 +1549,7 @@ COcvFileIO::COcvFileIO(const unsigned int width, const unsigned int height, cons
 
     m_pFileInput = nullptr;
     m_pFileOutput = nullptr;
+    m_pCvFrame = nullptr;
 
     m_eMode = eFileIoMode_def::eFileIoMode_unknown;
     m_bitsPerPixel = 24;
@@ -1497,6 +1573,7 @@ COcvFileIO::COcvFileIO(const std::string& sFilePath) :
 
     m_pFileInput = nullptr;
     m_pFileOutput = nullptr;
+    m_pCvFrame = nullptr;
 
     m_bitsPerPixel = 24;
     m_width = 0;
@@ -1514,6 +1591,13 @@ COcvFileIO::~COcvFileIO()
 
     if (m_bFileOpened)
         closeFile();
+
+    if (m_pCvFrame != nullptr)
+    {
+        delete m_pCvFrame;
+
+        m_pCvFrame = nullptr;
+    }
 }
 
 
@@ -1537,11 +1621,25 @@ bool COcvFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePa
     case eFileIoMode_def::eFileIoMode_input:
         {
             m_pFileInput = new cv::VideoCapture(sFilePath);
+
             if (m_pFileInput == nullptr)
                 return false;
+            
             auto openCvFormat = (int) m_pFileInput->get(cv::CAP_PROP_FOURCC);
             auto eVideoFmt = cvFourCcToVideoFmt(openCvFormat);
-            setVideoFormat((int)eVideoFmt);
+
+            setVideoFormat((int) eVideoFmt);
+
+            m_width = (unsigned int) m_pFileInput->get(cv::CAP_PROP_FRAME_WIDTH);
+            m_height = (unsigned int) m_pFileInput->get(cv::CAP_PROP_FRAME_HEIGHT);
+            m_frameRate = (unsigned int) m_pFileInput->get(cv::CAP_PROP_FPS);
+
+            m_pCvFrame = new  cv::Mat;
+
+            if (m_pCvFrame == nullptr)
+            {
+                return false;
+            }
         }
         break;
 
@@ -1549,13 +1647,29 @@ bool COcvFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePa
         {
             auto nFourCC = String2FourCC(m_sFourCC);
             auto eVideoFmt = cvFourCcToVideoFmt(nFourCC);
+
             setVideoFormat((int) eVideoFmt);
+            
             cv::Size frameSize;
+            
             frameSize.width = m_width;
             frameSize.height = m_height;
+            
             m_pFileOutput = new cv::VideoWriter(sFilePath, (int) nFourCC, (double) m_frameRate, frameSize);
+            
             if (m_pFileOutput == nullptr)
                 return false;
+
+            //m_pFileOutput->set(cv::CAP_PROP_FRAME_WIDTH, (double) m_width);
+            //m_pFileOutput->set(cv::CAP_PROP_FRAME_HEIGHT, (double) m_height);
+            //m_pFileOutput->set(cv::CAP_PROP_FPS, (double) m_frameRate);
+
+            m_pCvFrame = new  cv::Mat(m_height, m_width, CV_8UC3);
+
+            if (m_pCvFrame == nullptr)
+            {
+                return false;
+            }
         }
         break;
 
@@ -1677,16 +1791,13 @@ bool COcvFileIO::readFrame(void* pData)
 
     try
     {
-        cv::Mat     frame;
-        //cv::Mat     frame(m_height, m_width, CV_8SC3);
+        m_pFileInput->read(*m_pCvFrame);
+        //*m_pFileInput >> *m_pCvFrame;
 
-        m_pFileInput->read(frame);
-        //*m_pFileInput >> frame;
-
-        if (frame.empty())
+        if (m_pCvFrame->empty())
             return false;
 
-        if (readFromCvFrame(pData, frame, m_nFrameSize) == false)
+        if (readFromCvFrame(pData, *m_pCvFrame, m_nFrameSize) == false)
             bRetValue = false;
 
         m_nCurrentFrame++;
@@ -1764,12 +1875,10 @@ bool COcvFileIO::writeFrame(const void* pData)
 
     try
     {
-        cv::Mat     frame(m_height, m_width, CV_8UC3);
-
-        if (writeToCvFrame(frame, pData, m_nFrameSize) == false)
+        if (writeToCvFrame(*m_pCvFrame, pData, m_nFrameSize) == false)
             bRetValue = false;
 
-        m_pFileOutput->write(frame);
+        m_pFileOutput->write(*m_pCvFrame);
 
         m_nCurrentFrame++;
 

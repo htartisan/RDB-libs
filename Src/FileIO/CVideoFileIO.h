@@ -185,6 +185,21 @@ class CVideoFileIO
                             return (unsigned int) m_eVideoFormat;
                         }
 
+    unsigned int        getVideoWidth()
+                        {
+                            return (unsigned int) m_width;
+                        }
+
+    unsigned int        getVideoHeigth()
+                        {
+                            return (unsigned int) m_height;
+                        }
+
+    unsigned int        getFrameSize()    // Get the frame size (in bytes)
+                        {
+                            return m_nFrameSize;
+                        }
+
     /// Read a single frame, at the current frame offset.
     virtual bool        readFrame(void *pData) = 0;
 
@@ -251,7 +266,15 @@ class CRawVideoFileIO :
     
     bool            m_bCreateInfoTextFile;
 
-  public:
+    SRawFileInfo    m_fileInfo;
+
+  protected:
+
+    bool parseInfoTextFile(const std::string& sFile, SRawFileInfo& info);
+
+    bool writeInfoTextFile(const std::string& sFile, SRawFileInfo& info);
+
+public:
 
     CRawVideoFileIO();
 
@@ -261,9 +284,17 @@ class CRawVideoFileIO :
 
     ~CRawVideoFileIO() override;
 
-    void createInfoTextFile(bool value);
+    virtual void setFrameRate(const unsigned int rate)
+    {
+        m_frameRate = rate;
 
-    bool parseInfoTextFile(const std::string &sFile, SRawFileInfo &info);
+        m_fileInfo.frameRate = rate;
+    }
+
+    void createInfoTextFile(bool value)
+    {
+        m_bCreateInfoTextFile = value;
+    }
 
     virtual bool openFile(eFileIoMode_def mode, const std::string &sFilePath) override;
 
@@ -331,6 +362,8 @@ private:
     int             m_lastFrameRead;
     int             m_lastFrameWritten;
 
+    SAviFileInfo    m_fileInfo;
+
 public:
 
     CAviFileIO();
@@ -372,6 +405,7 @@ class COcvFileIO :
 {
   public:
 
+  #if 0
     struct SOcvFileInfo
     {
         int         width = 0;
@@ -392,6 +426,7 @@ class COcvFileIO :
             clear();
         }
     };
+#endif
 
   protected:
 
@@ -454,6 +489,8 @@ class COcvFileIO :
     unsigned long       m_lFileSize;
 
     std::string         m_sFourCC;
+
+    cv::Mat             *m_pCvFrame;
     
     int                 m_lastFrameRead;
     int                 m_lastFrameWritten;
@@ -507,6 +544,11 @@ public:
     virtual long getNumFrames();
 
     virtual bool isEOF() override;
+
+    cv::Mat* getCvFramePtr()
+    {
+        return m_pCvFrame;
+    }
 
     /// Read a frame from an "AVI" data file
     bool readFrame(void* pData) override;
