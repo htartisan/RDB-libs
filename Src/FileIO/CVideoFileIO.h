@@ -54,7 +54,9 @@ typedef enum
     eVideoDataIoFormat_h265,
     eVideoDataIoFormat_divx,
     eVideoDataIoFormat_webm,
-
+    eVideoDataIoFormat_vp7,
+    eVideoDataIoFormat_vp8,
+    eVideoDataIoFormat_vc1,
 
 } eVideoDataIoFormat_def;
 #endif
@@ -115,7 +117,6 @@ class CVideoFileIO
 
     eFileIoMode_def         m_eMode;            ///< file mode (input, output, ...)
 
-    int                     m_nIoBlockSize;     ///< number of frames in an I/O block read/write
     long                    m_nFramesInFile;    ///< total number of frames (currently) in the file
     int                     m_nCurrentFrameIdx; ///< current frame index within I/O block
     int                     m_nIoCntr;
@@ -136,7 +137,6 @@ class CVideoFileIO
             const int width = 0,
             const int height = 0,
             const int frameRate = 0,
-            const int blockSize = 0,
             const int bitsPerpixel = 24,
             const std::string &sFourCC = ""
         );
@@ -156,8 +156,6 @@ class CVideoFileIO
     void                setFrameSize(unsigned int width, unsigned int height, unsigned int bitsPerPixel = 0);
 
     virtual void        setFrameRate(unsigned int rate);
-
-    virtual void        setIoBlockSize(int numFrames);
 
     virtual void        setBitsPerPixel(int numBits);
 

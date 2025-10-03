@@ -188,7 +188,6 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         const int width,
         const int height,
         const int frameRate,
-        const int blockSize,
         const int bitsPerPixel,
         const std::string &sFourCC
     )
@@ -215,9 +214,6 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
 
         if (frameRate > 0)
             pRawFileIO->setFrameRate(frameRate);
-
-        if (blockSize > 0)
-            pRawFileIO->setIoBlockSize(blockSize);
 
         pRawFileIO->setBitsPerPixel(bitsPerPixel);
         
@@ -278,9 +274,6 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         if (frameRate > 0)
             pOcvFileIO->setFrameRate(frameRate);
 
-        if (blockSize > 0)
-            pOcvFileIO->setIoBlockSize(blockSize);
-
         pOcvFileIO->setBitsPerPixel(bitsPerPixel);
 
         if (!pOcvFileIO->openFile(mode, sFilePath))
@@ -308,7 +301,6 @@ CVideoFileIO::CVideoFileIO()
     m_sFilePath         = "";
     m_bFileOpened       = false;
     m_eMode             = eFileIoMode_unknown;
-    m_nIoBlockSize      = 0;
     m_nFramesInFile     = 0;
     m_nCurrentFrameIdx  = 0;
     m_nIoCntr           = -1;
@@ -333,7 +325,6 @@ CVideoFileIO::CVideoFileIO(unsigned int width, unsigned int height, unsigned int
     m_sFilePath         = "";
     m_bFileOpened       = false;
     m_eMode             = eFileIoMode_unknown;
-    m_nIoBlockSize      = 0;
     m_nFramesInFile     = 0;
     m_nCurrentFrameIdx  = 0;
     m_nIoCntr           = -1;
@@ -416,12 +407,6 @@ eVideoFileType_def CVideoFileIO::getFileType()
 long CVideoFileIO::getNumFrames()
 {
     return m_nFramesInFile;
-}
-
-
-void CVideoFileIO::setIoBlockSize(int numFrames)
-{
-    m_nIoBlockSize = numFrames;
 }
 
 
@@ -755,39 +740,19 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
 
     m_eFileType = getVideoFileType(m_sFilePath);
 
-    if (m_nIoBlockSize < 1)
+    /// Allocate just 1 frame 
+    switch (m_bitsPerPixel)
     {
-        /// Allocate just 1 frame 
-        switch (m_bitsPerPixel)
-        {
-        case 8:
-        case 16:
-        case 24:
-        case 32:
-            m_pFramebuffer = 
-                calloc((m_bitsPerPixel / 8), (m_width * m_height));
-            break;
+    case 8:
+    case 16:
+    case 24:
+    case 32:
+        m_pFramebuffer = 
+            calloc((m_bitsPerPixel / 8), (m_width * m_height));
+        break;
 
-        default:
-            return false;
-        }
-    }
-    else
-    {
-        /// Allocate 'm_nIoBlockSize' (number of) frames 
-        switch (m_bitsPerPixel)
-        {
-        case 8:
-        case 16:
-        case 24:
-        case 32:
-            m_pFramebuffer = 
-                calloc((m_bitsPerPixel / 8), (m_width * m_height * m_nIoBlockSize));
-            break;
-
-        default:
-            return false;
-        }
+    default:
+        return false;
     }
 
     if (m_pFramebuffer == nullptr)
