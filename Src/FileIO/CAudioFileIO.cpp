@@ -3,6 +3,18 @@
 /// 
 ///             CAudioFileIO function definitions
 ///
+///             NOTE: The CAudioFileIO classes have the following dependencies: 
+/// 
+///             - "CFileIO.h" ...   RDB-libs/FileIO/CFileIO.h  
+/// 
+///                 AND
+/// 
+///             - "AudioWave" ...   https://github.com/adamstark/AudioFile    
+/// 
+///                 OR
+/// 
+///             - "dr_wav" ...      https://github.com/mackron/dr_libs/tree/master
+///
 
 
 #include "../Logging/Logging.h"

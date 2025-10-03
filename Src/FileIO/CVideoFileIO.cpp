@@ -2,6 +2,14 @@
 /// \file       CVideoFileIO.cpp
 /// 
 ///             CVideoFileIO function definitions
+/// 
+///             NOTE: The CVideoFileIO classes have the following dependencies: 
+/// 
+///             - "CFileIO.h" ...   RDB-libs/FileIO/CFileIO.h  
+/// 
+///                 AND
+/// 
+///             - "OpenCV" ...   https://opencv.org/
 ///
 
 
@@ -28,21 +36,22 @@ std::string FourCC2String(uint32_t fourcc);
 uint32_t String2FourCC(const std::string& fourcc);
 
 
-
+// Convert eVideoFileType_def to file ext string
 std::string videpFileTypeToString(eVideoFileType_def value)
 {
     static std::map<eVideoFileType_def, std::string> map = 
     {
         {eFileType_raw, "raw"},   
-        {eFileType_mp4, "mp4"},   
-        {eFileType_mov, "mov"},   
+        {eFileType_mpg4, "mp4"},   
+        {eFileType_mjpeg, "mjpg"},
         {eFileType_avi, "avi"},
-        {eFileType_avi, "mpg"},
+        {eFileType_mov, "mov"},
         {eFileType_wmv, "wmv"},
+        {eFileType_mpg1, "mpg"},
+        {eFileType_mpg2, "mp2"},
         {eFileType_mkv, "mkv"},
         {eFileType_webm, "webm"},
         {eFileType_info, "info"}, 
-        {eFileType_text, "text"},
     };
 
     std::string name = "unknown value " + std::to_string(static_cast<int>(value));
@@ -52,6 +61,34 @@ std::string videpFileTypeToString(eVideoFileType_def value)
         name = it->second;
     
     return name;
+}
+
+
+// Convert FourCC string to eVideoFileType_def
+eVideoFileType_def fourCcToVidepFileType(const std::string &SFourCC)
+{
+    static std::map<std::string, eVideoFileType_def> map =
+    {
+        {"raw", eFileType_raw},
+        {"mpg4", eFileType_mpg4},
+        {"mjpg", eFileType_mjpeg},
+        {"avi", eFileType_avi},
+        {"mov", eFileType_mov},
+        {"wmv", eFileType_wmv},
+        {"mpg1", eFileType_mpg1},
+        {"mpg2", eFileType_mpg2},
+        {"mkv", eFileType_mkv},
+        {"webm", eFileType_webm},
+        {"info", eFileType_info}
+    };
+
+    eVideoFileType_def type = eFileType_unknown;
+
+    auto        it = map.find(SFourCC);
+    if (it != map.end())
+        type = it->second;
+
+    return type;
 }
 
 
@@ -68,19 +105,31 @@ eVideoFileType_def getVideoFileType(const std::string &filepath)
         return eFileType_raw;
 
     if (ext == ".mp4")
-        return eFileType_mp4;
+        return eFileType_mpg4;
 
-    if (ext == ".mov")
-        return eFileType_mov;
+    if (ext == ".mjpg")
+        return eFileType_mjpeg;
 
     if (ext == ".avi")
         return eFileType_avi;
 
-    if (ext == ".mpg")
-        return eFileType_mpg;
+    if (ext == ".mov")
+        return eFileType_mov;
 
     if (ext == ".wmv")
         return eFileType_wmv;
+
+    if (ext == ".mpg")
+        return eFileType_mpg1;
+
+    if (ext == ".mpeg")
+        return eFileType_mpg1;
+
+    if (ext == ".mp2")
+        return eFileType_mpg2;
+
+    if (ext == ".mpg2")
+        return eFileType_mpg2;
 
     if (ext == ".mkv")
         return eFileType_mkv;
@@ -90,9 +139,6 @@ eVideoFileType_def getVideoFileType(const std::string &filepath)
 
     if (ext == ".info")
         return eFileType_info;
-
-    if (ext == ".txt" || ext == ".text")
-        return eFileType_text;
 
     return eFileType_unknown;
 }
@@ -132,17 +178,19 @@ uint32_t String2FourCC(const std::string& fourcc)
 
 
 
+
 // class CVideoFileIO static functions
 
 std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
     (
         const std::string &sFilePath, 
         const eFileIoMode_def mode, 
-        int width,
-        int height,
-        int frameRate, 
-        int blockSize,
-        int bitsPerPixel
+        const int width,
+        const int height,
+        const int frameRate,
+        const int blockSize,
+        const int bitsPerPixel,
+        const std::string &sFourCC
     )
 {
     if (sFilePath.empty())
@@ -171,7 +219,14 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         if (blockSize > 0)
             pRawFileIO->setIoBlockSize(blockSize);
 
-        pRawFileIO->setBitsPerPixel(bitsPerPixel);        
+        pRawFileIO->setBitsPerPixel(bitsPerPixel);
+        
+        if (sFourCC != "")
+        {
+            auto nVideoFormat = fourCcToVidepFileType(sFourCC);
+
+            pRawFileIO->setVideoFormat(nVideoFormat);
+        }
 
         if (mode == eFileIoMode_def::eFileIoMode_output)
             pRawFileIO->createInfoTextFile(true);
@@ -589,6 +644,23 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
 
             continue;
         }
+
+        sSearchText = "FourCC:";
+
+        pos = sInputText.find(sSearchText);
+        if (pos != std::string::npos)
+        {
+            std::string sTemp = sInputText.substr(pos + sSearchText.length());
+
+            sTemp = removeLeadingSpaces(sTemp);
+
+            info.fourCC = sTemp;
+
+            bOut = true;
+
+            continue;
+        }
+
     }
 
     infoFile.close();
@@ -657,6 +729,10 @@ bool CRawVideoFileIO::writeInfoTextFile(const std::string& sFile, SRawFileInfo& 
             LogWarning("parseInfoFile(): WARNING: invalid 'PixelSize' ({}) in 'raw' videp info file: {}", info.bitsPerPixel, sFile);
             return false;
     }
+
+    sParamText = ("FourCC: " + info.fourCC);
+
+    infoFile << sParamText << std::endl;
 
     infoFile.close();
 
@@ -761,6 +837,9 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                 if (m_fileInfo.bitsPerPixel > 0)
                     m_bitsPerPixel = m_fileInfo.bitsPerPixel;
 
+                if (m_fileInfo.fourCC != "")
+                    m_eFileType = fourCcToVidepFileType(m_fileInfo.fourCC);
+
                 m_lFileSize       = len;
                 m_nFramesInFile   = (len / m_nFrameSize);
 
@@ -786,6 +865,7 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                     m_fileInfo.height =         m_height;
                     m_fileInfo.frameRate =      m_frameRate;
                     m_fileInfo.bitsPerPixel =   m_bitsPerPixel;
+                    m_fileInfo.fourCC =         videpFileTypeToString(m_eFileType);
 
                     /// Create out videp info text file
                     std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in

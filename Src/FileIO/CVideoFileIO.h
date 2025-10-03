@@ -9,7 +9,7 @@
 /// 
 ///                 AND
 /// 
-///             - "VideoWave" ...   https://github.com/adamstark/VideoFile    
+///             - "OpenCV" ...   https://opencv.org/
 /// 
 
 
@@ -63,16 +63,17 @@ typedef enum
 enum eVideoFileType_def
 {
     eFileType_unknown = 0,
+    eFileType_mpg4,
+    eFileType_mjpeg,
     eFileType_raw,
-    eFileType_mp4,
-    eFileType_mov,
     eFileType_avi,
-    eFileType_mpg,
+    eFileType_mov,
     eFileType_wmv,
+    eFileType_mpg1,
+    eFileType_mpg2,
     eFileType_mkv,
     eFileType_webm,
     eFileType_info,
-    eFileType_text,
 
 };
 
@@ -83,6 +84,8 @@ enum eVideoFileType_def
 /// @return string representation of enum value
 
 std::string videpFileTypeToString(eVideoFileType_def value);
+
+eVideoFileType_def fourCcToVidepFileType(const std::string& SFourCC);
 
 eVideoFileType_def getVideoFileType(const std::string &filepath);
 
@@ -129,12 +132,13 @@ class CVideoFileIO
     static std::shared_ptr<CVideoFileIO> openFileTypeByExt
         (
             const std::string &sFilePath, 
-            eFileIoMode_def mode, 
-            int width = 0,
-            int height = 0,
-            int frameRate = 0, 
-            int blockSize = 0,
-            int bitsPerpixel = 24
+            const eFileIoMode_def mode,
+            const int width = 0,
+            const int height = 0,
+            const int frameRate = 0,
+            const int blockSize = 0,
+            const int bitsPerpixel = 24,
+            const std::string &sFourCC = ""
         );
 
     CVideoFileIO();
@@ -233,10 +237,11 @@ class CRawVideoFileIO :
 
     struct SRawFileInfo
     {
-        int         width     		= 0;
-        int         height     		= 0;
-        int         bitsPerPixel   	= 0;
-        int         frameRate      	= 0;
+        int         width;
+        int         height;
+        int         bitsPerPixel;
+        int         frameRate;
+        std::string fourCC;
 
         void        clear()
         {
@@ -244,6 +249,7 @@ class CRawVideoFileIO :
             height   		= 0;
             bitsPerPixel   	= 0;
             frameRate      	= 0;
+            fourCC          = "";
         }
 
         SRawFileInfo()
@@ -330,10 +336,10 @@ public:
 
     struct SAviFileInfo
     {
-        int         width = 0;
-        int         height = 0;
-        int         bitsPerPixel = 0;
-        int         frameRate = 0;
+        int         width;
+        int         height;
+        int         bitsPerPixel;
+        int         frameRate;
 
         void        clear()
         {
