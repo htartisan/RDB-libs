@@ -64,42 +64,14 @@ std::string videpFileTypeToString(eVideoFileType_def value)
 }
 
 
-// Convert FourCC string to eVideoFileType_def
-eVideoFileType_def fourCcToVidepFileType(const std::string &SFourCC)
-{
-    static std::map<std::string, eVideoFileType_def> map =
-    {
-        {"raw", eFileType_raw},
-        {"mpg4", eFileType_mpg4},
-        {"mjpg", eFileType_mjpeg},
-        {"avi", eFileType_avi},
-        {"mov", eFileType_mov},
-        {"wmv", eFileType_wmv},
-        {"mpg1", eFileType_mpg1},
-        {"mpg2", eFileType_mpg2},
-        {"mkv", eFileType_mkv},
-        {"webm", eFileType_webm},
-        {"info", eFileType_info}
-    };
-
-    eVideoFileType_def type = eFileType_unknown;
-
-    auto        it = map.find(SFourCC);
-    if (it != map.end())
-        type = it->second;
-
-    return type;
-}
-
-
-eVideoFileType_def getVideoFileType(const std::string &filepath)
+eVideoFileType_def getVideoFileType(const std::string& filepath)
 {
     if (filepath.empty())
         return eFileType_unknown;
 
     std::string ext = std::filesystem::path(filepath).extension().string();
 
-    //ext             = strToLower(ext);
+    ext = StrUtils::toLower(ext);
 
     if (ext.empty() || ext == ".raw")
         return eFileType_raw;
@@ -141,6 +113,121 @@ eVideoFileType_def getVideoFileType(const std::string &filepath)
         return eFileType_info;
 
     return eFileType_unknown;
+}
+
+
+// Convert FourCC string to eVideoFileType_def
+eVideoFileType_def fourCcToVideoFileType(const std::string &SFourCC)
+{
+    static std::map<std::string, eVideoFileType_def> map =
+    {
+        {"RAW", eFileType_raw},
+        {"MPG4", eFileType_mpg4},
+        {"MJPG", eFileType_mjpeg},
+        {"AVI", eFileType_avi},
+        {"MOV", eFileType_mov},
+        {"WMV", eFileType_wmv},
+        {"MPG1", eFileType_mpg1},
+        {"MPG2", eFileType_mpg2},
+        {"MKV", eFileType_mkv},
+        {"WEBM", eFileType_webm},
+        {"INFO", eFileType_info}
+    };
+
+    eVideoFileType_def type = eFileType_unknown;
+
+    std::string sLookUp = StrUtils::toUpper(SFourCC);
+
+    auto        it = map.find(sLookUp);
+    if (it != map.end())
+        type = it->second;
+
+    return type;
+}
+
+
+std::string videoFormatToFourCC(eVideoDataIoFormat_def fmt)
+{
+    switch (fmt)
+    {
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_yuv:
+            return "YUV";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_rgb:
+            return "RGB";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mjpeg:
+            return "MJPG";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg4:
+            return "MPG4";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg2:
+            return "MPG2";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg1:
+            return "MPG1";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_h264:
+            return "H264";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_h265:
+            return "H265";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_vp7:
+            return "VP7V";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_vp8:
+            return "VP8";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_vp9:
+            return "VP9";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_vc1:
+            return "VC1";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_divx:
+            return "DIVx";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_webm:
+            return "WEBM";
+    }
+
+    return "";
+}
+
+
+// Convert FourCC string to eVideoFileType_def
+eVideoDataIoFormat_def fourCcToVideoFormat(const std::string& sFourCC)
+{
+    static std::map<std::string, eVideoDataIoFormat_def> map =
+    {
+        {"YUV", eVideoDataIoFormat_yuv},
+        {"RGB", eVideoDataIoFormat_rgb},
+        {"MJPG", eVideoDataIoFormat_mjpeg},
+        {"H264", eVideoDataIoFormat_h264},
+        {"H265", eVideoDataIoFormat_h265},
+        {"MPG4", eVideoDataIoFormat_mpeg4},
+        {"MPG2", eVideoDataIoFormat_mpeg2},
+        {"MPG1", eVideoDataIoFormat_mpeg1},
+        {"MPEG", eVideoDataIoFormat_mpeg1},
+        {"DIVX", eVideoDataIoFormat_divx},
+        {"WEBM", eVideoDataIoFormat_webm},
+        {"VP7", eVideoDataIoFormat_vp7},
+        {"VP8", eVideoDataIoFormat_vp8},
+        {"VP9", eVideoDataIoFormat_vp9},
+        {"VC1", eVideoDataIoFormat_vc1},
+    };
+
+    eVideoDataIoFormat_def type = eVideoDataIoFormat_unknown;
+
+    std::string sLookUp = StrUtils::toUpper(sFourCC);
+
+    auto        it = map.find(sLookUp);
+    if (it != map.end())
+        type = it->second;
+
+    return type;
 }
 
 
@@ -219,7 +306,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         
         if (sFourCC != "")
         {
-            auto nVideoFormat = fourCcToVidepFileType(sFourCC);
+            auto nVideoFormat = fourCcToVideoFormat(sFourCC);
 
             pRawFileIO->setVideoFormat(nVideoFormat);
         }
@@ -307,7 +394,7 @@ CVideoFileIO::CVideoFileIO()
     m_nCurrentFrame     = -1;
     m_bUseLoopingRead   = false;
     m_eFileType         = eVideoFileType_def::eFileType_unknown;
-    m_eVideoFormat      = eVideoDataIoFormat_uknown;
+    m_eVideoFormat      = eVideoDataIoFormat_unknown;
 }
 
 
@@ -331,7 +418,7 @@ CVideoFileIO::CVideoFileIO(unsigned int width, unsigned int height, unsigned int
     m_nCurrentFrame     = -1;
     m_bUseLoopingRead   = false;
     m_eFileType         = eVideoFileType_def::eFileType_unknown;
-    m_eVideoFormat      = eVideoDataIoFormat_uknown;
+    m_eVideoFormat      = eVideoDataIoFormat_unknown;
 }
 
 
@@ -803,7 +890,7 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                     m_bitsPerPixel = m_fileInfo.bitsPerPixel;
 
                 if (m_fileInfo.fourCC != "")
-                    m_eFileType = fourCcToVidepFileType(m_fileInfo.fourCC);
+                    m_eFileType = fourCcToVideoFileType(m_fileInfo.fourCC);
 
                 m_lFileSize       = len;
                 m_nFramesInFile   = (len / m_nFrameSize);
@@ -830,7 +917,7 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                     m_fileInfo.height =         m_height;
                     m_fileInfo.frameRate =      m_frameRate;
                     m_fileInfo.bitsPerPixel =   m_bitsPerPixel;
-                    m_fileInfo.fourCC =         videpFileTypeToString(m_eFileType);
+                    m_fileInfo.fourCC =         videoFormatToFourCC(m_eVideoFormat);
 
                     /// Create out videp info text file
                     std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in

@@ -43,7 +43,7 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 #define E_VIDEO_DATA_FOTMAT_DEF
 typedef enum
 {
-    eVideoDataIoFormat_uknown = 0,
+    eVideoDataIoFormat_unknown = 0,
     eVideoDataIoFormat_yuv,
     eVideoDataIoFormat_rgb,
     eVideoDataIoFormat_mjpeg,
@@ -56,6 +56,7 @@ typedef enum
     eVideoDataIoFormat_webm,
     eVideoDataIoFormat_vp7,
     eVideoDataIoFormat_vp8,
+    eVideoDataIoFormat_vp9,
     eVideoDataIoFormat_vc1,
 
 } eVideoDataIoFormat_def;
@@ -87,9 +88,13 @@ enum eVideoFileType_def
 
 std::string videpFileTypeToString(eVideoFileType_def value);
 
-eVideoFileType_def fourCcToVidepFileType(const std::string& SFourCC);
-
 eVideoFileType_def getVideoFileType(const std::string &filepath);
+
+eVideoFileType_def fourCcToVideoFileType(const std::string &sFourCC);
+
+std::string videoFormatToFourCC(eVideoDataIoFormat_def fmt);
+
+eVideoDataIoFormat_def fourCcToVideoFormat(const std::string &sFourCC);
 
 
 /// This is defined in several different files.
@@ -481,7 +486,19 @@ class COcvFileIO :
         if (sFourCC == "WEBM")
             return eVideoDataIoFormat_webm;
 
-        return eVideoDataIoFormat_uknown;
+        if (sFourCC == "VP7")
+            return eVideoDataIoFormat_vp7;
+
+        if (sFourCC == "VP8")
+            return eVideoDataIoFormat_vp8;
+
+        if (sFourCC == "VP9")
+            return eVideoDataIoFormat_vp9;
+
+        if (sFourCC == "VC1")
+            return eVideoDataIoFormat_vc1;
+
+        return eVideoDataIoFormat_unknown;
     }
 
   private:
