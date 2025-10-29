@@ -122,5 +122,13 @@ inline int getNumericStringAt(const std::string& sText, const unsigned int pos)
 }
 
 
+inline std::string getAbsolutePath(const std::string& sPath)
+{
+    std::filesystem::path sAbsPath = std::filesystem::canonical(sPath);
+    
+    return sAbsPath.string(); 
+}
+
+
 #endif
 

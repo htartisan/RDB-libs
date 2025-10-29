@@ -20,6 +20,7 @@
 
 #ifdef WINDOWS
 #include <windows.h>
+#include "../String/StrUtils.h"
 #else
 #include <dlfcn.h>
 #endif
@@ -28,10 +29,17 @@
 
 #include "CPluginFileInfoMgr.h"
 
+#ifdef WINDOWS
+#include <codecvt>
+#include <libloaderapi.h> 
+#endif
+
 
 #ifdef UNICODE
 ERROR_MESSAGE("Unicode NOT supported.  Multi byte compile type must be set.")
 #endif
+
+#include "../FileIO/FileUtils.h"
 
 
 //class CPluginLoader;
@@ -46,6 +54,8 @@ class CPluginLibLoader : public CErrorHandler
     typedef void* (*VoidPtrFunctionPtr)(void *);
 
 protected:
+
+    std::string                             m_sSharedLibSearchPath;
 
     std::string                             m_sFilePath;
 
@@ -65,11 +75,13 @@ protected:
 
 public:
 
-    CPluginLibLoader(std::string sPath = "")
+    CPluginLibLoader(std::string sFilePath = "", std::string sSearchPath = "")
     {
         clear();
 
-        m_sFilePath = sPath;  
+        m_sSharedLibSearchPath = sSearchPath;
+
+        m_sFilePath = sFilePath;
 
         m_hLib = nullptr;
 
@@ -112,6 +124,21 @@ public:
         m_pPluginFileInfoMgr = nullptr;
     }
 
+    bool SetSharedLibSearchPath(std::string sPath)
+    {
+        if (sPath == "")
+        {
+            SetErrorText("Invalid lib search path");
+            return false;
+        }
+
+        m_sSharedLibSearchPath = sPath;
+
+        ClearError();
+
+        return true;
+    }
+
     bool SetFilePath(std::string sPath)
     {
         if (sPath == "")
@@ -138,13 +165,50 @@ public:
 
         if (m_hLib == nullptr)
         { 
-            m_hLib = LoadLibrary(m_sFilePath.c_str());
+            if (m_sSharedLibSearchPath != "")
+            { 
+                std::string sAbsPath = getAbsolutePath(m_sSharedLibSearchPath);
+                std::wstring wsPath = StrUtils::tows(sAbsPath.c_str());
+
+                auto status = AddDllDirectory(wsPath.c_str());
+
+                if (status == 0)
+                {
+                    std::string sErrText = ("Problem while adding DLL serach folder: ");
+                    sErrText.append(sAbsPath);
+                    SetErrorText(sErrText);
+                }
+            }
+
+            std::string sAbsPath = getAbsolutePath(m_sFilePath);
+
+            m_hLib = LoadLibrary(sAbsPath.c_str());
         }
 
         if (m_hLib == nullptr)
         {
-            DWORD error = GetLastError();
-            SetErrorText("Failed to load lib at specified path - error" + error);
+            DWORD errorNo = GetLastError();
+
+            LPSTR errorMsg = nullptr; // Pointer for the formatted error message
+
+            FormatMessage
+            (
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL,
+                errorNo,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+                (LPSTR) &errorMsg,
+                0,
+                NULL
+            );
+
+            std::string sErrText = ("Failed to load lib at specified path - ErrNo:");
+            sErrText.append(StrUtils::tos(errorNo));
+            sErrText.append(", ErrMsg:");
+            sErrText.append(errorMsg);
+
+            SetErrorText(sErrText);
+            
             return false;
         }
 

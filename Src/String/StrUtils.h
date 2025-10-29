@@ -254,6 +254,15 @@ inline std::string tos(bool bVal, bool bCaps = false)
 }
 
 
+inline std::wstring tows(const std::string& sIn)
+{
+	std::wstring sOut(sIn.begin(), sIn.end());
+
+	return sOut;
+}
+
+
+
 inline bool toBool(const std::string &sVal) 
 {
 	//* if string is blank/empty, return false
