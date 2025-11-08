@@ -6,15 +6,22 @@
 ///             NOTE: The CVideoFileIO classes have the following dependencies: 
 /// 
 ///             - "CFileIO.h" ...   RDB-libs/FileIO/CFileIO.h  
-/// 
 ///                 AND
-/// 
-///             - "OpenCV" ...   https://opencv.org/
+///             - "gwAVI" ...       https://github.com/rolinh/libgwavi      (if enabled)
+///                 AND
+///             - "Matroska" ...    https://www.matroska.org/               (if enabled)
+///                 AND
+///             - "OpenCV" ...      https://opencv.org/                     (if enabled)
 /// 
 
 
 #ifndef VIDEO_FILE_IO_H
 #define VIDEO_FILE_IO_H
+
+//#define SUPPORT_AVI_IO_LOGIC          // Support (internal) AVI file I/O
+//#define SUPPORT_MKV_IO_LOGIC          // Support (internal) MKV file I/O
+//#define SUPPORT_OCV_IO_LOGIC          // Support OpenCV file I/O
+
 
 #include "../Error/CError.h"
 
@@ -30,9 +37,17 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 #include <fstream>
 #include <iostream>
 
-#if 0
-#include "../../../libgwavi/inc/gwavi.h"
-#include "../../../libgwavi/src/gwavi_private.h"
+#ifdef SUPPORT_AVI_IO_LOGIC
+extern "C"
+{
+#include "../../../libGwAVI/inc/gwavi.h"
+#include "../../../libGwAVI/src/gwavi_private.h"
+};
+#endif
+
+#ifdef SUPPORT_MKV_IO_LOGIC
+#include "../../../libEBML/ebml/EbmlStream.h"
+#include "../../../libMatroska/matroska/c/libmatroska.h"
 #endif
 
 #include "opencv2/opencv.hpp"
@@ -44,8 +59,14 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 typedef enum
 {
     eVideoDataIoFormat_unknown = 0,
-    eVideoDataIoFormat_yuv,
+    // raw pixel formats
+    eVideoDataIoFormat_yuv,         // YUV 4:4:4
+    eVideoDataIoFormat_yuy2,        // YUV 4:2:2
+    eVideoDataIoFormat_yv12,        // YUV 4:2:0
+    eVideoDataIoFormat_nv12,        // YUV 4:2:0
     eVideoDataIoFormat_rgb,
+    eVideoDataIoFormat_bgr,
+    // encoded video formats
     eVideoDataIoFormat_mjpeg,
     eVideoDataIoFormat_mpeg1,
     eVideoDataIoFormat_mpeg2,
@@ -58,6 +79,7 @@ typedef enum
     eVideoDataIoFormat_vp8,
     eVideoDataIoFormat_vp9,
     eVideoDataIoFormat_vc1,
+    eVideoDataIoFormat_i420,       // Intel I420 
 
 } eVideoDataIoFormat_def;
 #endif
@@ -207,17 +229,32 @@ class CVideoFileIO
                             return m_nFrameSize;
                         }
 
-    /// Read a single frame, at the current frame offset.
-    virtual bool        readFrame(void *pData) = 0;
+    /// Read a single video frame, at the current frame offset.
+    virtual bool        readVideoFrame(void *pData) = 0;
 
-    /// Read a block of frames, for the specified number of frames, at the current frame offset.
-    virtual bool        readBlock(void *pData, unsigned int numFrames) = 0;
+    /// Read a block of video frames, for the specified number of frames, at the current frame offset.
+    virtual bool        readVideoBlock(void *pData, unsigned int numFrames) = 0;
 
-    /// Write a single frame, at the current frame offset.
-    virtual bool        writeFrame(const void *pData) = 0;
+    /// Write a single video frame, at the current frame offset.
+    virtual bool        writeVideoFrame(const void *pData) = 0;
 
-    /// Write a block of frames, for the specified number of frames, at the current frame offset.
-    virtual bool        writeBlock(const void *pData, unsigned int numFrames) = 0;
+    /// Write a single video frame, at the current frame offset.
+    virtual bool        writeVideoFrame(const void* pData, unsigned int frameLen) = 0;
+
+    /// Write a block of video frames, for the specified number of frames, at the current frame offset.
+    virtual bool        writeVideoBlock(const void *pData, unsigned int numFrames) = 0;
+
+    /// Read a single audio frame, at the current frame offset.
+    virtual bool        readAudioFrame(void* pData) = 0;
+
+    /// Read a block of audio frames, for the specified number of frames, at the current frame offset.
+    virtual bool        readAudioBlock(void* pData, unsigned int numFrames) = 0;
+
+    /// Write a single audio frame, at the current frame offset.
+    virtual bool        writeAudioFrame(const void* pData) = 0;
+
+    /// Write a block of audio frames, for the specified number of frames, at the current frame offset.
+    virtual bool        writeAudioBlock(const void* pData, unsigned int numFrames) = 0;
 
     unsigned int        getIoCount() const;
 
@@ -238,50 +275,52 @@ class CRawVideoFileIO :
 {
   public:
 
-    struct SRawFileInfo
-    {
-        int         width;
-        int         height;
-        int         bitsPerPixel;
-        int         frameRate;
-        std::string fourCC;
+      struct SVideoFormatInfo
+      {
+          int         width;
+          int         height;
+          int         bitsPerPixel;
+          int         frameRate;
 
-        void        clear()
-        {
-            width     		= 0;
-            height   		= 0;
-            bitsPerPixel   	= 0;
-            frameRate      	= 0;
-            fourCC          = "";
-        }
+          std::string sFourCC;
 
-        SRawFileInfo()
-        {
-            clear();
-        }
-    };
+          void        clear()
+          {
+              width = 0;
+              height = 0;
+              bitsPerPixel = 0;
+              frameRate = 0;
+
+              sFourCC = "";
+          }
+
+          SVideoFormatInfo()
+          {
+              clear();
+          }
+      };
 
   private:
 
-    CFileIO         m_fileIO;
+    CFileIO             m_fileIO;
 
-    void            *m_pFramebuffer;
+    void                *m_pFramebuffer;
     
-    unsigned long   m_lFileSize;
-    unsigned long   m_lCurrentFilePos;
+    unsigned long       m_lFileSize;
+    unsigned long       m_lCurrentFilePos;
     
-    int             m_lastFrameRead;
-    int             m_lastFrameWritten;
+    int                 m_lastFrameRead;
+    int                 m_lastFrameWritten;
     
-    bool            m_bCreateInfoTextFile;
+    bool                m_bCreateInfoTextFile;
 
-    SRawFileInfo    m_fileInfo;
+    SVideoFormatInfo    m_fileInfo;
 
   protected:
 
-    bool parseInfoTextFile(const std::string& sFile, SRawFileInfo& info);
+    bool parseInfoTextFile(const std::string& sFile, SVideoFormatInfo& info);
 
-    bool writeInfoTextFile(const std::string& sFile, SRawFileInfo& info);
+    bool writeInfoTextFile(const std::string& sFile, SVideoFormatInfo& info);
 
 public:
 
@@ -313,36 +352,60 @@ public:
 
     virtual bool isEOF() override;
 
-    /// Read a frame from a "raw" data file
-    bool readFrame(void* pData) override;
+    /// Read a video frame from a "raw" data file
+    virtual bool readVideoFrame(void* pData) override;
 
-    bool readBlock(void *pData, unsigned int numFrames) override;
+    virtual bool readVideoBlock(void *pData, unsigned int numFrames) override;
 
-    bool writeFrame(const void* pData) override;
+    virtual bool writeVideoFrame(const void* pData) override;
 
-    bool writeBlock(const void *pData, unsigned int numFrames) override;
+    virtual bool writeVideoFrame(const void* pData, unsigned int frameLen) override;
 
-    bool setCurrentFrame(unsigned int frameNum) override;
+    virtual bool writeVideoBlock(const void *pData, unsigned int numFrames) override;
 
-    bool resetPlayPosition() override;
+    virtual bool readAudioFrame(void* pData) override
+    {
+        return false;
+    }
+
+    virtual bool readAudioBlock(void* pData, unsigned int numFrames) override
+    {
+        return false;
+    }
+
+    virtual bool writeAudioFrame(const void* pData) override
+    {
+        return false;
+    }
+
+    virtual bool writeAudioBlock(const void* pData, unsigned int numFrames) override
+    {
+        return false;
+    }
+
+    virtual bool setCurrentFrame(unsigned int frameNum) override;
+
+    virtual bool resetPlayPosition() override;
 };
 
 
 // class CAviFileIO
 
-#if 0
+#ifdef SUPPORT_AVI_IO_LOGIC
 
 class CAviFileIO :
     public CVideoFileIO
 {
 public:
 
-    struct SAviFileInfo
+    struct SVideoFormatInfo
     {
         int         width;
         int         height;
         int         bitsPerPixel;
         int         frameRate;
+
+        std::string sVideo4CC;
 
         void        clear()
         {
@@ -350,9 +413,34 @@ public:
             height = 0;
             bitsPerPixel = 0;
             frameRate = 0;
+
+            sVideo4CC = "";
         }
 
-        SAviFileInfo()
+        SVideoFormatInfo()
+        {
+            clear();
+        }
+    };
+
+    struct SAudioFormatInfo
+    {
+        int         numTracks;
+        int         bitsPerSample;
+        int         sampleRate;
+
+        std::string sAudio4CC;
+
+        void        clear()
+        {
+            numTracks = 0;
+            bitsPerSample = 0;
+            sampleRate = 0;
+
+            sAudio4CC = "";
+        }
+
+        SAudioFormatInfo()
         {
             clear();
         }
@@ -360,28 +448,58 @@ public:
 
 private:
 
-    gwavi_t         *m_pFileCtrl;
+    gwavi_t             *m_pFileCtrl;
 
-    gwavi_audio_t   m_audioInfo;
+    //std::string         m_sFourCC;
 
-    std::string     m_sFourCC;
+    gwavi_audio_t       m_audioInfo;
 
-    unsigned long   m_lFileSize;
+    unsigned long       m_lFileSize;
     
-    int             m_lastFrameRead;
-    int             m_lastFrameWritten;
+    int                 m_lastFrameRead;
+    int                 m_lastFrameWritten;
 
-    SAviFileInfo    m_fileInfo;
+    SVideoFormatInfo    m_fileInfo;
 
 public:
 
     CAviFileIO();
 
-    CAviFileIO(unsigned int width, unsigned int height, unsigned int bitsPerPixel);
+    CAviFileIO
+        (
+            unsigned int width, 
+            unsigned int height, 
+            unsigned int bitsPerPixel, 
+            const unsigned int nFrameRate = 0, 
+            const std::string &sFourCC = ""
+        );
 
     CAviFileIO(const std::string& sFilePath);
 
     ~CAviFileIO() override;
+
+    void setFileFourCC(const std::string& sFourCC)
+    {
+        //m_sFourCC = sFourCC;
+        m_fileInfo.sVideo4CC;
+    }
+
+    void setVideoConfig
+        (
+            unsigned int width,
+            unsigned int height,
+            unsigned int bitsPerPixel,
+            const unsigned int nFrameRate = 0,
+            const std::string& sFourCC = ""
+        );
+
+    void setAudioConfig
+        (
+            int         numTracks,
+            int         bitsPerSample,
+            int         sampleRate,
+            std::string sFourCC
+        );
 
     virtual bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
 
@@ -391,21 +509,145 @@ public:
 
     virtual bool isEOF() override;
 
-    /// Read a frame from an "AVI" data file
-    bool readFrame(void* pData) override;
+    /// Read a video frame from an "AVI" data file
+    virtual bool readVideoFrame(void* pData) override;
 
-    bool readBlock(void* pData, unsigned int numFrames) override;
+    virtual bool readVideoBlock(void* pData, unsigned int numFrames) override;
 
-    bool writeFrame(const void* pData) override;
+    virtual bool writeVideoFrame(const void* pData) override;
 
-    bool writeBlock(const void* pData, unsigned int numFrames) override;
+    virtual bool writeVideoFrame(const void* pData, unsigned int frameSize) override;
 
-    bool setCurrentFrame(unsigned int frameNum) override;
+    virtual bool writeVideoBlock(const void* pData, unsigned int numFrames) override;
 
-    bool resetPlayPosition() override;
+    /// Read a video frame from an "AVI" data file
+    virtual bool readAudioFrame(void* pData) override;
+
+    virtual bool readAudioBlock(void* pData, unsigned int numFrames) override;
+
+    virtual bool writeAudioFrame(const void* pData) override;
+
+    virtual bool writeAudioBlock(const void* pData, unsigned int numFrames) override;
+
+    virtual bool setCurrentFrame(unsigned int frameNum) override;
+
+    virtual bool resetPlayPosition() override;
 };
 
 #endif
+
+
+#ifdef SUPPORT_MKV_IO_LOGIC
+
+class CMkvFileIO :
+    public CVideoFileIO
+{
+public:
+
+    struct SVideoFormatInfo
+    {
+        int         width;
+        int         height;
+        int         bitsPerPixel;
+        int         frameRate;
+
+        std::string m_sVideo4CC;
+
+        void        clear()
+        {
+            width = 0;
+            height = 0;
+            bitsPerPixel = 0;
+            frameRate = 0;
+
+            m_sVideo4CC = "";
+        }
+
+        SVideoFormatInfo()
+        {
+            clear();
+        }
+    };
+
+    struct SAudioFormatInfo
+    {
+        int         numTracks;
+        int         bitsPerSample;
+        int         sampleRate;
+
+        std::string m_sAudio4CC;
+
+        void        clear()
+        {
+            numTracks = 0;
+            bitsPerSample = 0;
+            sampleRate = 0;
+
+            m_sAudio4CC = "";
+        }
+
+        SVideoFormatInfo()
+        {
+            clear();
+        }
+    };
+
+private:
+
+    unsigned long       m_lFileSize;
+
+    int                 m_lastFrameRead;
+    int                 m_lastFrameWritten;
+
+    SVideoFormatInfo    m_videoFormatInfo;
+
+public:
+
+    CMkvFileIO();
+
+    CMkvFileIO(unsigned int width, unsigned int height, unsigned int bitsPerPixel);
+
+    CMkvFileIO(const std::string& sFilePath);
+
+    ~CMkvFileIO() override;
+
+    virtual bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
+
+    virtual bool closeFile() override;
+
+    virtual long getNumFrames();
+
+    virtual bool isEOF() override;
+
+    /// Read a video frame from an "MKV" data file
+    virtual bool readVideoFrame(void* pData) override;
+
+    virtual bool readVideoBlock(void* pData, unsigned int numFrames) override;
+
+    virtual bool writeVideoFrame(const void* pData) override;
+
+    virtual bool writeVideoFrame(const void* pData, unsigned int frameSize) override;
+
+    virtual bool writeVideoBlock(const void* pData, unsigned int numFrames) override;
+
+    /// Read a video frame from an "MKV" data file
+    virtual bool readAudioFrame(void* pData) override;
+
+    virtual bool readAudioBlock(void* pData, unsigned int numFrames) override;
+
+    virtual bool writeAudioFrame(const void* pData) override;
+
+    virtual bool writeAudioBlock(const void* pData, unsigned int numFrames) override;
+
+    virtual bool setCurrentFrame(unsigned int frameNum) override;
+
+    virtual bool resetPlayPosition() override;
+};
+
+#endif
+
+
+#ifdef SUPPORT_OCV_IO_LOGIC
 
 // class COcvFileIO
 
@@ -459,8 +701,20 @@ class COcvFileIO :
         if (sFourCC == "YUV")
             return eVideoDataIoFormat_yuv;
 
+        if (sFourCC == "YUY2")
+            return eVideoDataIoFormat_yuy2;
+
+        if (sFourCC == "Yv12")
+            return eVideoDataIoFormat_yv12;
+
+        if (sFourCC == "Nv12")
+            return eVideoDataIoFormat_nv12;
+
         if (sFourCC == "RGB")
             return eVideoDataIoFormat_rgb;
+
+        if (sFourCC == "BGR")
+            return eVideoDataIoFormat_bgr;
 
         if (sFourCC == "MJPG")
             return eVideoDataIoFormat_mjpeg;
@@ -497,6 +751,9 @@ class COcvFileIO :
 
         if (sFourCC == "VC1")
             return eVideoDataIoFormat_vc1;
+
+        if (sFourCC == "I420")
+            return eVideoDataIoFormat_i420;
 
         return eVideoDataIoFormat_unknown;
     }
@@ -571,19 +828,29 @@ public:
         return m_pCvFrame;
     }
 
-    /// Read a frame from an "AVI" data file
-    bool readFrame(void* pData) override;
+    /// Read a video frame from an "OpenCV" data file
+    bool readVideoFrame(void* pData) override;
 
-    bool readBlock(void* pData, unsigned int numFrames) override;
+    bool readVideoBlock(void* pData, unsigned int numFrames) override;
 
-    bool writeFrame(const void* pData) override;
+    bool writeVideoFrame(const void* pData) override;
 
-    bool writeBlock(const void* pData, unsigned int numFrames) override;
+    bool writeVideoBlock(const void* pData, unsigned int numFrames) override;
+
+    /// Read a video frame from an "OpenCV" data file
+    bool readAudioFrame(void* pData) override;
+
+    bool readAudioBlock(void* pData, unsigned int numFrames) override;
+
+    bool writeAudioFrame(const void* pData) override;
+
+    bool writeAudioBlock(const void* pData, unsigned int numFrames) override;
 
     bool setCurrentFrame(unsigned int frameNum) override;
 
     bool resetPlayPosition() override;
 };
 
+#endif
 
 #endif  //  VIDEO_FILE_IO_H

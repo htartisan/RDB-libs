@@ -153,8 +153,20 @@ std::string videoFormatToFourCC(eVideoDataIoFormat_def fmt)
         case eVideoDataIoFormat_def::eVideoDataIoFormat_yuv:
             return "YUV";
 
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_yuy2:
+            return "YUY2";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_yv12:
+            return "YV12";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_nv12:
+            return "NV12";
+
         case eVideoDataIoFormat_def::eVideoDataIoFormat_rgb:
             return "RGB";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_bgr:
+            return "BGR";
 
         case eVideoDataIoFormat_def::eVideoDataIoFormat_mjpeg:
             return "MJPG";
@@ -191,6 +203,9 @@ std::string videoFormatToFourCC(eVideoDataIoFormat_def fmt)
 
         case eVideoDataIoFormat_def::eVideoDataIoFormat_webm:
             return "WEBM";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_i420:
+            return "I420";
     }
 
     return "";
@@ -203,7 +218,11 @@ eVideoDataIoFormat_def fourCcToVideoFormat(const std::string& sFourCC)
     static std::map<std::string, eVideoDataIoFormat_def> map =
     {
         {"YUV", eVideoDataIoFormat_yuv},
+        {"YUY2", eVideoDataIoFormat_yuy2},
+        {"YUY2", eVideoDataIoFormat_yv12},
+        {"YUY2", eVideoDataIoFormat_nv12},
         {"RGB", eVideoDataIoFormat_rgb},
+        {"BGR", eVideoDataIoFormat_bgr},
         {"MJPG", eVideoDataIoFormat_mjpeg},
         {"H264", eVideoDataIoFormat_h264},
         {"H265", eVideoDataIoFormat_h265},
@@ -217,6 +236,7 @@ eVideoDataIoFormat_def fourCcToVideoFormat(const std::string& sFourCC)
         {"VP8", eVideoDataIoFormat_vp8},
         {"VP9", eVideoDataIoFormat_vp9},
         {"VC1", eVideoDataIoFormat_vc1},
+        {"I420", eVideoDataIoFormat_i420},
     };
 
     eVideoDataIoFormat_def type = eVideoDataIoFormat_unknown;
@@ -322,7 +342,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
 
         pVFIO = pRawFileIO;
     }
-#if 0
+#ifdef SUPPORT_AVI_IO_LOGIC
     else if (eFileType == eFileType_avi)
     {
         // Open video file using 'raw' IO functions
@@ -336,10 +356,10 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         if (frameRate > 0)
             pAviFileIO->setFrameRate(frameRate);
 
-        if (blockSize > 0)
-            pAviFileIO->setIoBlockSize(blockSize);
+        //if (blockSize > 0)
+        //    pAviFileIO->setIoBlockSize(blockSize);
 
-        pAviFileIO->setBitsPerPixel(bitsPerPixel);
+        pAviFileIO->setVideoConfig(width, height, bitsPerPixel, 0, sFourCC);
 
         if (!pAviFileIO->openFile(mode, sFilePath))
         {
@@ -350,6 +370,35 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         pVFIO = pAviFileIO;
     }
 #endif
+#ifdef SUPPORT_MKV_IO_LOGIC
+    else if (eFileType == eFileType_mkv)
+    {
+        // Open video file using 'mkv' IO functions
+
+        std::shared_ptr<CMkvFileIO> pMkvFileIO =
+            std::make_shared<CMkvFileIO>();
+
+        if (width > 0 || height > 0)
+            pMkvFileIO->setFrameSize(width, height);
+
+        if (frameRate > 0)
+            pMkvFileIO->setFrameRate(frameRate);
+
+        //if (blockSize > 0)
+        //    pMkvFileIO->setIoBlockSize(blockSize);
+
+        pMkvFileIO->setBitsPerPixel(bitsPerPixel);
+
+        if (!pMkvFileIO->openFile(mode, sFilePath))
+        {
+            LogDebug("unable to open file:{}", sFilePath);
+            return pVFIO;
+        }
+
+        pVFIO = pMkvFileIO;
+    }
+#endif
+#ifdef SUPPORT_OCV_IO_LOGIC
     else
     {
         std::shared_ptr<COcvFileIO> pOcvFileIO = 
@@ -371,6 +420,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
 
         pVFIO = pOcvFileIO;
     }
+#endif
 
     return pVFIO;
 }
@@ -599,7 +649,7 @@ CRawVideoFileIO::~CRawVideoFileIO()
 }
 
 
-bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &info)
+bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SVideoFormatInfo &info)
 {
     std::fstream infoFile;
 
@@ -726,7 +776,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
 
             sTemp = removeLeadingSpaces(sTemp);
 
-            info.fourCC = sTemp;
+            info.sFourCC = sTemp;
 
             bOut = true;
 
@@ -741,7 +791,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
 }
 
 
-bool CRawVideoFileIO::writeInfoTextFile(const std::string& sFile, SRawFileInfo& info)
+bool CRawVideoFileIO::writeInfoTextFile(const std::string& sFile, SVideoFormatInfo& info)
 {
     std::fstream infoFile;
 
@@ -802,7 +852,7 @@ bool CRawVideoFileIO::writeInfoTextFile(const std::string& sFile, SRawFileInfo& 
             return false;
     }
 
-    sParamText = ("FourCC: " + info.fourCC);
+    sParamText = ("FourCC: " + info.sFourCC);
 
     infoFile << sParamText << std::endl;
 
@@ -889,8 +939,8 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                 if (m_fileInfo.bitsPerPixel > 0)
                     m_bitsPerPixel = m_fileInfo.bitsPerPixel;
 
-                if (m_fileInfo.fourCC != "")
-                    m_eFileType = fourCcToVideoFileType(m_fileInfo.fourCC);
+                if (m_fileInfo.sFourCC != "")
+                    m_eFileType = fourCcToVideoFileType(m_fileInfo.sFourCC);
 
                 m_lFileSize       = len;
                 m_nFramesInFile   = (len / m_nFrameSize);
@@ -917,7 +967,7 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                     m_fileInfo.height =         m_height;
                     m_fileInfo.frameRate =      m_frameRate;
                     m_fileInfo.bitsPerPixel =   m_bitsPerPixel;
-                    m_fileInfo.fourCC =         videoFormatToFourCC(m_eVideoFormat);
+                    m_fileInfo.sFourCC =        videoFormatToFourCC(m_eVideoFormat);
 
                     /// Create out videp info text file
                     std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in
@@ -1024,7 +1074,7 @@ bool CRawVideoFileIO::isEOF()
 
 
 /// Read a frame from a "raw" data file
-bool CRawVideoFileIO::readFrame(void *pData)
+bool CRawVideoFileIO::readVideoFrame(void *pData)
 {
     if (!m_bFileOpened || m_pFramebuffer == nullptr)
     {
@@ -1050,7 +1100,7 @@ bool CRawVideoFileIO::readFrame(void *pData)
 }
 
 
-bool CRawVideoFileIO::readBlock(void *pData, const unsigned int numFrames)
+bool CRawVideoFileIO::readVideoBlock(void *pData, const unsigned int numFrames)
 {
     LogTrace("numFrames:{}", numFrames);
 
@@ -1177,9 +1227,31 @@ bool CRawVideoFileIO::readBlock(void *pData, const unsigned int numFrames)
 }
 
 
-bool CRawVideoFileIO::writeFrame(const void *pData)
+bool CRawVideoFileIO::writeVideoFrame(const void *pData)
 {
-    if (m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
+    if (pData == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid param");
+        return false;
+    }
+
+    if (m_nFrameSize < 1)
+    {
+        LogDebug("writeVideoFrame called with invalid m_nFrameSize");
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
     {
         LogDebug
         (
@@ -1203,7 +1275,55 @@ bool CRawVideoFileIO::writeFrame(const void *pData)
 }
 
 
-bool CRawVideoFileIO::writeBlock(const void *pData, const unsigned int numFrames)
+bool CRawVideoFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen)
+{
+    if (pData == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid param");
+        return false;
+    }
+
+    if (frameLen < 1)
+    {
+        LogDebug("writeVideoFrame called with invalid frameLen");
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    /// This "write" logic writes 1 "frame" 
+    /// at a time to the output file.
+
+    bool status = m_fileIO.writeBlock(pData, frameLen, 1);
+
+    if (status == false)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CRawVideoFileIO::writeVideoBlock(const void *pData, const unsigned int numFrames)
 {
     if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
     {
@@ -1269,25 +1389,38 @@ bool CRawVideoFileIO::resetPlayPosition()
 
 /// CAviFileIO class functions
 
-#if 0
+#ifdef SUPPORT_AVI_IO_LOGIC
 
 CAviFileIO::CAviFileIO() :
     CVideoFileIO()
 {
     LogTrace("class created");
 
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+
     m_bitsPerPixel = 24;
     m_width = 0;
     m_height = 0;
     m_frameRate = 0;
-    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_pFramebuffer = nullptr;
     m_nCurrentFrameIdx = 0;
     m_lFileSize = 0;
+
+    m_fileInfo.clear();
+
+    //m_pFramebuffer = nullptr;
+
+    memset(&m_audioInfo, 0, sizeof(m_audioInfo));
 }
 
 
-CAviFileIO::CAviFileIO(const unsigned int width, const unsigned int height, const unsigned int bitsPerPixel) :
+CAviFileIO::CAviFileIO
+    (
+        const unsigned int width, 
+        const unsigned int height, 
+        const unsigned int bitsPerPixel, 
+        const unsigned int nFrameRate, 
+        const std::string &sFourCC
+    ) :
     CVideoFileIO(width, height, bitsPerPixel)
 {
     LogTrace("class created");
@@ -1295,18 +1428,34 @@ CAviFileIO::CAviFileIO(const unsigned int width, const unsigned int height, cons
     m_pFileCtrl = nullptr;
 
     m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_pFramebuffer = nullptr;
-    m_bitsPerPixel = 24;
+
     if (bitsPerPixel > 0)
     {
         m_bitsPerPixel = bitsPerPixel;
     }
+    else
+    {
+        m_bitsPerPixel = 24;
+    }
+    
     m_width = width;
     m_height = height;
     m_frameRate = 0;
     m_nFrameSize = (width * height * (m_bitsPerPixel / 8));
+
+    m_fileInfo.width = m_width;
+    m_fileInfo.height = m_height;
+    m_fileInfo.frameRate = m_frameRate;
+    m_fileInfo.bitsPerPixel = m_bitsPerPixel;
+
+    m_fileInfo.sVideo4CC = sFourCC;
+
     m_nCurrentFrameIdx = 0;
     m_lFileSize = 0;
+
+    //m_pFramebuffer = nullptr;
+
+    memset(&m_audioInfo, 0, sizeof(m_audioInfo));
 }
 
 
@@ -1317,14 +1466,20 @@ CAviFileIO::CAviFileIO(const std::string& sFilePath) :
 
     m_pFileCtrl = nullptr;
 
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+
     m_bitsPerPixel = 24;
     m_width = 0;
     m_height = 0;
     m_frameRate = 0;
-    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_pFramebuffer = nullptr;
     m_nCurrentFrameIdx = 0;
     m_lFileSize = 0;
+
+    m_fileInfo.clear();
+
+    //m_pFramebuffer = nullptr;
+
+    memset(&m_audioInfo, 0, sizeof(m_audioInfo));
 }
 
 
@@ -1334,6 +1489,59 @@ CAviFileIO::~CAviFileIO()
 
     if (m_bFileOpened)
         closeFile();
+}
+
+
+void CAviFileIO::setVideoConfig
+    (
+        const unsigned int width,
+        const unsigned int height,
+        const unsigned int bitsPerPixel,
+        const unsigned int nFrameRate,
+        const std::string& sFourCC
+    )
+{
+    if (bitsPerPixel > 0)
+    {
+        m_bitsPerPixel = bitsPerPixel;
+    }
+    else
+    {
+        m_bitsPerPixel = 24;
+    }
+
+    m_width = width;
+    m_height = height;
+    m_nFrameSize = (width * height * (m_bitsPerPixel / 8));
+
+    if (nFrameRate > 0)
+    {
+        m_frameRate = nFrameRate;
+    }
+
+    m_fileInfo.width = m_width;
+    m_fileInfo.height = m_height;
+    m_fileInfo.frameRate = m_frameRate;
+    m_fileInfo.bitsPerPixel = m_bitsPerPixel;
+
+    if (sFourCC != "")
+    {
+        m_fileInfo.sVideo4CC = sFourCC;
+    }
+}
+
+
+void CAviFileIO::setAudioConfig
+    (
+        int         numTracks,
+        int         bitsPerSample,
+        int         sampleRate,
+        std::string sFourCC
+    )
+{
+    m_audioInfo.channels = numTracks;
+    m_audioInfo.samples_per_second = sampleRate;
+    m_audioInfo.bits = bitsPerSample;
 }
 
 
@@ -1361,8 +1569,9 @@ bool CAviFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePa
             m_sFilePath.c_str(),
             m_width,
             m_height,
-            m_sFourCC.c_str(),
-            m_frameRate, 
+            m_fileInfo.sVideo4CC.c_str(),     //m_sFourCC.c_str(),
+            m_bitsPerPixel, 
+            m_frameRate,
             &m_audioInfo
          );
 
@@ -1403,11 +1612,17 @@ bool CAviFileIO::closeFile()
         return false;
     }
 
+    if (m_pFileCtrl == nullptr)
+    {
+        LogDebug("file close called with invalid m_pFileCtrl");
+        return false;
+    }
+
     bool bRetValue = true;
 
     auto status = gwavi_close(m_pFileCtrl);
 
-    if (status < 0)
+    if (status != 0)
         bRetValue = false;
 
     m_nCurrentFrameIdx = 0;
@@ -1432,8 +1647,431 @@ bool CAviFileIO::isEOF()
 
 
 
-/// Read a frame from a "AVI" data file
-bool CAviFileIO::readFrame(void* pData)
+/// Read a video frame from a "AVI" data file
+bool CAviFileIO::readVideoFrame(void* pData)
+{
+    return false;
+}
+
+
+bool CAviFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
+{
+    return false;
+}
+
+
+bool CAviFileIO::writeVideoFrame(const void* pData)
+{
+    if (pData == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid param");
+        return false;
+    }
+
+    if (m_pFileCtrl == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid m_pFileCtrl");
+        return false;
+    }
+
+    if (m_nFrameSize < 1)
+    {
+        LogDebug("writeVideoFrame called with invalid m_nFrameSize");
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    /// This "write" logic writes 1 video frame
+    /// at a time to the output file.
+
+    bool status = gwavi_add_frame(m_pFileCtrl, (const unsigned char*)pData, m_nFrameSize);
+
+    if (status != 0)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CAviFileIO::writeVideoFrame(const void* pData, unsigned int frameSize)
+{
+    if (pData == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid param");
+        return false;
+    }
+
+    if (m_pFileCtrl == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid m_pFileCtrl");
+        return false;
+    }
+
+    if (frameSize < 1)
+    {
+        LogDebug("writeVideoFrame called with invalid frameSize");
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    /// This "write" logic writes 1 video frame
+    /// at a time to the output file.
+
+    bool status = gwavi_add_frame(m_pFileCtrl, (const unsigned char*) pData, frameSize);
+
+    if (status != 0)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CAviFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames)
+{
+    if (pData == nullptr || numFrames < 1)
+    {
+        LogDebug("writeVideoBlock called with invalid param");
+        return false;
+    }
+
+    if (m_pFileCtrl == nullptr)
+    {
+        LogDebug("writeVideoBlock called with invalid m_pFileCtrl");
+        return false;
+    }
+
+    if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - bFileOpened:{}, eMode:{}",
+            m_bFileOpened,
+            (int) m_eMode
+        );
+        return false;
+    }
+
+    unsigned int nDataOffset = 0;
+
+    for (unsigned int f = 0; f < numFrames; f++)
+    {
+        auto status = writeVideoFrame(((unsigned char *) pData) + nDataOffset);
+
+        if (status != 0)
+        {
+            return false;
+        }
+
+        nDataOffset += m_nFrameSize;
+    }
+
+    return true;
+}
+
+
+/// Read a audio frame from a "AVI" data file
+bool CAviFileIO::readAudioFrame(void* pData)
+{
+    return false;
+}
+
+
+bool CAviFileIO::readAudioBlock(void* pData, const unsigned int numFrames)
+{
+    return false;
+}
+
+
+bool CAviFileIO::writeAudioFrame(const void* pData)
+{
+    if (pData == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid param");
+        return false;
+    }
+
+    if (m_pFileCtrl == nullptr)
+    {
+        LogDebug("writeVideoFrame called with invalid m_pFileCtrl");
+        return false;
+    }
+
+    if (m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    unsigned int nAudioFrameSize = (m_audioInfo.channels * (m_audioInfo.bits / 8));
+
+    /// This "write" logic writes 1 audio "frame" (numChannels * sampleSize)
+    /// at a time to the output file.
+
+    bool status = gwavi_add_audio(m_pFileCtrl, (const unsigned char*) pData, nAudioFrameSize);
+
+    if (status != 0)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CAviFileIO::writeAudioBlock(const void* pData, const unsigned int numFrames)
+{
+    if (pData == nullptr || numFrames < 1)
+    {
+        LogDebug("writeVideoBlock called with invalid param");
+        return false;
+    }
+
+    if (m_pFileCtrl == nullptr)
+    {
+        LogDebug("writeVideoBlock called with invalid m_pFileCtrl");
+        return false;
+    }
+
+    if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input)
+    {
+        LogDebug
+        (
+            "bad param - bFileOpened:{}, eMode:{}",
+            m_bFileOpened,
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    unsigned int nAudioFrameSize = (m_audioInfo.channels * (m_audioInfo.bits / 8));
+
+    bool status = gwavi_add_audio(m_pFileCtrl, (const unsigned char*) pData, (nAudioFrameSize * numFrames));
+
+    if (status != 0)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CAviFileIO::setCurrentFrame(unsigned int frameNum)
+{
+    if (!m_bFileOpened)
+        return false;
+
+
+
+    return false;
+}
+
+
+bool CAviFileIO::resetPlayPosition()
+{
+    setCurrentFrame(0);
+
+    CVideoFileIO::resetPlayPosition();
+
+    return true;
+}
+
+#endif
+
+
+/// CMkvFileIO class functions
+
+#ifdef SUPPORT_MKV_IO_LOGIC
+
+CMkvFileIO::CMkvFileIO() :
+    CVideoFileIO()
+{
+    LogTrace("class created");
+
+    m_bitsPerPixel = 24;
+    m_width = 0;
+    m_height = 0;
+    m_frameRate = 0;
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+    m_pFramebuffer = nullptr;
+    m_nCurrentFrameIdx = 0;
+    m_lFileSize = 0;
+}
+
+
+CMkvFileIO::CMkvFileIO(const unsigned int width, const unsigned int height, const unsigned int bitsPerPixel) :
+    CVideoFileIO(width, height, bitsPerPixel)
+{
+    LogTrace("class created");
+
+    m_pFileCtrl = nullptr;
+
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+    m_pFramebuffer = nullptr;
+    m_bitsPerPixel = 24;
+    if (bitsPerPixel > 0)
+    {
+        m_bitsPerPixel = bitsPerPixel;
+    }
+    m_width = width;
+    m_height = height;
+    m_frameRate = 0;
+    m_nFrameSize = (width * height * (m_bitsPerPixel / 8));
+    m_nCurrentFrameIdx = 0;
+    m_lFileSize = 0;
+}
+
+
+CMkvFileIO::CAviFileIO(const std::string& sFilePath) :
+    CVideoFileIO(sFilePath)
+{
+    LogTrace("class created");
+
+    m_pFileCtrl = nullptr;
+
+    m_bitsPerPixel = 24;
+    m_width = 0;
+    m_height = 0;
+    m_frameRate = 0;
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+    m_pFramebuffer = nullptr;
+    m_nCurrentFrameIdx = 0;
+    m_lFileSize = 0;
+}
+
+
+CMkvFileIO::~CMkvFileIO()
+{
+    LogTrace("class being destroyed");
+
+    if (m_bFileOpened)
+        closeFile();
+}
+
+
+bool CMkvFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePath)
+{
+    LogTrace("file path:{}", sFilePath);
+
+    if (m_bFileOpened)
+        return false;
+
+    if (!sFilePath.empty())
+        m_sFilePath = sFilePath;
+
+    if (m_sFilePath.empty())
+        return false;
+
+    m_eFileType = getVideoFileType(m_sFilePath);
+
+    if (m_eFileType != eFileType_avi)
+        return false;
+
+    m_pFileCtrl =
+        gwavi_open
+        (
+            m_sFilePath.c_str(),
+            m_width,
+            m_height,
+            m_sFourCC.c_str(),
+            m_frameRate,
+            &m_audioInfo
+        );
+
+    if (m_pFileCtrl == nullptr)
+        return false;
+
+    m_eMode = mode;
+
+    m_nCurrentFrameIdx = 0;
+    m_nIoCntr = 0;
+    m_nCurrentFrame = 0;
+    m_bFileOpened = true;
+
+    return true;
+}
+
+
+long CMkvFileIO::getNumFrames()
+{
+    LogTrace("getting number of frame in the file");
+
+    if (!m_bFileOpened || m_eMode == eFileIoMode_unknown || m_eMode == eFileIoMode_output)
+        return -1;
+
+    auto numFrames = -1;
+
+    return numFrames;
+}
+
+
+bool CMkvFileIO::closeFile()
+{
+    LogTrace("file being closed");
+
+    if (!m_bFileOpened)
+    {
+        LogDebug("file close called when files is not open");
+        return false;
+    }
+
+    bool bRetValue = true;
+
+    auto status = gwavi_close(m_pFileCtrl);
+
+    if (status < 0)
+        bRetValue = false;
+
+    m_nCurrentFrameIdx = 0;
+    m_nIoCntr = -1;
+    m_nCurrentFrame = -1;
+    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
+    m_bFileOpened = false;
+
+    return bRetValue;
+}
+
+
+bool CMkvFileIO::isEOF()
+{
+    if (m_nCurrentFrameIdx >= m_nFramesInFile)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+
+
+/// Read a frame from a "MKV" data file
+bool CMkvFileIO::readVideoFrame(void* pData)
 {
     if (!m_bFileOpened || m_pFramebuffer == nullptr)
     {
@@ -1447,16 +2085,16 @@ bool CAviFileIO::readFrame(void* pData)
 
     auto status = gwavi_read
 
-    if (status == false)
-    {
-        return false;
-    }
+        if (status == false)
+        {
+            return false;
+        }
 
     return true;
 }
 
 
-bool CAviFileIO::readBlock(void* pData, const unsigned int numFrames)
+bool CMkvFileIO::readReadBlock(void* pData, const unsigned int numFrames)
 {
     LogTrace("numFrames:{}", numFrames);
 
@@ -1583,7 +2221,7 @@ bool CAviFileIO::readBlock(void* pData, const unsigned int numFrames)
 }
 
 
-bool CAviFileIO::writeFrame(const void* pData)
+bool CMkvFileIO::writeVideoFrame(const void* pData)
 {
     if (m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
     {
@@ -1609,7 +2247,33 @@ bool CAviFileIO::writeFrame(const void* pData)
 }
 
 
-bool CAviFileIO::writeBlock(const void* pData, const unsigned int numFrames)
+bool CMkvFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen)
+{
+    if (m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
+    {
+        LogDebug
+        (
+            "bad param - eMode:{}",
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    /// This "write" logic writes 1 "frame" 
+    /// at a time to the output file.
+
+    bool status = m_fileIO.writeBlock(pData, frameLen, 1);
+
+    if (status == false)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CMkvFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames)
 {
     if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
     {
@@ -1630,7 +2294,7 @@ bool CAviFileIO::writeBlock(const void* pData, const unsigned int numFrames)
 }
 
 
-bool CAviFileIO::setCurrentFrame(unsigned int frameNum)
+bool CMkvFileIO::setCurrentFrame(unsigned int frameNum)
 {
     if (!m_bFileOpened)
         return false;
@@ -1641,7 +2305,7 @@ bool CAviFileIO::setCurrentFrame(unsigned int frameNum)
 }
 
 
-bool CAviFileIO::resetPlayPosition()
+bool CMkvFileIO::resetPlayPosition()
 {
     setCurrentFrame(0);
 
@@ -1654,6 +2318,8 @@ bool CAviFileIO::resetPlayPosition()
 
 
 /// COcvFileIO class functions
+
+#ifdef SUPPORT_OCV_IO_LOGIC
 
 COcvFileIO::COcvFileIO() :
     CVideoFileIO()
@@ -1896,8 +2562,8 @@ bool COcvFileIO::isEOF()
 }
 
 
-/// Read a frame from file
-bool COcvFileIO::readFrame(void* pData)
+/// Read a video frame from file
+bool COcvFileIO::readVideoFrame(void* pData)
 {
     if (!m_bFileOpened || m_eMode == eFileIoMode_output || m_eMode == eFileIoMode_IO)
     {
@@ -1945,7 +2611,7 @@ bool COcvFileIO::readFrame(void* pData)
 }
 
 
-bool COcvFileIO::readBlock(void* pData, const unsigned int numFrames)
+bool COcvFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
 {
     LogTrace("numFrames:{}", numFrames);
 
@@ -1982,7 +2648,7 @@ bool COcvFileIO::readBlock(void* pData, const unsigned int numFrames)
 }
 
 
-bool COcvFileIO::writeFrame(const void* pData)
+bool COcvFileIO::writeVideoFrame(const void* pData)
 {
     if (m_eMode == eFileIoMode_input || m_eMode == eFileIoMode_IO)
     {
@@ -2025,7 +2691,7 @@ bool COcvFileIO::writeFrame(const void* pData)
 }
 
 
-bool COcvFileIO::writeBlock(const void* pData, const unsigned int numFrames)
+bool COcvFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames)
 {
     if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input || m_eMode == eFileIoMode_IO)
     {
@@ -2061,11 +2727,38 @@ bool COcvFileIO::writeBlock(const void* pData, const unsigned int numFrames)
 }
 
 
+bool COcvFileIO::readAudioFrame(void* pData)
+{
+    LogWarning("readAudioFrame Not currently implementedf");
+    return false;
+}
+
+
+bool COcvFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
+{
+    LogWarning("readVideoBlock Not currently implementedf");
+    return false;
+}
+
+
+bool COcvFileIO::writeVideoFrame(const void* pData)
+{
+    LogWarning("writeVideoFrame Not currently implementedf");
+    return false;
+}
+
+
+bool COcvFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames)
+{
+    LogWarning("writeVideoBlock Not currently implementedf");
+    return false;
+}
+
+
 bool COcvFileIO::setCurrentFrame(unsigned int frameNum)
 {
     if (!m_bFileOpened)
         return false;
-
 
 
     return false;
@@ -2080,4 +2773,4 @@ bool COcvFileIO::resetPlayPosition()
     return true;
 }
 
-
+#endif
