@@ -8,7 +8,7 @@ Modules include:
 - A GStreamer wrapper class
 - Keyboard input classses
 - An Application Logging class
-- Network I/O classes
+- Network I/O classes - including: HTTP Client/Server, WebSocket Client/Server, REST Client/Server
 - Application Plug-in (Shared Object/DLL) classes
 - String Utility classes
 - Thread Manager classes
