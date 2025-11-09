@@ -2,10 +2,6 @@
 
 Thesse CPP modules provide vaious cross platform logic.
 
-This code is primarilly based on c++17, and has been desingned to work on the following OSs:
-
-  Windows [32/64], Linux, MacOS, QNX, ... 
-
 Modules include:
 - Buffer classes = including: audio, video, ring buffer, ... 
 - File I/O classes - including: media, text, binary, ... 
@@ -17,6 +13,13 @@ Modules include:
 - String Utility classes
 - Thread Manager classes
 - XML Data classes
+
+This code is primarilly based on c++17, and has been desingned to work on the following OSs:
+- Windows [32/64]
+- Linux
+- MacOS
+- QNX
+- ... 
 
 Code Dependencies:
 - DR_wav
