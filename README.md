@@ -1,6 +1,6 @@
 # RDB-libs
 
-Thesse CPP modules provide vaious cross platform logic.
+These CPP modules provide vaious cross platform logic, to speed development time.
 
 Modules include:
 - Buffer classes = including: audio, video, ring buffer, ... 
