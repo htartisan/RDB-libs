@@ -14,7 +14,12 @@ Modules include:
 - Thread Manager classes
 - XML Data classes
 
-This code is primarilly based on c++17, and has been compiled using: Microsoft Visual Studio [2017], GCC [G++], Xcode, QCC [Q++], Clang.
+This code is primarilly based on c++17, and has been compiled using: 
+- Microsoft Visual Studio [2017]
+- GCC [G++]
+- Xcode
+- QCC [Q++]
+- Clang
 
 It has been desingned to work on the following OSs:
 - Windows [32/64]
