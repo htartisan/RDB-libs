@@ -302,6 +302,14 @@ inline bool toBool(const std::string &sVal)
 }
 
 
+enum eStringCompareResult
+{
+	eStringCompareResult_lower = -1,
+	eStringCompareResult_equal = 0,
+	eStringCompareResult_higher = 1
+};
+
+
 inline int strCompare(const std::string sStr1, const std::string sStr2, const unsigned int nLen = 0)
 {
 	unsigned int nCmpLen = nLen;
@@ -327,16 +335,16 @@ inline int strCompare(const std::string sStr1, const std::string sStr2, const un
 	{
 		if (sStr1[x] < sStr2[x])
 		{
-			return -1;
+			return eStringCompareResult_lower;
 		}
 
 		if (sStr1[x] > sStr2[x])
 		{
-			return 1;
+			return eStringCompareResult_higher;
 		}
 	}
 
-	return 0;
+	return eStringCompareResult_equal;
 }
 
 #ifndef _TOHEXSTR_
