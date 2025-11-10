@@ -48,7 +48,7 @@ static GstFlowReturn gst_new_sample_callback
         {
             auto numCapsEntried = gst_caps_get_size(pMediaCaps);
 
-            for (int c = 0; c < numCapsEntried; c++)
+            for (unsigned int c = 0; c < numCapsEntried; c++)
             {
                 GstStructure* structure = gst_caps_get_structure(pMediaCaps, c);
 
@@ -95,13 +95,61 @@ static GstFlowReturn gst_new_sample_callback
             // Copy the frame m_controlData to the application IO buffer
             // Ensure the frame buffer is allocated with enough memory (width * height * bytes_per_pixel)
 
+            auto pFrameData = map_info.data;
+
+            unsigned int nCopySize = (unsigned int) map_info.size;
+
+            unsigned int nMaxSize = pControlData->m_mediaBuffer.getMaxDataLen();
+
+            if (nCopySize > nMaxSize)
+            {
+                // If the current data size > size of mediaBuffer...
+
+                pControlData->m_mediaBuffer.free();
+
+                auto eType = pControlData->m_mediaBuffer.GetMediaType();
+
+                if (eType == CGstWrapper::eMediaType::eMediaType_video)
+                {
+                    // reallocate the (video) mediaBuffer
+
+                    unsigned int nImageSize =
+                        (pControlData->m_videoConfig.m_width * pControlData->m_videoConfig.m_height);
+
+                    pControlData->m_videoConfig.m_bitsPerPixel = (nCopySize / nImageSize);
+                    
+                    if (pControlData->m_mediaBuffer.allocate(nCopySize) == false)
+                    {
+                        return GST_FLOW_ERROR;
+                    }
+                }
+                else if (eType == CGstWrapper::eMediaType::eMediaType_audio)
+                {
+                    // reallocate the (audio) mediaBuffer
+
+                    unsigned int nBlockSize =
+                        (pControlData->m_audioConfig.m_numChannels * pControlData->m_audioConfig.m_framesPerBlock);
+
+                    pControlData->m_audioConfig.m_bitsPerSample = (nCopySize / nBlockSize);
+
+                    if (pControlData->m_mediaBuffer.allocate(nCopySize) == false)
+                    {
+                        return GST_FLOW_ERROR;
+                    }
+                }
+                else
+                {
+                    return GST_FLOW_ERROR;
+                }
+            }
+
             auto pIoBuffer = pControlData->m_mediaBuffer.map();
 
-            memcpy(pIoBuffer, map_info.data, map_info.size);
+            memcpy(pIoBuffer, pFrameData, nCopySize);
 
             pControlData->m_mediaBuffer.unmap();
 
-            pControlData->m_mediaBuffer.setCurrentDataLen((unsigned int) map_info.size);
+            pControlData->m_mediaBuffer.setCurrentDataLen((unsigned int) nCopySize);
 
             gst_buffer_unmap(pBuffer, &map_info);
 
@@ -122,6 +170,90 @@ static GstFlowReturn gst_new_sample_callback
     return GST_FLOW_ERROR;
 }
 
+
+// Bus message handling callback
+static gboolean gst_bus_callback
+    (
+        GstBus *pBus, 
+        GstMessage *pMsg, 
+        gpointer pData
+    )
+{
+    if (pBus == nullptr || pMsg == nullptr || pData == nullptr)
+    {
+        return false;
+    }
+
+    CGstWrapper::ControlData_def* pControlData = (CGstWrapper::ControlData_def*) pData;
+
+    GstMessageType type = GST_MESSAGE_TYPE(pMsg);
+
+    switch (type) 
+    {
+    case GST_MESSAGE_ERROR: 
+        {
+            GError* err;
+            gchar* debug_info;
+
+            gst_message_parse_error(pMsg, &err, &debug_info);
+
+            pControlData->m_sLastError = "Error received from element: ";
+            pControlData->m_sLastError.append(GST_OBJECT_NAME(pMsg->src));
+            pControlData->m_sLastError.append(", msg: ");
+            pControlData->m_sLastError.append(err->message);
+
+            //g_printerr("Debugging information: %s\n", (debug_info) ? debug_info : "none");
+
+            g_clear_error(&err);
+            g_free(debug_info);
+
+            // Log that the window was closed
+            if (g_strstr_len(debug_info, -1, "Window closed")) 
+            {
+                pControlData->m_sLastError = "autovideosink window closed";
+            }
+
+            // Stop processing
+
+            pControlData->m_bQuit = true;
+        }
+        break;
+
+    case GST_MESSAGE_EOS: 
+        {
+            // Stop processing
+
+            pControlData->m_sLastError = "End-of-stream";
+
+            pControlData->m_bQuit = true;
+        }
+        break;
+
+    case GST_MESSAGE_STATE_CHANGED: 
+        {
+            // Optional: Handle state changes if needed
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return TRUE;
+}
+
+
+void CGstWrapper::RunBusLoop(void *pData)
+{
+    if (pData == nullptr)
+    {
+        return;
+    }
+
+    CGstWrapper::ControlData_def *pControlData = (CGstWrapper::ControlData_def *) pData;
+
+    g_main_loop_run(pControlData->m_pBusLoop);
+}
 
 
 bool CGstWrapper::Initialize()
@@ -156,6 +288,8 @@ bool CGstWrapper::Initialize()
 
     m_controlData.m_bGstInitialized = true;
 
+    m_controlData.m_pBusLoop = g_main_loop_new(NULL, FALSE);
+
     return true;
 }
 
@@ -169,6 +303,7 @@ bool CGstWrapper::BuildInputPipeline
 {
     if (sPipeline == "" || sAppSink == "")
     {
+        m_controlData.m_sLastError = "Invalid param";
         return false;
     }
 
@@ -178,6 +313,7 @@ bool CGstWrapper::BuildInputPipeline
             m_controlData.m_videoConfig.m_height < 1 ||
             m_controlData.m_videoConfig.m_bitsPerPixel < 8)
         {
+            m_controlData.m_sLastError = "Invalid video config";
             return false;
         }
     }
@@ -187,11 +323,13 @@ bool CGstWrapper::BuildInputPipeline
             m_controlData.m_audioConfig.m_numChannels < 1 ||
             m_controlData.m_audioConfig.m_bitsPerSample < 8)
         {
+            m_controlData.m_sLastError = "Invalid audio config";
             return false;
         }
     }
     else
     {
+        m_controlData.m_sLastError = "Invalid media config";
         return false;
     }
 
@@ -223,32 +361,51 @@ bool CGstWrapper::BuildInputPipeline
 
         if (m_controlData.m_pPipeline == nullptr)
         {
+            m_controlData.m_sLastError =  (pGError->message);
+
+            g_clear_error(&pGError);
+
             return false;
         }
 
-        // Get the appsink element
+        // Get the AppSink element
 
-        m_controlData.m_pAppsink = 
+        auto pSink =
             gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSink.c_str());
-        
+
+        if (pSink == nullptr)
+        {
+            m_controlData.m_sLastError = "Invalid AppSink element";
+            return false;
+        }
+
+        // Convert GstElement pointer to GstAppSink pointer
+
+        m_controlData.m_pAppsink = GST_APP_SINK(pSink);
+
         if (m_controlData.m_pAppsink == nullptr)
         {
+            m_controlData.m_sLastError = "Invalid AppSink pointer";
             return false;
         }
 
-        g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(gst_new_sample_callback), &m_controlData);
-
-        //gst_app_sink_set_emit_signals((GstAppSink*) m_controlData.m_pAppsink, TRUE);
-        //gst_app_sink_set_drop((GstAppSink*)m_controlData.m_pAppsink, TRUE); // Drop old buffers if app is slow
-
         // Configure appsink
+
+        gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, TRUE);
+        gst_app_sink_set_drop(m_controlData.m_pAppsink, TRUE);
+        gst_app_sink_set_max_buffers(m_controlData.m_pAppsink, 1);
+
+        g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(gst_new_sample_callback), &m_controlData);
 
         g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
     }
     catch (...)
     {
+        m_controlData.m_sLastError = "Unknown exception";
         return false;
     }
+
+    m_controlData.m_sLastError = "";
 
     return true;
 }
@@ -263,6 +420,7 @@ bool CGstWrapper::BuildOutputPipeline
 {
     if (sPipeline == "" || sAppSource == "")
     {
+        m_controlData.m_sLastError = "Invalid param";
         return false;
     }
 
@@ -272,6 +430,7 @@ bool CGstWrapper::BuildOutputPipeline
             m_controlData.m_videoConfig.m_height < 1 ||
             m_controlData.m_videoConfig.m_bitsPerPixel < 8)
         {
+            m_controlData.m_sLastError = "Invalid video config";
             return false;
         }
     }
@@ -281,15 +440,17 @@ bool CGstWrapper::BuildOutputPipeline
             m_controlData.m_audioConfig.m_numChannels < 1 ||
             m_controlData.m_audioConfig.m_bitsPerSample < 8)
         {
+            m_controlData.m_sLastError = "Invalid audio config";
             return false;
         }
     }
     else
     {
+        m_controlData.m_sLastError = "Invalid media config";
         return false;
     }
 
-    GstStateChangeReturn ret;
+    //GstStateChangeReturn ret;
 
     try
     {
@@ -302,36 +463,45 @@ bool CGstWrapper::BuildOutputPipeline
 
         if (m_controlData.m_pPipeline == nullptr)
         {
+            m_controlData.m_sLastError = (pGError->message);
+
+            g_clear_error(&pGError);
+
             return false;
         }
 
-        // Get the appsrc element
+        // Get the AppSrc element
 
-        m_controlData.m_pAppsrc = 
-            GST_APP_SRC(gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSource.c_str()));
+        auto pSrc =
+            gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSource.c_str());
+
+        if (pSrc == nullptr)
+        {
+            m_controlData.m_sLastError = "Invalid AppSink element";
+            return false;
+        }
+
+        // Convert GstElement pointer to GstAppSink pointer
+
+        m_controlData.m_pAppsrc = GST_APP_SRC(pSrc);
 
         if (m_controlData.m_pAppsrc == nullptr)
         {
+            m_controlData.m_sLastError = "Invalid AppSink pointer";
             return false;
         }
 
         // Configure appsrc
 
         g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
-
-        // Set the pipeline to the PLAYING state
-
-        ret = gst_element_set_state(m_controlData.m_pPipeline, GST_STATE_PLAYING);
-
-        if (ret == GST_STATE_CHANGE_FAILURE)
-        {
-            return false;
-        }
     }
     catch (...)
     {
+        m_controlData.m_sLastError = "Unknown exception";
         return false;
     }
+
+    m_controlData.m_sLastError = "";
 
     return true;
 }
@@ -347,6 +517,7 @@ bool CGstWrapper::BuildIoPipeline
 {
     if (sPipeline == "" || sAppSource == "")
     {
+        m_controlData.m_sLastError = "Invalid param";
         return false;
     }
 
@@ -356,6 +527,7 @@ bool CGstWrapper::BuildIoPipeline
             m_controlData.m_videoConfig.m_height < 1 ||
             m_controlData.m_videoConfig.m_bitsPerPixel < 8)
         {
+            m_controlData.m_sLastError = "Invalid video config";
             return false;
         }
     }
@@ -365,13 +537,16 @@ bool CGstWrapper::BuildIoPipeline
             m_controlData.m_audioConfig.m_numChannels < 1 ||
             m_controlData.m_audioConfig.m_bitsPerSample < 8)
         {
+            m_controlData.m_sLastError = "Invalid audio config";
             return false;
         }
     }
     else
     {
+        m_controlData.m_sLastError = "Invalid media config";
         return false;
     }
+
     if (m_controlData.m_mediaBuffer.isAllocated() == false)
     {
         auto status = m_controlData.createFrameBuffer(eType);
@@ -395,37 +570,64 @@ bool CGstWrapper::BuildIoPipeline
 
         if (m_controlData.m_pPipeline == nullptr)
         {
+            m_controlData.m_sLastError = (pGError->message);
+
+            g_clear_error(&pGError);
+
             return false;
         }
 
-        // Get the appsrc element
+        // Get the AppSrc element
 
-        m_controlData.m_pAppsrc = 
-            GST_APP_SRC(gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSource.c_str()));
+        auto pSrc =
+            gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSource.c_str());
+
+        if (pSrc == nullptr)
+        {
+            m_controlData.m_sLastError = "Invalid AppSink element";
+            return false;
+        }
+
+        // Convert GstElement pointer to GstAppSink pointer
+
+        m_controlData.m_pAppsrc = GST_APP_SRC(pSrc);
 
         if (m_controlData.m_pAppsrc == nullptr)
+        {
+            m_controlData.m_sLastError = "Invalid AppSink pointer";
+            return false;
+        }
+
+        // Configure AppSink
+
+        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
+
+        // Get the AppSink element
+
+        auto pSink =
+            gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSink.c_str());
+
+        if (pSink == nullptr)
         {
             return false;
         }
 
-        // Get the appsink element
+        // Convert GstElement pointer to GstAppSink pointer
 
-        m_controlData.m_pAppsink = 
-            gst_bin_get_by_name(GST_BIN(m_controlData.m_pPipeline), sAppSink.c_str());
+        m_controlData.m_pAppsink = GST_APP_SINK(pSink);
 
         if (m_controlData.m_pAppsink == nullptr)
         {
             return false;
         }
 
-        // Configure appsink
+        // Configure AppSink
+
+        gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, TRUE);
+        gst_app_sink_set_drop(m_controlData.m_pAppsink, TRUE);
+        gst_app_sink_set_max_buffers(m_controlData.m_pAppsink, 1);
 
         g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(gst_new_sample_callback), &m_controlData);
-
-        //gst_app_sink_set_emit_signals((GstAppSink*) m_controlData.m_pAppsink, TRUE);
-        //gst_app_sink_set_drop((GstAppSink*)m_controlData.m_pAppsink, TRUE); // Drop old buffers if app is slow
-
-        // Configure appsrc
 
         g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
     }
@@ -433,6 +635,8 @@ bool CGstWrapper::BuildIoPipeline
     {
         return false;
     }
+
+    m_controlData.m_sLastError = "";
 
     return true;
 }
@@ -442,6 +646,7 @@ void CGstWrapper::FreeBuffer(GstBuffer* pBuffer)
 {
     if (pBuffer == nullptr)
     {
+        m_controlData.m_sLastError = "Invalid param";
         return ;
     }
 
@@ -455,6 +660,7 @@ GstBuffer* CGstWrapper::CreateBuffer(const unsigned int nSize)
 {
     if (nSize < 1)
     {
+        m_controlData.m_sLastError = "Invalid param";
         return nullptr;
     }
 
@@ -466,6 +672,8 @@ GstBuffer* CGstWrapper::CreateBuffer(const unsigned int nSize)
     {
         return nullptr;
     }
+
+    m_controlData.m_sLastError = "";
 
     return pBuffer;
 }
@@ -479,6 +687,7 @@ GstBuffer * CGstWrapper::CreateAndFillBuffer
 {
     if (pData == nullptr || nSize < 1)
     {
+        m_controlData.m_sLastError = "Invalid param";
         return nullptr;
     }
 
@@ -511,10 +720,11 @@ GstBuffer * CGstWrapper::CreateAndFillBuffer
 }
 
 
-bool CGstWrapper::FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, const unsigned int nSize)
+bool CGstWrapper::FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, const unsigned int nSize, const std::string sFourCC)
 {
     if (pBuffer == nullptr || pData == nullptr || nSize < 1)
     {
+        m_controlData.m_sLastError = "Invalid param";
         return false;
     }
 
@@ -522,17 +732,17 @@ bool CGstWrapper::FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, 
 
     unsigned int nLoopCntr = 0;
 
-    if (gst_buffer_is_writable(pBuffer) == false)
-    {
-        return false;
-    }
-
     GstFlowReturn ret = GST_FLOW_OK;
 
     // Map the buffer and fill it with some dummy YUY2 m_controlData (e.g., a simple gradient or static image)
 
     try
     { 
+        if (gst_buffer_is_writable(pBuffer) == false)
+        {
+            return false;
+        }
+
         GstMapInfo map_info;
 
         memset(&map_info, 0, sizeof(GstMapInfo));
@@ -542,11 +752,20 @@ bool CGstWrapper::FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, 
         if (status == false)
             return false;
 
+        unsigned int nCopySize = nSize;
+
+        if (nCopySize > (unsigned int) map_info.size)
+        {
+            nCopySize = (unsigned int) map_info.size;
+        }
+
+        auto pFrameData = map_info.data;
+
         std::this_thread::sleep_for(std::chrono::microseconds(10));
 
         // Copy video m_controlData into map.m_controlData
 
-        memcpy(map_info.data, pData, nSize);
+        memcpy(pFrameData, pData, nSize);
 
         gst_buffer_unmap(pBuffer, &map_info);
 
@@ -567,13 +786,7 @@ bool CGstWrapper::WriteToPipeline(GstBuffer* pBuffer)
 {
     if (m_controlData.m_pAppsrc == nullptr || pBuffer == nullptr)
     {
-        return false;
-    }
-
-    if ((m_controlData.m_videoConfig.m_width < 1) || 
-        (m_controlData.m_videoConfig.m_height < 1) || 
-        (m_controlData.m_videoConfig.m_bitsPerPixel < 8))
-    {
+        m_controlData.m_sLastError = "Invalid param";
         return false;
     }
 
@@ -645,18 +858,13 @@ bool CGstWrapper::StartPipeline()
         return false;
     }
 
-#if 0
-    if (m_controlData.m_pMsg == nullptr)
-    {
-        m_controlData.m_pMsg =
-            gst_bus_timed_pop_filtered
-            (
-                m_controlData.m_pBus,
-                GST_CLOCK_TIME_NONE, 
-                (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_EOS)
-            );
-    }
-#endif
+    gst_bus_add_watch(m_controlData.m_pBus, gst_bus_callback, &m_controlData);
+
+    m_budLoopExecThread.setName("GstBudLoopExecThread");
+
+    m_budLoopExecThread.setFunctionPtr((ExecFunctionPtr_def) RunBusLoop, (void *) &m_controlData);
+
+    m_budLoopExecThread.createThread();
 
     m_controlData.m_bPipelineActive = true;
 
@@ -672,10 +880,25 @@ bool CGstWrapper::StopPipeline()
     }    
 
     m_controlData.m_bQuit = true;
-        
-    std::this_thread::sleep_for(std::chrono::microseconds(5));
 
     GstStateChangeReturn ret;
+
+    GstState lastState;
+    GstState PendingState;
+
+    ret = gst_element_get_state(m_controlData.m_pPipeline, &lastState, &PendingState, 100);
+        
+    if (ret == GST_STATE_CHANGE_FAILURE)
+    {
+        return false;
+    }
+
+    if (lastState == GST_STATE_NULL)
+    {
+        return true;
+    }
+
+    std::this_thread::sleep_for(std::chrono::microseconds(10));
 
     // Set the pipeline to PLAYING state
     ret = gst_element_set_state(m_controlData.m_pPipeline, GST_STATE_NULL);

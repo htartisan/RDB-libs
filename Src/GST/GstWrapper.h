@@ -9,12 +9,94 @@
 
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
 
 #include <glib.h>
 
 #include <string>
 #include <vector>
 #include <mutex>
+
+#ifdef WINDOWS
+#include <windows.h>
+#endif
+
+#include <thread>
+
+#include "../Thread/ThreadBase.h"
+
+
+
+typedef void (*ExecFunctionPtr_def)(void * pData);
+
+
+/// @class CExecThread
+/// A class to manage a thread to execute a function
+class CExecThread :
+    public CThreadBase
+{
+    ExecFunctionPtr_def     m_pExecFunction;
+
+    void                    *m_pData;
+
+public:
+
+    CExecThread() :
+        CThreadBase()
+    {
+        m_pExecFunction = nullptr;
+
+        m_pData = nullptr;
+    }
+
+    CExecThread(const std::string& sName, int pri = 0) :
+        CThreadBase(sName, pri)
+    {
+        m_pExecFunction = nullptr;
+
+        m_sName = sName;
+    }
+
+    ~CExecThread()
+    {
+        exitThread();
+    }
+
+    void setThreadName(const std::string& sName)
+    {
+        m_sName = sName;
+    }
+
+    std::string getThreadName()
+    {
+        return m_sName;
+    }
+
+    void setFunctionPtr(ExecFunctionPtr_def pFunc, void *pData)
+    {
+        m_pExecFunction = pFunc;
+
+        m_pData = pData;
+    }
+
+    virtual void threadProc(void) override
+    {
+        if (m_pExecFunction != nullptr)
+        {
+            m_pExecFunction(m_pData);
+        }
+    }
+
+    void exitThread()
+    {
+        {
+            m_bThreadExitFlag = true;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+};
+
 
 
 class CGstWrapper
@@ -36,6 +118,8 @@ public:
         void            *m_pIoBuffer;
 
         bool            m_bNetData;
+
+        unsigned int    m_nMaxDataLen;
 
         unsigned int    m_nCurDataLen;
 
@@ -59,6 +143,7 @@ public:
 
             m_bNetData = false;
 
+            m_nMaxDataLen = 0;
             m_nCurDataLen = 0;
 
             m_bIsLocked = false;
@@ -101,6 +186,8 @@ public:
             {
                 return false;
             }
+
+            m_nMaxDataLen = nSize;
 
             return true;            
         }
@@ -246,6 +333,18 @@ public:
             return nOut;
         }
 
+        unsigned int getMaxDataLen()
+        {
+            if (m_pIoBuffer == nullptr)
+            {
+                return 0;
+            }
+
+            m_bIsLocked = true;
+
+            return m_nMaxDataLen;
+        }
+
         void SetMediaType(eMediaType eType)
         {
             m_mediaType = eType;
@@ -309,10 +408,12 @@ public:
         GstBus          *m_pBus;
         GstMessage      *m_pMsg;
 
+        GMainLoop       *m_pBusLoop;
+
         GstElement      *m_pPipeline;
 
         GstAppSrc       *m_pAppsrc;
-        GstElement      *m_pAppsink;
+        GstAppSink      *m_pAppsink;
 
         gboolean        m_bQuit;
 
@@ -324,12 +425,16 @@ public:
 
         bool            m_bPipelineActive;
 
+        std::string     m_sLastError;
+
         ControlData_tag()
         {
             m_bGstInitialized = false;
 
             m_pBus = nullptr;
             m_pMsg = nullptr;
+
+            m_pBusLoop = nullptr;
 
             m_pPipeline = nullptr;
 
@@ -339,6 +444,8 @@ public:
             m_bQuit = false;
 
             m_bPipelineActive = false;
+
+            m_sLastError = "";
         }
 
         bool createFrameBuffer(eMediaType eType)
@@ -395,6 +502,12 @@ protected:
     InitParamList_def           m_paramList;
 
     ControlData_def             m_controlData;
+
+    CExecThread                 m_budLoopExecThread;
+
+    // Protected function defs
+
+    static void RunBusLoop(void *pData);
 
 public:
 
@@ -455,7 +568,7 @@ public:
 
     GstBuffer * CreateAndFillBuffer(const unsigned char *pData, const unsigned int nSize);
 
-    bool FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, const unsigned int nSize);
+    bool FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, const unsigned int nSize, const std::string sFourCC = "");
 
     // Function to push buffers into the pipeline
     bool WriteToPipeline(GstBuffer* pBuffer);
@@ -510,6 +623,20 @@ public:
     }
 
     void Release();
+
+    std::string GetLastError()
+    {
+        auto sOut = m_controlData.m_sLastError;
+
+        m_controlData.m_sLastError = "";
+
+        return sOut;
+    }
+
+    bool ReceivedEStopSignal()
+    {
+        return m_controlData.m_bQuit;
+    }
 
 };
 
