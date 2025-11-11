@@ -4,6 +4,15 @@
 ///             Defines functions & classes for CGstWrapper::
 ///
 
+///
+///     If you want to get GStreamer input samples:
+///     #define USE_GST_SAMPLE_CALLBACK
+///
+///       - OR -
+/// 
+///     Call 'PullSampleFromAppSink' at required interval 
+/// 
+
 
 #include "GstWrapper.h"
 
@@ -12,6 +21,69 @@
 #include <chrono>
 
 #include "../String/StrUtils.h"
+
+
+static bool gst_find_All_elementts(GstBin* pBin,  gstElementList_def& elementList)
+{
+    if (pBin == nullptr)
+    {
+        return false;
+    }
+
+    GstIterator* it = gst_bin_iterate_elements(pBin);
+
+    GValue item = G_VALUE_INIT;
+
+    bool bDone = false;
+
+    while (bDone == false)
+    {
+        auto status = gst_iterator_next(it, &item);
+
+        switch (status)
+        {
+        case GST_ITERATOR_OK: 
+            {
+                GstElement* pElement = 
+                    (GstElement*)g_value_get_object(&item);
+
+                elementList.push_back(SGstElementInfo_def(pElement));
+
+                g_value_unset(&item);
+            }
+            break;
+
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(it);
+            break;
+        
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+        default:
+            bDone = TRUE;
+            break;
+        }
+    }
+
+    gst_iterator_free(it);
+
+    return true;
+}
+
+
+bool listAllPipelineElements(GstPipeline *pPipeline, gstElementList_def &elementList)
+{
+    if (pPipeline == nullptr)
+    {
+        return false;
+    }
+
+    GstBin *pBin = GST_BIN(pPipeline);
+
+    gst_find_All_elementts(pBin, elementList);
+
+    return true;
+}
 
 
 // Callback function for new samples from appsink
@@ -31,11 +103,11 @@ static GstFlowReturn gst_new_sample_callback
         return GST_FLOW_ERROR;
     }
 
+    pControlData->m_mediaBuffer.clear();
+
     GstSample* pSample = nullptr;
     GstBuffer* pBuffer = nullptr;
     GstCaps* pMediaCaps = nullptr;
-
-    GstMapInfo map_info;
 
     // Pull the sample from the appsink
     g_signal_emit_by_name(pSink, "pull-sample", &pSample);
@@ -86,8 +158,12 @@ static GstFlowReturn gst_new_sample_callback
 
         if (pBuffer == nullptr)
         {
+            gst_sample_unref(pSample);
+
             return GST_FLOW_ERROR;
         }
+
+        GstMapInfo map_info;
 
         // Map the buffer to access its m_controlData
         if (gst_buffer_map(pBuffer, &map_info, GST_MAP_READ))
@@ -120,6 +196,10 @@ static GstFlowReturn gst_new_sample_callback
                     
                     if (pControlData->m_mediaBuffer.allocate(nCopySize) == false)
                     {
+                        //gst_buffer_unref(pBuffer);
+
+                        gst_sample_unref(pSample);
+
                         return GST_FLOW_ERROR;
                     }
                 }
@@ -134,11 +214,19 @@ static GstFlowReturn gst_new_sample_callback
 
                     if (pControlData->m_mediaBuffer.allocate(nCopySize) == false)
                     {
+                        //gst_buffer_unref(pBuffer);
+
+                        gst_sample_unref(pSample);
+
                         return GST_FLOW_ERROR;
                     }
                 }
                 else
                 {
+                    //gst_buffer_unref(pBuffer);
+
+                    gst_sample_unref(pSample);
+
                     return GST_FLOW_ERROR;
                 }
             }
@@ -159,8 +247,14 @@ static GstFlowReturn gst_new_sample_callback
         {
             // Problem mapping GstBuffer
 
+            //gst_buffer_unref(pBuffer);
+
+            gst_sample_unref(pSample);
+
             return GST_FLOW_ERROR;
         }
+
+        //gst_buffer_unref(pBuffer);
 
         gst_sample_unref(pSample);
 
@@ -191,6 +285,8 @@ static gboolean gst_bus_callback
     switch (type) 
     {
     case GST_MESSAGE_ERROR: 
+    case GST_MESSAGE_WARNING:
+    case GST_MESSAGE_INFO:
         {
             GError* err;
             gchar* debug_info;
@@ -217,7 +313,7 @@ static gboolean gst_bus_callback
 
             pControlData->m_bQuit = true;
         }
-        break;
+        return false;
 
     case GST_MESSAGE_EOS: 
         {
@@ -227,19 +323,28 @@ static gboolean gst_bus_callback
 
             pControlData->m_bQuit = true;
         }
-        break;
+        //break;
+        return false;
 
     case GST_MESSAGE_STATE_CHANGED: 
         {
             // Optional: Handle state changes if needed
+
         }
         break;
 
-    default:
+    case GST_MESSAGE_PROGRESS:
+    case GST_MESSAGE_DEVICE_ADDED:
+    case GST_MESSAGE_DEVICE_REMOVED:
+    case GST_MESSAGE_DEVICE_CHANGED:
+    case GST_MESSAGE_ANY:
         break;
+
+    default:
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -253,6 +358,28 @@ void CGstWrapper::RunBusLoop(void *pData)
     CGstWrapper::ControlData_def *pControlData = (CGstWrapper::ControlData_def *) pData;
 
     g_main_loop_run(pControlData->m_pBusLoop);
+}
+
+
+
+void CGstWrapper::releaseAllElements()
+{
+    if (m_controlData.m_elementsList.size() > 0)
+    {
+        auto i = m_controlData.m_elementsList.begin();
+
+        while (i != m_controlData.m_elementsList.end())
+        {
+            if ((*i).m_pElement != nullptr)
+            { 
+                gst_object_unref((*i).m_pElement);
+            }
+
+            m_controlData.m_elementsList.erase(i);
+
+            i = m_controlData.m_elementsList.begin();
+        }
+    }
 }
 
 
@@ -292,6 +419,63 @@ bool CGstWrapper::Initialize()
 
     return true;
 }
+
+
+bool CGstWrapper::BuildPipeline(const std::string& sPipeline)
+{
+    if (sPipeline == "")
+    {
+        m_controlData.m_sLastError = "Invalid param";
+        return false;
+    }
+
+    try
+    {
+        if (m_controlData.m_bGstInitialized == false)
+        {
+            Initialize();
+        }
+
+        // Build the pipeline using gst_parse_launch
+
+        GError* pGError = nullptr;
+
+        auto pPipeline =
+            gst_parse_launch(sPipeline.c_str(), &pGError);
+
+        if (pPipeline == nullptr)
+        {
+            m_controlData.m_sLastError = (pGError->message);
+
+            g_clear_error(&pGError);
+
+            return false;
+        }
+
+        m_controlData.m_pPipeline = GST_PIPELINE(pPipeline);
+
+        if (m_controlData.m_pPipeline == nullptr)
+        {
+            m_controlData.m_sLastError = "Invalid pipeline pointer";
+            return false;
+        }
+
+        if (listAllPipelineElements(m_controlData.m_pPipeline, m_controlData.m_elementsList))
+        {
+            m_controlData.m_sLastError = "problem while creating pipeline elements list";
+        }
+    }
+    catch (...)
+    {
+        m_controlData.m_sLastError = "Unknown exception";
+        return false;
+    }
+
+    m_controlData.m_sLastError = "";
+
+    return true;
+}
+
 
 
 bool CGstWrapper::BuildInputPipeline
@@ -343,28 +527,12 @@ bool CGstWrapper::BuildInputPipeline
         }
     }
 
-    //GstStateChangeReturn ret;
-
     try
     {
-        if (m_controlData.m_bGstInitialized == false)
-        {
-            Initialize();
-        }
-
         // Build the pipeline using gst_parse_launch
 
-        GError *pGError = nullptr;
-
-        m_controlData.m_pPipeline = 
-            gst_parse_launch(sPipeline.c_str(), &pGError);
-
-        if (m_controlData.m_pPipeline == nullptr)
+        if (BuildPipeline(sPipeline) == false)
         {
-            m_controlData.m_sLastError =  (pGError->message);
-
-            g_clear_error(&pGError);
-
             return false;
         }
 
@@ -375,7 +543,6 @@ bool CGstWrapper::BuildInputPipeline
 
         if (pSink == nullptr)
         {
-            m_controlData.m_sLastError = "Invalid AppSink element";
             return false;
         }
 
@@ -385,19 +552,21 @@ bool CGstWrapper::BuildInputPipeline
 
         if (m_controlData.m_pAppsink == nullptr)
         {
-            m_controlData.m_sLastError = "Invalid AppSink pointer";
             return false;
         }
 
-        // Configure appsink
+        // Configure AppSink
 
-        gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, TRUE);
-        gst_app_sink_set_drop(m_controlData.m_pAppsink, TRUE);
-        gst_app_sink_set_max_buffers(m_controlData.m_pAppsink, 1);
-
-        g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(gst_new_sample_callback), &m_controlData);
-
+        //g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, NULL);
         g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
+
+        //gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, TRUE);
+        //gst_app_sink_set_drop(m_controlData.m_pAppsink, TRUE);
+        //gst_app_sink_set_max_buffers(m_controlData.m_pAppsink, 1);
+
+#ifdef USE_GST_SAMPLE_CALLBACK
+        g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(gst_new_sample_callback), &m_controlData);
+#endif
     }
     catch (...)
     {
@@ -450,23 +619,19 @@ bool CGstWrapper::BuildOutputPipeline
         return false;
     }
 
-    //GstStateChangeReturn ret;
-
     try
     {
         // Build the pipeline using gst_parse_launch
 
-        GError* pGError = nullptr;
-
-        m_controlData.m_pPipeline = 
-            gst_parse_launch(sPipeline.c_str(), &pGError);
-
-        if (m_controlData.m_pPipeline == nullptr)
+        if (BuildPipeline(sPipeline) == false)
         {
-            m_controlData.m_sLastError = (pGError->message);
+            return false;
+        }
 
-            g_clear_error(&pGError);
+        // Build the pipeline using gst_parse_launch
 
+        if (BuildPipeline(sPipeline) == false)
+        {
             return false;
         }
 
@@ -491,7 +656,7 @@ bool CGstWrapper::BuildOutputPipeline
             return false;
         }
 
-        // Configure appsrc
+        // Configure Appsrc
 
         g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
     }
@@ -557,23 +722,12 @@ bool CGstWrapper::BuildIoPipeline
         }
     }
 
-    //GstStateChangeReturn ret;
-
     try
     {
         // Build the pipeline using gst_parse_launch
 
-        GError* pGError = nullptr;
-
-        m_controlData.m_pPipeline = 
-            gst_parse_launch(sPipeline.c_str(), &pGError);
-
-        if (m_controlData.m_pPipeline == nullptr)
+        if (BuildPipeline(sPipeline) == false)
         {
-            m_controlData.m_sLastError = (pGError->message);
-
-            g_clear_error(&pGError);
-
             return false;
         }
 
@@ -598,7 +752,7 @@ bool CGstWrapper::BuildIoPipeline
             return false;
         }
 
-        // Configure AppSink
+        // Configure Appsrc
 
         g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
 
@@ -765,7 +919,7 @@ bool CGstWrapper::FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, 
 
         // Copy video m_controlData into map.m_controlData
 
-        memcpy(pFrameData, pData, nSize);
+        memcpy(pFrameData, pData, nCopySize);
 
         gst_buffer_unmap(pBuffer, &map_info);
 
@@ -782,11 +936,138 @@ bool CGstWrapper::FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, 
 
 // Function to push buffers into the pipeline
 
+bool CGstWrapper::PullSampleFromAppSink
+    (
+        void *pTarget, 
+        const unsigned int nBufferSize, 
+        SMediaInfo &mediaInfo
+    )
+{
+    mediaInfo.m_nCurDataLen = 0;
+
+    if (m_controlData.m_pAppsink == nullptr)
+    {
+        m_controlData.m_sLastError = "Invalid appSink ptr";
+        return false;
+    }
+
+    m_controlData.m_mediaBuffer.clear();
+
+    auto pSample = gst_app_sink_pull_sample(GST_APP_SINK(m_controlData.m_pAppsink));
+
+    if (pSample != nullptr)
+    {
+        auto pMediaCaps = gst_sample_get_caps(pSample);
+
+        if (pMediaCaps != nullptr)
+        {
+            auto numCapsEntried = gst_caps_get_size(pMediaCaps);
+
+            for (unsigned int c = 0; c < numCapsEntried; c++)
+            {
+                GstStructure* structure = gst_caps_get_structure(pMediaCaps, c);
+
+                if (structure != nullptr)
+                {
+                    if (mediaInfo.m_eMediaType == CGstWrapper::eMediaType::eMediaType_unknown)
+                    {
+                        std::string sMediaStr = gst_structure_get_name(structure);
+
+                        if (StrUtils::strCompare(sMediaStr, "video", 5) == 0)
+                        {
+                            mediaInfo.m_eMediaType = CGstWrapper::eMediaType::eMediaType_video;
+                        }
+                        else if (StrUtils::strCompare(sMediaStr, "audio", 5) == 0)
+                        {
+                            mediaInfo.m_eMediaType = CGstWrapper::eMediaType::eMediaType_audio;
+                        }
+                    }
+
+                    if (mediaInfo.m_sFourCC == "")
+                    {
+                        auto mediaFormat = gst_structure_get_string(structure, "format");
+
+                        mediaInfo.m_sFourCC = mediaFormat;
+                    }
+                }
+            }
+        }
+
+        auto pBuffer = gst_sample_get_buffer(pSample);
+
+        if (pBuffer == nullptr)
+        {
+            gst_sample_unref(pSample);
+
+            return false;
+        }
+
+        GstMapInfo map_info;
+
+        // Map the buffer to access its m_controlData
+        if (gst_buffer_map(pBuffer, &map_info, GST_MAP_READ))
+        {
+            // Copy the frame m_controlData to the application IO buffer
+            // Ensure the frame buffer is allocated with enough memory (width * height * bytes_per_pixel)
+
+            auto pFrameData = map_info.data;
+
+            unsigned int nCopySize = (unsigned int)map_info.size;
+
+            mediaInfo.m_nCurDataLen = nCopySize;
+
+            if (nCopySize > nBufferSize)
+            {
+                // If the current data size > size of mediaBuffer...
+
+                //gst_buffer_unref(pBuffer);
+
+                gst_sample_unref(pSample);
+
+                return false;
+            }
+
+            memcpy(pTarget, pFrameData, nCopySize);
+
+            gst_buffer_unmap(pBuffer, &map_info);
+
+            m_controlData.m_mediaBuffer.setHasData(true);
+        }
+        else
+        {
+            // Problem mapping GstBuffer
+
+            //gst_buffer_unref(pBuffer);
+
+            gst_sample_unref(pSample);
+
+            return false;
+        }
+
+        //gst_buffer_unref(pBuffer);
+
+        gst_sample_unref(pSample);
+
+        return true;
+    }
+
+    return false;
+}
+
+
+// Function to push buffers into the pipeline
+
 bool CGstWrapper::WriteToPipeline(GstBuffer* pBuffer)
 {
-    if (m_controlData.m_pAppsrc == nullptr || pBuffer == nullptr)
+    if (pBuffer == nullptr)
     {
         m_controlData.m_sLastError = "Invalid param";
+        return false;
+    }
+
+    if (m_controlData.m_pAppsrc == nullptr)
+    {
+        m_controlData.m_sLastError = "Invalid appSrc ptr";
         return false;
     }
 
@@ -841,7 +1122,7 @@ bool CGstWrapper::StartPipeline()
     GstStateChangeReturn ret;
 
     // Set the pipeline to PLAYING state
-    ret = gst_element_set_state(m_controlData.m_pPipeline, GST_STATE_PLAYING);
+    ret = gst_element_set_state((GstElement *) m_controlData.m_pPipeline, GST_STATE_PLAYING);
 
     if (ret == GST_STATE_CHANGE_FAILURE) 
     {
@@ -850,7 +1131,7 @@ bool CGstWrapper::StartPipeline()
 
     if (m_controlData.m_pBus == nullptr)
     { 
-        m_controlData.m_pBus = gst_element_get_bus(m_controlData.m_pPipeline);
+        m_controlData.m_pBus = gst_element_get_bus((GstElement*) m_controlData.m_pPipeline);
     }
 
     if (m_controlData.m_pBus == nullptr)
@@ -858,13 +1139,18 @@ bool CGstWrapper::StartPipeline()
         return false;
     }
 
-    gst_bus_add_watch(m_controlData.m_pBus, gst_bus_callback, &m_controlData);
+#ifdef USE_GST_SAMPLE_CALLBACK
+    if (m_controlData.m_pAppsink != nullptr)
+    {
+        gst_bus_add_watch(m_controlData.m_pBus, gst_bus_callback, &m_controlData);
 
-    m_budLoopExecThread.setName("GstBudLoopExecThread");
+        //auto runBusLoopAsync = std::async(std::launch::async, RunBusLoop, (void*) &m_controlData);
 
-    m_budLoopExecThread.setFunctionPtr((ExecFunctionPtr_def) RunBusLoop, (void *) &m_controlData);
-
-    m_budLoopExecThread.createThread();
+        std::thread runBusLoopAsync(RunBusLoop, (void*)&m_controlData);
+        
+        runBusLoopAsync.detach();
+    }
+#endif
 
     m_controlData.m_bPipelineActive = true;
 
@@ -874,7 +1160,7 @@ bool CGstWrapper::StartPipeline()
 
 bool CGstWrapper::StopPipeline()
 {
-    if (m_controlData.m_bPipelineActive == true)
+    if (m_controlData.m_bPipelineActive == false)
     {
         return false;
     }    
@@ -886,12 +1172,17 @@ bool CGstWrapper::StopPipeline()
     GstState lastState;
     GstState PendingState;
 
-    ret = gst_element_get_state(m_controlData.m_pPipeline, &lastState, &PendingState, 100);
+    try
+    { 
+        ret = gst_element_get_state((GstElement*) m_controlData.m_pPipeline, &lastState, &PendingState, 100);
         
-    if (ret == GST_STATE_CHANGE_FAILURE)
-    {
-        return false;
+        if (ret == GST_STATE_CHANGE_FAILURE)
+        {
+            return false;
+        }
     }
+    catch (...)
+    {}
 
     if (lastState == GST_STATE_NULL)
     {
@@ -900,13 +1191,7 @@ bool CGstWrapper::StopPipeline()
 
     std::this_thread::sleep_for(std::chrono::microseconds(10));
 
-    // Set the pipeline to PLAYING state
-    ret = gst_element_set_state(m_controlData.m_pPipeline, GST_STATE_NULL);
-
-    if (ret == GST_STATE_CHANGE_FAILURE)
-    {
-        return false;
-    }
+    m_controlData.stopPipeline();
 
     m_controlData.m_bPipelineActive = false;
 
@@ -919,32 +1204,53 @@ void CGstWrapper::Release()
     if (m_controlData.m_bPipelineActive == true)
     {
         StopPipeline();
-    }
 
-    // Free resources
+        // Free resources
 
-    if (m_controlData.m_pPipeline != nullptr)
-    {
-        GstEvent* eos_event = gst_event_new_eos();
+        if (m_controlData.m_pPipeline != nullptr)
+        {
+            GstEvent* eos_event = gst_event_new_eos();
 
-        gst_element_send_event(m_controlData.m_pPipeline, eos_event);
+            gst_element_send_event((GstElement*) m_controlData.m_pPipeline, eos_event);
 
-        std::this_thread::sleep_for(std::chrono::microseconds(10));
+            //std::this_thread::sleep_for(std::chrono::microseconds(10));
 
-        gst_element_set_state(m_controlData.m_pPipeline, GST_STATE_NULL);
+            gst_element_set_state((GstElement*) m_controlData.m_pPipeline, GST_STATE_NULL);
 
-        std::this_thread::sleep_for(std::chrono::microseconds(10));
+            //std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
     }
 
     if (m_controlData.m_pBus != nullptr)
     { 
         gst_object_unref(m_controlData.m_pBus);
+
+        m_controlData.m_pBus = nullptr;
     }
 
     if (m_controlData.m_pPipeline != nullptr)
     { 
+        // make sure the pipeline is stopped
+
+        m_controlData.stopPipeline();
+
+        // look for a videoSink element
+
+        for (auto e = m_controlData.m_elementsList.cbegin(); e != m_controlData.m_elementsList.end(); e++)
+        {
+            if (GST_IS_VIDEO_SINK((*e).m_pElement))
+            {
+                gst_object_unref((*e).m_pElement);
+            }
+        }
+
+        // release the pipeline
+
         gst_object_unref(m_controlData.m_pPipeline);
+
+        m_controlData.m_pPipeline = nullptr;
     }
+
 }
 
 

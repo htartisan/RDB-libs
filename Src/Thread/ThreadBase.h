@@ -37,7 +37,9 @@
 #include "../Logging/Logging.h"
 
 
-typedef std::unique_ptr<std::thread>    ThreadHandle_def;
+//typedef std::unique_ptr<std::thread>      ThreadHandle_def;
+//typedef std::shared_ptr<std::thread>      ThreadHandle_def;
+typedef std::thread*                        ThreadHandle_def;
 
 
 // Thread base class
@@ -146,7 +148,8 @@ class CThreadBase
         {
 #if defined(WINDOWS)
             // Windows - set thread name
-            SetThreadDescription(m_threadHandle.get(), (PCWSTR)sName.c_str());
+            //SetThreadDescription(m_threadHandle.get(), (PCWSTR)sName.c_str());
+            SetThreadDescription(m_threadHandle, (PCWSTR)sName.c_str());
             //Std::setStdThreadName(m_sName, m_threadHandle.get());
 #elif defined(__QNX__)
             // QNX - set thread name
@@ -215,7 +218,7 @@ class CThreadBase
 
     ~CThreadBase()
     {
-        stopThread(true);
+        killThread();
     }
 
     void setName(const std::string& sName)
@@ -249,11 +252,10 @@ class CThreadBase
         }
 
         // Start the AWE audio I/O pump thread
-#ifdef USE_STATIC_THREAD_EXEC
-        m_threadHandle = std::make_unique<std::thread>(&CThreadBase::newThread, this);
-#else
-        m_threadHandle = std::make_unique<std::thread>(&CThreadBase::newThread, this);
-#endif
+
+        //m_threadHandle = std::make_shared<std::thread>(&CThreadBase::newThread, this);
+        //m_threadHandle = std::make_unique<std::thread>(&CThreadBase::newThread, this);
+        m_threadHandle = new std::thread(&CThreadBase::newThread, this);
 
         if (m_threadHandle == nullptr)
         {
@@ -276,7 +278,48 @@ class CThreadBase
 
         if (m_running == true)
         {
-            joinThread();
+            if (m_threadHandle != nullptr)
+            { 
+                m_threadHandle->join();
+
+                m_threadHandle = nullptr;
+            }
+
+            m_running = false;
+        }
+    }
+
+    void killThread()
+    {
+        if (m_running == true)
+        {
+            m_bThreadExitFlag = true;
+
+            if (m_threadHandle != nullptr)
+            { 
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+                auto handle = m_threadHandle->native_handle();
+
+#if defined(WINDOWS)
+                ::TerminateThread(handle, 0);
+#else
+                pthread_kill(handle, 0);
+#endif
+
+                try
+                {
+                    //m_threadHandle.reset();;
+                    //m_threadHandle.release()
+                    //delete m_threadHandle;
+
+                    m_threadHandle = nullptr;
+                }
+                catch(...)
+                { }
+            }
+
+            m_running = false;
         }
     }
 

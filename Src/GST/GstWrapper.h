@@ -10,12 +10,15 @@
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
+#include <gst/video/video.h>
+#include <gst/audio/audio.h>
 
 #include <glib.h>
 
 #include <string>
 #include <vector>
 #include <mutex>
+#include <future> 
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -26,77 +29,43 @@
 #include "../Thread/ThreadBase.h"
 
 
-
-typedef void (*ExecFunctionPtr_def)(void * pData);
-
-
-/// @class CExecThread
-/// A class to manage a thread to execute a function
-class CExecThread :
-    public CThreadBase
+typedef struct SGstElementInfo_tag
 {
-    ExecFunctionPtr_def     m_pExecFunction;
+    GstElement*     m_pElement;
 
-    void                    *m_pData;
+    GType           m_elementType;
 
-public:
+    std::string     m_sElementName;     
 
-    CExecThread() :
-        CThreadBase()
+    SGstElementInfo_tag()
     {
-        m_pExecFunction = nullptr;
+        m_pElement = nullptr;
 
-        m_pData = nullptr;
+        m_elementType = 0;
+
+        m_sElementName = "";
     }
-
-    CExecThread(const std::string& sName, int pri = 0) :
-        CThreadBase(sName, pri)
+    
+    SGstElementInfo_tag(GstElement* pElement)
     {
-        m_pExecFunction = nullptr;
+        m_pElement = pElement;
 
-        m_sName = sName;
-    }
-
-    ~CExecThread()
-    {
-        exitThread();
-    }
-
-    void setThreadName(const std::string& sName)
-    {
-        m_sName = sName;
-    }
-
-    std::string getThreadName()
-    {
-        return m_sName;
-    }
-
-    void setFunctionPtr(ExecFunctionPtr_def pFunc, void *pData)
-    {
-        m_pExecFunction = pFunc;
-
-        m_pData = pData;
-    }
-
-    virtual void threadProc(void) override
-    {
-        if (m_pExecFunction != nullptr)
+        if (m_pElement != nullptr)
         {
-            m_pExecFunction(m_pData);
+            m_elementType = G_OBJECT_TYPE(m_pElement);
+
+            m_sElementName = gst_element_get_name(m_pElement);
         }
     }
 
-    void exitThread()
-    {
-        {
-            m_bThreadExitFlag = true;
-        }
+}SGstElementInfo_def;
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
-};
 
+
+typedef std::vector<SGstElementInfo_def>       gstElementList_def;
+
+
+bool listAllPipelineElements(GstPipeline* pPipeline, gstElementList_def& elementList);
 
 
 class CGstWrapper
@@ -112,6 +81,23 @@ public:
         eMediaType_audio
     };
 
+    struct SMediaInfo
+    {
+        eMediaType      m_eMediaType;
+
+        std::string     m_sFourCC;
+        
+        unsigned int    m_nCurDataLen;
+
+        SMediaInfo()
+        {
+            m_eMediaType = eMediaType_unknown;
+
+            m_sFourCC = "";
+
+            m_nCurDataLen = 0;
+        }
+    };
 
     class CMediaBuffer
     {
@@ -121,8 +107,6 @@ public:
 
         unsigned int    m_nMaxDataLen;
 
-        unsigned int    m_nCurDataLen;
-
         std::mutex      m_buferMutex;
 
         std::mutex      m_hasDataMutex;
@@ -131,9 +115,7 @@ public:
 
         bool            m_bIsLocked;
 
-        eMediaType      m_mediaType;
-
-        std::string     m_sFourCC;
+        SMediaInfo      m_mediaInfo;
 
     public:
 
@@ -143,14 +125,7 @@ public:
 
             m_bNetData = false;
 
-            m_nMaxDataLen = 0;
-            m_nCurDataLen = 0;
-
             m_bIsLocked = false;
-
-            m_mediaType = eMediaType_unknown;
-
-            m_sFourCC = "";
         }
 
         ~CMediaBuffer()
@@ -176,11 +151,11 @@ public:
 
             m_pIoBuffer = calloc(nSize, sizeof(uint8_t));
 
+            m_mediaInfo.m_nCurDataLen = 0;
+
             m_buferMutex.unlock();
 
             m_bIsLocked = false;
-
-            m_nCurDataLen = 0;
 
             if (m_pIoBuffer == nullptr)
             {
@@ -215,13 +190,35 @@ public:
 
             ::free(m_pIoBuffer);
 
+            m_mediaInfo.m_nCurDataLen = 0;
+
             m_pIoBuffer = nullptr;
 
             m_buferMutex.unlock();
 
             m_bIsLocked = false;
 
-            m_nCurDataLen = 0;
+            return true;
+        }
+
+        bool clear()
+        {
+            if (m_pIoBuffer == nullptr)
+            {
+                return false;
+            }
+
+            m_bIsLocked = true;
+
+            m_buferMutex.lock();
+
+            m_mediaInfo.m_nCurDataLen = 0;
+
+            m_bNetData = false;
+
+            m_buferMutex.unlock();
+
+            m_bIsLocked = false;
 
             return true;
         }
@@ -295,7 +292,7 @@ public:
 
             m_dataLenMutex.lock();
 
-            m_nCurDataLen = nLen;;
+            m_mediaInfo.m_nCurDataLen = nLen;;
 
             if (nLen == 0)
             {
@@ -324,7 +321,7 @@ public:
 
             m_buferMutex.lock();
 
-            auto nOut = m_nCurDataLen;
+            auto nOut = m_mediaInfo.m_nCurDataLen;
 
             m_buferMutex.unlock();
 
@@ -347,22 +344,22 @@ public:
 
         void SetMediaType(eMediaType eType)
         {
-            m_mediaType = eType;
+            m_mediaInfo.m_eMediaType = eType;
         }
 
         eMediaType GetMediaType()
         {
-            return m_mediaType;
+            return m_mediaInfo.m_eMediaType;
         }
 
         void SetFourCC(const std::string sFourCC)
         {
-            m_sFourCC = sFourCC;
+            m_mediaInfo.m_sFourCC = sFourCC;
         }
 
         std::string GetFourCC()
         {
-            return m_sFourCC;
+            return m_mediaInfo.m_sFourCC;
         }
     };
 
@@ -403,29 +400,31 @@ public:
     // Structure to hold custom data
     typedef struct ControlData_tag
     {
-        bool            m_bGstInitialized;
+        bool                m_bGstInitialized;
 
-        GstBus          *m_pBus;
-        GstMessage      *m_pMsg;
+        GstBus              *m_pBus;
+        GstMessage          *m_pMsg;
 
-        GMainLoop       *m_pBusLoop;
+        GMainLoop           *m_pBusLoop;
 
-        GstElement      *m_pPipeline;
+        GstPipeline         *m_pPipeline;
 
-        GstAppSrc       *m_pAppsrc;
-        GstAppSink      *m_pAppsink;
+        gstElementList_def  m_elementsList;     // A std::vvector with a list of pipeline element pointers
 
-        gboolean        m_bQuit;
+        GstAppSrc           *m_pAppsrc;
+        GstAppSink          *m_pAppsink;
 
-        VideoConfig_def m_videoConfig;
+        gboolean            m_bQuit;
 
-        AudioConfig_def m_audioConfig;
+        VideoConfig_def     m_videoConfig;
 
-        CMediaBuffer    m_mediaBuffer;
+        AudioConfig_def     m_audioConfig;
 
-        bool            m_bPipelineActive;
+        CMediaBuffer        m_mediaBuffer;
 
-        std::string     m_sLastError;
+        bool                m_bPipelineActive;
+
+        std::string         m_sLastError;
 
         ControlData_tag()
         {
@@ -491,6 +490,60 @@ public:
             return m_mediaBuffer.free();
         }
 
+        bool isPipelineActive()
+        {
+            return m_bPipelineActive;
+        }
+
+        bool stopPipeline()
+        {
+            if (m_pPipeline != nullptr)
+            {
+                try
+                {
+                    // Set the pipeline to PLAYING state
+                    auto ret = gst_element_set_state((GstElement*) m_pPipeline, GST_STATE_NULL);
+
+                    if (ret == GST_STATE_CHANGE_FAILURE)
+                    {
+                        return false;
+                    }
+                }
+                catch (...)
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+#ifdef USE_GST_SAMPLE_CALLBACK
+            if (m_pBusLoop != nullptr)
+            {
+                if (g_main_loop_is_running(m_pBusLoop) != false)
+                {
+                    g_main_loop_quit(m_pBusLoop);
+
+                    unsigned int nCounter = 0;
+
+                    while (g_main_loop_is_running(m_pBusLoop) != false)
+                    {
+                        std::this_thread::sleep_for(std::chrono::microseconds(5));
+
+                        if (nCounter++ > 20)
+                        {
+                            break;
+                        }
+                    }
+
+                    m_pBusLoop = nullptr;
+                }
+            }
+#endif
+
+            return true;
+        }
+
     } ControlData_def;
 
     typedef std::vector<std::string>    InitParamList_def;
@@ -503,11 +556,11 @@ protected:
 
     ControlData_def             m_controlData;
 
-    CExecThread                 m_budLoopExecThread;
-
     // Protected function defs
 
     static void RunBusLoop(void *pData);
+
+    void releaseAllElements();
 
 public:
 
@@ -517,6 +570,7 @@ public:
 
     ~CGstWrapper()
     {
+        Release();
     }
 
     bool SetParamList(InitParamList_def &paramList)
@@ -554,6 +608,8 @@ public:
         m_controlData.m_videoConfig.m_frameRate = nRate;
     }
 
+    bool BuildPipeline(const std::string& sPipeline);
+
     bool BuildInputPipeline(const std::string& sPipeline, const std::string& sAppSibk, const eMediaType eType);
 
     bool BuildOutputPipeline(const std::string& sPipeline, const std::string& sAppSource, const eMediaType eType);
@@ -569,6 +625,13 @@ public:
     GstBuffer * CreateAndFillBuffer(const unsigned char *pData, const unsigned int nSize);
 
     bool FillGstBuffer(GstBuffer* pBuffer, const unsigned char* pData, const unsigned int nSize, const std::string sFourCC = "");
+
+    bool PullSampleFromAppSink
+        (
+            void* pTarget,
+            const unsigned int nBufferSize,
+            SMediaInfo& mediaInfo
+        );
 
     // Function to push buffers into the pipeline
     bool WriteToPipeline(GstBuffer* pBuffer);
