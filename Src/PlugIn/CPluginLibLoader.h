@@ -165,14 +165,25 @@ public:
 
         if (m_hLib == nullptr)
         { 
+            std::string sAbsPath = "";
+
             if (m_sSharedLibSearchPath != "")
             { 
-                std::string sAbsPath = getAbsolutePath(m_sSharedLibSearchPath);
-                std::wstring wsPath = StrUtils::tows(sAbsPath.c_str());
+                try
+                { 
+                    sAbsPath = getAbsolutePath(m_sSharedLibSearchPath);
+                    std::wstring wsPath = StrUtils::tows(sAbsPath.c_str());
 
-                auto status = AddDllDirectory(wsPath.c_str());
+                    auto status = AddDllDirectory(wsPath.c_str());
 
-                if (status == 0)
+                    if (status == 0)
+                    {
+                        std::string sErrText = ("Problem while adding DLL serach folder: ");
+                        sErrText.append(sAbsPath);
+                        SetErrorText(sErrText);
+                    }
+                }
+                catch (...)
                 {
                     std::string sErrText = ("Problem while adding DLL serach folder: ");
                     sErrText.append(sAbsPath);
@@ -180,9 +191,18 @@ public:
                 }
             }
 
-            std::string sAbsPath = getAbsolutePath(m_sFilePath);
+            try
+            { 
+                sAbsPath = getAbsolutePath(m_sFilePath);
 
-            m_hLib = LoadLibrary(sAbsPath.c_str());
+                m_hLib = LoadLibrary(sAbsPath.c_str());
+            }
+            catch (...)
+            {
+                std::string sErrText = ("Problem while loading shared library: ");
+                sErrText.append(sAbsPath);
+                SetErrorText(sErrText);
+            }
         }
 
         if (m_hLib == nullptr)
@@ -220,14 +240,25 @@ public:
         }
         catch (...)
         {
-
+            std::string sErrText = ("Problem getting entry pointer for shared library: ");
+            sErrText.append(m_sFilePath);
+            SetErrorText(sErrText);
         }
 
 #else
 
         if (m_hLib == nullptr)
         {
-            m_hLib = dlopen(m_sFilePath.c_str(), RTLD_LAZY | /*RTLD_NOW |*/ RTLD_GLOBAL);
+            try
+            { 
+                m_hLib = dlopen(m_sFilePath.c_str(), RTLD_LAZY | /*RTLD_NOW |*/ RTLD_GLOBAL);
+            }
+            catch (...)
+            {
+                std::string sErrText = ("Problem while loading shared library: ");
+                sErrText.append(m_sFilePath);
+                SetErrorText(sErrText);
+            }
         }
 
         if (m_hLib == nullptr)
@@ -251,6 +282,9 @@ public:
         }
         catch(...)
         {
+            std::string sErrText = ("Problem getting entry pointer for shared library: ");
+            sErrText.append(m_sFilePath);
+            SetErrorText(sErrText);
         }
 
 #endif

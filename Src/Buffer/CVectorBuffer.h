@@ -18,7 +18,9 @@
 #include "../Error/CError.h"
 
 
-template <typename T> class CVectorBuffer: public CErrorHandler
+template <typename T> 
+class CVectorBuffer: 
+    public CErrorHandler
 {
     std::vector<T> m_dataBuffer;
     size_t         m_maxSize;
