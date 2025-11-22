@@ -145,6 +145,125 @@ inline std::string toUpper(const std::string& sIn)
 }
 
 
+inline std::string removeAllSpaces(const std::string& sIn, bool bRemoveTabs = true) 
+{
+	std::string sOut = "";
+
+	if (sIn == "")
+	{
+		return sOut;
+	}
+
+	int x = 0;
+
+	for (auto c = sIn.begin(); c != sIn.end(); c++)
+	{ 
+		if (bRemoveTabs == false)
+		{
+			if ((*c) != ' ')
+			{
+				sOut[x++] = (*c);
+			}
+		}
+		else
+		{
+			// Checks for any whitespace character, including spaceand tab
+			
+			if (std::isspace((int) (*c)) == 0)
+			{ 
+				sOut[x++] = (*c);
+			}
+		}
+	}
+
+	return sOut;
+}
+
+
+inline std::string removeLeadingSpaces(const std::string& sIn, bool bRemoveTabs = true)
+{
+	std::string sOut = "";
+
+	if (sIn == "")
+	{
+		return sOut;
+	}
+
+	int x = 0;
+
+	for (auto c = sIn.begin(); c != sIn.end(); c++)
+	{
+		if (bRemoveTabs == false)
+		{
+			// checks for a space char
+
+			if ((*c) != ' ')
+			{
+				break;
+			}
+		}
+		else
+		{
+			// Checks for any whitespace character, including spaceand tab
+
+			if (std::isspace((int)(*c)) != 0)
+			{
+				break;
+			}
+		}
+
+		x++;
+	}
+
+	sOut = sIn.substr(x);
+
+	return sOut;
+}
+
+
+inline std::string removeTrailingSpaces(const std::string& sIn, bool bRemoveTabs = true)
+{
+	std::string sOut = "";
+
+	if (sIn == "")
+	{
+		return sOut;
+	}
+
+	int x = 0;
+
+	for (auto c = sIn.rbegin(); c != sIn.rend(); ++c)
+	{
+		if (bRemoveTabs == false)
+		{
+			// checks for a space char
+
+			if ((*c) != ' ')
+			{
+				break;
+			}
+		}
+		else
+		{
+			// Checks for any whitespace character, including spaceand tab
+
+			if (std::isspace((int)(*c)) != 0)
+			{
+				break;
+			}
+		}
+
+		x++;
+	}
+
+	auto len = (sIn.length() - x);
+
+	sOut = sIn.substr(0, len);
+
+	return sOut;
+}
+
+
 //#define toString(x)	tos(x)
 
 //***************************************************************
