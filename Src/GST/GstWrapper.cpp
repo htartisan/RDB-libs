@@ -23,7 +23,7 @@
 #include "../String/StrUtils.h"
 
 
-static bool gst_find_All_elementts(GstBin* pBin,  gstElementList_def& elementList)
+static bool gst_find_All_elementts(GstBin* pBin,  GstElementList_def& elementList)
 {
     if (pBin == nullptr)
     {
@@ -47,7 +47,7 @@ static bool gst_find_All_elementts(GstBin* pBin,  gstElementList_def& elementLis
                 GstElement* pElement = 
                     (GstElement*)g_value_get_object(&item);
 
-                elementList.push_back(SGstElementInfo_def(pElement));
+                elementList.push_back(GstElementInfo_def(pElement));
 
                 g_value_unset(&item);
             }
@@ -71,7 +71,7 @@ static bool gst_find_All_elementts(GstBin* pBin,  gstElementList_def& elementLis
 }
 
 
-bool listAllPipelineElements(GstPipeline *pPipeline, gstElementList_def &elementList)
+bool listAllPipelineElements(GstPipeline *pPipeline, GstElementList_def &elementList)
 {
     if (pPipeline == nullptr)
     {
@@ -416,6 +416,112 @@ bool CGstWrapper::Initialize()
     m_controlData.m_bGstInitialized = true;
 
     m_controlData.m_pBusLoop = g_main_loop_new(NULL, FALSE);
+
+    return true;
+}
+
+
+bool CGstWrapper::AddElementToList(const std::string& sElement, GstElementList_def& elementList)
+{
+    if (sElement == "")
+    {
+        m_controlData.m_sLastError = "Invalid param";
+        return false;
+    }
+
+    auto pElement = gst_element_factory_make(sElement.c_str(), nullptr);
+
+    if (pElement == nullptr)
+    {
+        return false;
+    }
+
+    GstElementInfo_def     gstElement;
+
+    gstElement.m_sElementName = gst_element_get_name(pElement);
+    gstElement.m_pElement = pElement;
+    gstElement.m_elementType = G_OBJECT_TYPE(pElement);
+
+    elementList.push_back(gstElement);
+
+    return true;
+}
+
+
+bool CGstWrapper::BuildPipeline(GstElementList_def& elementList)
+{
+    if (elementList.size() < 2)
+    {
+        m_controlData.m_sLastError = "Invalid param";
+        return false;
+    }
+
+    if (m_controlData.m_pPipeline != nullptr)
+    {
+        m_controlData.m_sLastError = "Gst pipeline already created";
+        return false;
+    }
+
+    try
+    {
+        // Create a Gst pipeline 
+
+        GstElement* pPipeline = gst_pipeline_new("gst-pipeline");
+
+        if (pPipeline == nullptr)
+        {
+            m_controlData.m_sLastError = "Unable to create pipeline";
+            return false;
+        }
+
+        // Add each element from the elementList to the pipeline
+
+        for (auto e = elementList.begin(); e != elementList.end(); e++)
+        {
+            if (gst_bin_add(GST_BIN(pPipeline), (*e).m_pElement) == false)
+            {
+                gst_object_unref(pPipeline);
+                m_controlData.m_sLastError = "Unable to create pipeline";
+                return false;
+            }
+        }
+
+        // Connect the elements in the pipeleine
+
+        int nGstCurrentElement = 0;
+
+        while (nGstCurrentElement + 1 < elementList.size())
+        {
+            if (elementList[nGstCurrentElement].m_pElement == nullptr)
+            {
+                gst_object_unref(pPipeline);
+                m_controlData.m_sLastError = "Unable to create pipeline";
+                return false;
+            }
+
+            if (elementList[nGstCurrentElement + 1].m_pElement == nullptr)
+            {
+                gst_object_unref(pPipeline);
+                m_controlData.m_sLastError = "Unable to create pipeline";
+                return false;
+            }
+
+            gst_element_link(elementList[nGstCurrentElement].m_pElement, elementList[nGstCurrentElement + 1].m_pElement);
+
+            nGstCurrentElement++;
+        }
+
+        m_controlData.m_pPipeline = GST_PIPELINE(pPipeline);
+
+        m_controlData.m_elementsList = elementList;
+    }
+    catch (...)
+    {
+        m_controlData.m_sLastError = "Unknown exception";
+        return false;
+    }
+
+    m_controlData.m_sLastError = "";
 
     return true;
 }

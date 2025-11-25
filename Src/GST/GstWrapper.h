@@ -29,7 +29,7 @@
 #include "../Thread/ThreadBase.h"
 
 
-typedef struct SGstElementInfo_tag
+typedef struct GstElementInfo_tag
 {
     GstElement*     m_pElement;
 
@@ -37,7 +37,7 @@ typedef struct SGstElementInfo_tag
 
     std::string     m_sElementName;     
 
-    SGstElementInfo_tag()
+    GstElementInfo_tag()
     {
         m_pElement = nullptr;
 
@@ -46,7 +46,7 @@ typedef struct SGstElementInfo_tag
         m_sElementName = "";
     }
     
-    SGstElementInfo_tag(GstElement* pElement)
+    GstElementInfo_tag(GstElement* pElement)
     {
         m_pElement = pElement;
 
@@ -58,14 +58,14 @@ typedef struct SGstElementInfo_tag
         }
     }
 
-}SGstElementInfo_def;
+} GstElementInfo_def;
 
 
 
-typedef std::vector<SGstElementInfo_def>       gstElementList_def;
+typedef std::vector<GstElementInfo_def>       GstElementList_def;
 
 
-bool listAllPipelineElements(GstPipeline* pPipeline, gstElementList_def& elementList);
+bool listAllPipelineElements(GstPipeline* pPipeline, GstElementList_def& elementList);
 
 
 class CGstWrapper
@@ -409,7 +409,7 @@ public:
 
         GstPipeline         *m_pPipeline;
 
-        gstElementList_def  m_elementsList;     // A std::vvector with a list of pipeline element pointers
+        GstElementList_def  m_elementsList;     // A std::vvector with a list of pipeline element pointers
 
         GstAppSrc           *m_pAppsrc;
         GstAppSink          *m_pAppsink;
@@ -607,6 +607,10 @@ public:
     {
         m_controlData.m_videoConfig.m_frameRate = nRate;
     }
+
+    bool AddElementToList(const std::string& sElement, GstElementList_def& elementList);
+
+    bool BuildPipeline(GstElementList_def& elementList);
 
     bool BuildPipeline(const std::string& sPipeline);
 
