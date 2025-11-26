@@ -1,8 +1,9 @@
 //**************************************************************************************************
 //* FILE:		StrUtils.h
 //*
-//* DESCRIP:
+//* DESCRIP:	C++ string utility functions
 //*
+//* AUTHOR:		Written by Russ Barker
 //*
 
 
