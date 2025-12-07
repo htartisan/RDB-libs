@@ -7,6 +7,9 @@
 //
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef C_NETWORK_IO_H
 #define C_NETWORK_IO_H
 

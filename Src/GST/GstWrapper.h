@@ -5,7 +5,11 @@
 ///
 
 
-#pragma once
+#define _CRT_SECURE_NO_WARNINGS
+
+
+#ifndef GST_WRAPPER_H
+#define GST_WRAPPER_H
 
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
@@ -708,3 +712,4 @@ public:
 };
 
 
+#endif  //  GST_WRAPPER_H

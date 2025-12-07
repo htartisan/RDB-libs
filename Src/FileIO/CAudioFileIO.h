@@ -17,6 +17,9 @@
 /// 
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef AUDIO_FILE_IO_H
 #define AUDIO_FILE_IO_H
 

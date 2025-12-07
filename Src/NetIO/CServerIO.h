@@ -7,6 +7,9 @@
 //
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef NET_SERVER_IO_H
 #define NET_SERVER_IO_H
 

@@ -7,6 +7,9 @@
 //
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef _CFILEIO_H
 #define _CFILEIO_H
 
@@ -542,10 +545,14 @@ class CFileIO
 
             auto status = ::fgets(pInputBuffer, nReadSize, m_pFileHandle);
 
-            if (status != nullptr && nReadSize > 0)
-                m_nLastIoSize = (unsigned int) nReadSize;
+            if (status != nullptr)
+            {
+                m_nLastIoSize = (unsigned int) strlen(pInputBuffer);
+            }
             else
+            {
                 m_nLastIoSize = (unsigned int) 0;
+            }
 
 #ifdef UPDATE_FILE_POSITION
             auto pos = ftell(m_pFileHandle);
@@ -558,22 +565,23 @@ class CFileIO
 
             m_lCurrFilePos = pos;
 #endif
+            nNumBytesRead = m_nLastIoSize;
 
-            if (nReadSize < 1)
+            if (m_nLastIoSize < 1)
             {
                 if (feof(m_pFileHandle) != 0)
                 {
                     m_sLastErrorStr = "File 'fread' operation encountered EOF";
+
+                    free(pInputBuffer);
+
+                    return false;
                 }
                 else
                 {
                     m_sLastErrorStr = "File 'fread' operation failed";
                     m_nLastErrorNum = ferror(m_pFileHandle);
                 }
-
-                free(pInputBuffer);
-
-                return false;
             }
             else
             {

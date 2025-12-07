@@ -6,6 +6,9 @@
 //*
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef xmlUtils_H_
 #define xmlUtils_H_
 

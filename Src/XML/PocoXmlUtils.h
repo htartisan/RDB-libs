@@ -6,6 +6,9 @@
 //*
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef PocoXmlUtils_H_
 #define PocoXmlUtils_H_
 

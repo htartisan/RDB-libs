@@ -7,6 +7,9 @@
 ///
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef _ERROR_HANDLER_CLASS_H
 #define _ERROR_HANDLER_CLASS_H
 

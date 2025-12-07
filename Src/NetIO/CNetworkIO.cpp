@@ -8,6 +8,9 @@
 
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifdef WINDOWS
 #include <Windows.h>
 #endif

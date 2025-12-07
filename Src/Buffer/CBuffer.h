@@ -5,13 +5,17 @@
 
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef _CBuffer_H_
 #define _CBuffer_H_
 
 #include <vector>
 
 
-class CBuffer : public std::vector<unsigned char>
+class CBuffer : 
+	public std::vector<unsigned char>
 {
 public:
 

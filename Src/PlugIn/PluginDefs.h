@@ -7,6 +7,9 @@
 //
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef PLUGIN_MODULE_DEFS
 #define PLUGIN_MODULE_DEFS
 
@@ -136,6 +139,10 @@ class CVersionNumber
     CVersionNumber(const std::string& sVer)
     {
         (*this) = strToVersionNum(sVer);
+    }
+
+    ~CVersionNumber()
+    {
     }
 
     void set(unsigned int nMajorVer, unsigned int nMinorVer, unsigned int nSubVer)

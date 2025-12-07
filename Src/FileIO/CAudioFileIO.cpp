@@ -17,6 +17,9 @@
 ///
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #include "../Logging/Logging.h"
 
 #include "CAudioFileIO.h"

@@ -11,6 +11,9 @@
 //*
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef THREAD_BASE_H
 #define THREAD_BASE_H
 

@@ -7,10 +7,11 @@
 //*
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
 
 #ifndef _StrUtils_H_
 #define _StrUtils_H_
-
 
 #include <sstream>
 #include <string>
@@ -24,6 +25,8 @@
 #include <stdio.h>
 
 #include <cstdarg>
+
+#include <codecvt>
 
 
 #ifdef WINDOWS
@@ -116,22 +119,7 @@ inline bool isNumeric(const std::string &sIn)
     return true;
 }
 
-inline std::string toLower(const std::string &sIn)
-{
-    std::string sOut = "";
-
-	std::string::size_type nLen = sIn.length();
-
-    for(std::string::size_type x = 0; x < nLen; ++x)
-    {
-        sOut += (char) ((isalpha((int) (sIn[x])) != (int) 0) ? tolower(sIn[x]) : sIn[x]);
-    }
-
-    return sOut;
-}
-
-
-inline std::string toUpper(const std::string& sIn)
+inline std::string toLower(const std::string &sIn, const bool bFilterNonPrintable = true)
 {
 	std::string sOut = "";
 
@@ -139,7 +127,68 @@ inline std::string toUpper(const std::string& sIn)
 
 	for (std::string::size_type x = 0; x < nLen; ++x)
 	{
-		sOut += (char) ((isalpha((int) (sIn[x])) != (int) 0) ? toupper(sIn[x]) : sIn[x]);
+		int ch = sIn[x];
+
+		// check for any chars that need to be filtered out
+
+		if (ch < 0)
+		{
+			continue;
+		}
+
+		if ((bFilterNonPrintable == true) && (std::isprint(ch) == 0))
+		{
+			continue;
+		}
+
+		// convert to lower case
+
+		if (std::isalpha(ch) != 0)
+		{
+			sOut += (char) tolower(ch);
+		}
+		else
+		{
+			sOut += (char) ch;
+		}
+	}
+
+	return sOut;
+}
+
+
+inline std::string toUpper(const std::string& sIn, const bool bFilterNonPrintable = true)
+{
+	std::string sOut = "";
+
+	std::string::size_type nLen = sIn.length();
+
+	for (std::string::size_type x = 0; x < nLen; ++x)
+	{
+		int ch = sIn[x];
+
+		// check for any chars that need to be filtered out
+
+		if (ch < 0)
+		{
+			continue;
+		}
+
+		if ((bFilterNonPrintable == true) && (std::isprint(ch) == 0))
+		{
+			continue;
+		}
+
+		// convert to upper case
+
+		if (std::isalpha(ch) != 0)
+		{
+			sOut += (char) toupper(ch);
+		}
+		else
+		{
+			sOut += (char) ch;
+		}
 	}
 
 	return sOut;
@@ -159,20 +208,22 @@ inline std::string removeAllSpaces(const std::string& sIn, bool bRemoveTabs = tr
 
 	for (auto c = sIn.begin(); c != sIn.end(); c++)
 	{ 
+		char ch = (*c);
+
 		if (bRemoveTabs == false)
 		{
-			if ((*c) != ' ')
+			if (ch != ' ')
 			{
-				sOut[x++] = (*c);
+				sOut.push_back(ch);
 			}
 		}
 		else
 		{
 			// Checks for any whitespace character, including spaceand tab
 			
-			if (std::isspace((int) (*c)) == 0)
+			if (std::isspace((int) ch) == 0)
 			{ 
-				sOut[x++] = (*c);
+				sOut.push_back(ch);
 			}
 		}
 	}
@@ -194,11 +245,13 @@ inline std::string removeLeadingSpaces(const std::string& sIn, bool bRemoveTabs 
 
 	for (auto c = sIn.begin(); c != sIn.end(); c++)
 	{
+		char ch = (*c);
+
 		if (bRemoveTabs == false)
 		{
 			// checks for a space char
 
-			if ((*c) != ' ')
+			if (ch != ' ')
 			{
 				break;
 			}
@@ -207,7 +260,7 @@ inline std::string removeLeadingSpaces(const std::string& sIn, bool bRemoveTabs 
 		{
 			// Checks for any whitespace character, including spaceand tab
 
-			if (std::isspace((int)(*c)) != 0)
+			if (std::isspace((int)ch) == 0)
 			{
 				break;
 			}
@@ -235,11 +288,13 @@ inline std::string removeTrailingSpaces(const std::string& sIn, bool bRemoveTabs
 
 	for (auto c = sIn.rbegin(); c != sIn.rend(); ++c)
 	{
+		char ch = (*c);
+
 		if (bRemoveTabs == false)
 		{
 			// checks for a space char
 
-			if ((*c) != ' ')
+			if (ch != ' ')
 			{
 				break;
 			}
@@ -248,7 +303,7 @@ inline std::string removeTrailingSpaces(const std::string& sIn, bool bRemoveTabs
 		{
 			// Checks for any whitespace character, including spaceand tab
 
-			if (std::isspace((int)(*c)) != 0)
+			if (std::isspace((int) ch) != 0)
 			{
 				break;
 			}
@@ -383,7 +438,38 @@ inline std::wstring tows(const std::string& sIn)
 
 
 
-inline bool toBool(const std::string &sVal) 
+inline std::string wstos(const std::wstring& sIn)
+{
+#if 0
+
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+
+	return converter.to_bytes(sIn);
+
+#else
+
+	size_t bufSize = std::wcstombs(nullptr, sIn.c_str(), 0) + 1;
+
+	if (bufSize < 1)
+	{
+		return "";
+	}
+
+	// Create a buffer to hold the multibyte string
+	std::vector<char> buffer(bufSize);
+
+	// Convert the wstring to a multibyte string
+	std::wcstombs(buffer.data(), sIn.c_str(), bufSize);
+
+	// Construct std::string from the char buffer
+	return std::string(buffer.data());
+
+#endif
+}
+
+
+
+inline bool toBool(const std::string &sVal)
 {
 	//* if string is blank/empty, return false
 	if (sVal == "")
@@ -467,6 +553,36 @@ inline int strCompare(const std::string sStr1, const std::string sStr2, const un
 	return eStringCompareResult_equal;
 }
 
+inline int findInString(const std::string sStr1, const std::string sStr2, const bool bCaseSensative = false)
+{
+	int retValue = -1;
+
+	if (bCaseSensative == false)
+	{
+		std::string sTestValue = StrUtils::toLower(sStr2);
+
+		std::string sTestString = StrUtils::toLower(sStr1);
+
+		auto foundAt = sTestString.find(sTestValue);
+
+		if (foundAt != std::string::npos)
+		{
+			retValue = (int) foundAt;
+		}
+	}
+	else
+	{
+		auto foundAt = sStr1.find(sStr2);
+
+		if (foundAt != std::string::npos)
+		{
+			retValue = (int) foundAt;
+		}
+	}
+
+	return retValue;
+}
+
 #ifndef _TOHEXSTR_
 #define _TOHEXSTR_
 
@@ -493,7 +609,7 @@ inline std::string toHexStr(const char chValue)
 	return "";
 }
 
-inline std::string toHexStr(const unsigned char *pBuf, const int nLen)
+inline std::string toHexStr(const unsigned char *pBuf, const int nLen, bool bInsertSpaces = false)
 {
 	try
 	{
@@ -508,6 +624,11 @@ inline std::string toHexStr(const unsigned char *pBuf, const int nLen)
 
 		for (int x = 0; x < nLen; x++)
 		{
+			if (bInsertSpaces == true && x > 0)
+			{
+				sOut += ' ';
+			}
+
 			ucVal = (unsigned char) *(pBuf + x);
 
 			sOut += g_HexChars[ ( ucVal & 0xF0 ) >> 4 ];

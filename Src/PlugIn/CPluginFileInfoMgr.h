@@ -50,8 +50,6 @@ public:
         m_sPluginApiType = "";
 
         clear();
-
-        m_nPluginType = 0;
     }
 
     ~CPluginFileInfoMgrBase()
@@ -63,8 +61,8 @@ public:
     {
         try
         { 
-            m_sPluginModuleName.clear();
-            m_sPluginDescription.clear();
+            m_sPluginModuleName = "";
+            m_sPluginDescription = "";
         }
         catch (...)
         { }

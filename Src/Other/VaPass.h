@@ -6,6 +6,9 @@
 //*
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef _VA_PASS_
 #define _VA_PASS_
 

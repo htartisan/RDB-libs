@@ -5,6 +5,9 @@
 ///
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #ifndef APP_LOGGING_H
 #define APP_LOGGING_H
 

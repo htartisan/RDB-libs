@@ -7,6 +7,9 @@
 //
 
 
+#define _CRT_SECURE_NO_WARNINGS
+
+
 #include "CClientIO.h"
 
 #include "../String/StrUtils.h"
