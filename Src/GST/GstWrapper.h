@@ -336,14 +336,8 @@ public:
 
         unsigned int getMaxDataLen()
         {
-            if (m_pIoBuffer == nullptr)
-            {
-                return 0;
-            }
-
-            m_bIsLocked = true;
-
-            return m_nMaxDataLen;
+            std::lock_guard<std::mutex> lock(m_buferMutex);
+            return m_pIoBuffer == nullptr ? 0 : m_nMaxDataLen;
         }
 
         void SetMediaType(eMediaType eType)
@@ -501,6 +495,11 @@ public:
 
         bool stopPipeline()
         {
+            if (m_pBusLoop != nullptr && g_main_loop_is_running(m_pBusLoop))
+            {
+                g_main_loop_quit(m_pBusLoop);
+            }
+
             if (m_pPipeline != nullptr)
             {
                 try
@@ -521,30 +520,6 @@ public:
                 return true;
             }
 
-#ifdef USE_GST_SAMPLE_CALLBACK
-            if (m_pBusLoop != nullptr)
-            {
-                if (g_main_loop_is_running(m_pBusLoop) != false)
-                {
-                    g_main_loop_quit(m_pBusLoop);
-
-                    unsigned int nCounter = 0;
-
-                    while (g_main_loop_is_running(m_pBusLoop) != false)
-                    {
-                        std::this_thread::sleep_for(std::chrono::microseconds(5));
-
-                        if (nCounter++ > 20)
-                        {
-                            break;
-                        }
-                    }
-
-                    m_pBusLoop = nullptr;
-                }
-            }
-#endif
-
             return true;
         }
 
@@ -559,6 +534,7 @@ protected:
     InitParamList_def           m_paramList;
 
     ControlData_def             m_controlData;
+    std::thread                 m_busLoopThread;
 
     // Protected function defs
 

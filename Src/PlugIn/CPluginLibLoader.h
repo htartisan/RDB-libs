@@ -42,8 +42,6 @@ ERROR_MESSAGE("Unicode NOT supported.  Multi byte compile type must be set.")
 #include "../FileIO/FileUtils.h"
 
 
-//class CPluginLoader;
-
 
 
 template <typename T>
@@ -104,7 +102,7 @@ public:
 #ifdef WINDOWS
                 FreeLibrary(m_hLib);
 #else
-                free(m_hLib);
+                dlclose(m_hLib);
 #endif
             }
             catch(...)

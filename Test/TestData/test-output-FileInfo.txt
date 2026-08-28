@@ -1,0 +1,3 @@
+SampleSize: int16_t 
+NumberOfChannels: 1 
+SampleRate: 48000 

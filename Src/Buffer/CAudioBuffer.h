@@ -123,6 +123,13 @@ class CSimpleAudioBuffer : public CErrorHandler
 
     bool alloc(unsigned int blockSize = 0)
     {
+        std::lock_guard<std::mutex> lock(m_ioLock);
+
+        if (m_bAllocated)
+        {
+            return false;
+        }
+
         if (blockSize > 0)
             m_blockSize = blockSize;
 
@@ -312,7 +319,7 @@ class CSimpleAudioBuffer : public CErrorHandler
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_numChls < 1 || chan > m_numChls || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_numChls < 1 || chan >= m_numChls || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated)
         {            
             return 0;
         }
@@ -336,7 +343,7 @@ class CSimpleAudioBuffer : public CErrorHandler
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_numChls < 1 || chan > m_numChls || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_numChls < 1 || chan >= m_numChls || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated)
         {
             return;
         }
@@ -428,13 +435,13 @@ class CSimpleAudioBuffer : public CErrorHandler
             return 0;
         }
 
-        if ((m_readIdx + count) >= m_arraySize)
+        if (count > (m_arraySize - m_readIdx))
         {
             return 0;
         }
 
         for (unsigned int x = 0; x < count; x++)
-            buf[x] = *(m_pBuffer + x);
+            buf[x] = *(m_pBuffer + m_readIdx + x);
 
         m_readIdx += count;
 
@@ -453,7 +460,7 @@ class CSimpleAudioBuffer : public CErrorHandler
             return 0;
         }
 
-        if ((startPos + numSamples) >= m_arraySize)
+        if (numSamples > (m_arraySize - startPos))
         {
             return 0;
         }
@@ -551,7 +558,7 @@ class CSimpleAudioBuffer : public CErrorHandler
             return 0;
         }
 
-        if ((m_writeIdx + count) >= m_arraySize)
+        if (count > (m_arraySize - m_writeIdx))
         {
             return 0;
         }
@@ -576,7 +583,7 @@ class CSimpleAudioBuffer : public CErrorHandler
             return 0;
         }
 
-        if ((startPos + numSamples) >= m_arraySize)
+        if (numSamples > (m_arraySize - startPos))
         {
             return 0;
         }
@@ -683,7 +690,7 @@ template <class T> class CAudioBufferBase
 
     void freeBuffer()
     {
-        if (m_pBuff == nullptr)
+        if (m_pBuff != nullptr)
             ::free(m_pBuff);
 
         m_pBuff           = nullptr;
@@ -744,6 +751,7 @@ template <class T> class CAudioBufferBase
     {
         m_pBuff           = nullptr;
         m_totalNumSamples = 0;
+        m_bAllocated      = false;
 
 #ifdef SUPPORT_FILE_IO
         m_sInputFile  = "";

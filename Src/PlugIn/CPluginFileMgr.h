@@ -28,6 +28,17 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 #define FileList_def    std::vector<std::string>
 #endif
 
+#ifndef _PATH_SEPERATOR_
+#if (defined(WIN32) || defined(WINDOWS))
+#define _PATH_SEPERATOR_		'\\'
+#define _PATH_SEPERATOR_STR_	"\\"
+#else
+#define _PATH_SEPERATOR_		'/'
+#define _PATH_SEPERATOR_STR_	"/"
+#endif
+#endif
+
+
 
 class CPluginFileMgr
 {
@@ -87,7 +98,7 @@ class CPluginFileMgr
 
             if (std::filesystem::exists(dirPath) == false)
             {
-                std::string sCWD = (std::filesystem::current_path().string() + "\\");
+                std::string sCWD = (std::filesystem::current_path().string() + _PATH_SEPERATOR_STR_);
 
                 auto sTmp = (sCWD + m_sDirPath);
 

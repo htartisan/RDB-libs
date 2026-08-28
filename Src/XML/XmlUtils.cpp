@@ -5,6 +5,9 @@
 //*
 //*
 
+#if (defined(_WIN32) || defined(WIN32)) && !defined(WINDOWS)
+#define WINDOWS
+#endif
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -306,7 +309,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName)  //throw(std::ru
 			return false;
 		}
 
-		cFileManager.setFileMode(eFileIoMode_def::eFileIoMode_output);
+		cFileManager.setFileMode(eFileIoMode_def::eFileIoMode_input);
 
 		bStatus = cFileManager.openFile();
 		if (bStatus == false)
@@ -1362,4 +1365,3 @@ bool XmlParserUtil::LoadXmlParamLong(xml_node<XML_TYPE>*pNode, char *pParam, lon
 
 	return bRet;
 }
-

@@ -362,6 +362,12 @@ CNetMessageData::CNetMessageData(unsigned int nHeaderLength) :
         
 }
 
+CNetMessageData::~CNetMessageData()
+{
+    std::scoped_lock lock(m_dataLock);
+    free(m_pData);
+}
+
 
 bool CNetMessageData::allocBuffer(unsigned int nMaxDataSize)
 {
@@ -389,6 +395,8 @@ bool CNetMessageData::allocBuffer(unsigned int nMaxDataSize)
     memset(m_pData, 0, (nBufSize));
 
     m_nMaxDataSize = nBufSize;
+    m_nDataLength = 0;
+    m_bUpdated = false;
 
     return true;
 }
@@ -607,6 +615,5 @@ bool CNetMessageData::encodeMsgHeader(const std::string& sType)
 
     return true;
 }
-
 
 

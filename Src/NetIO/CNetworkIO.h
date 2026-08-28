@@ -134,6 +134,9 @@ typedef DataByte_def *                              DataBytePtr_def;
 //*
 
 
+using namespace ThreadBaseDefs;
+
+
 // CServerThread clss 
 
 template <typename T>
@@ -198,6 +201,10 @@ class CNetMessageData
 public:
 
     CNetMessageData(unsigned int nHeaderLength);
+    ~CNetMessageData();
+
+    CNetMessageData(const CNetMessageData&) = delete;
+    CNetMessageData& operator=(const CNetMessageData&) = delete;
 
     bool allocBuffer(unsigned int nMaxDataSize);
 
@@ -247,4 +254,3 @@ public:
 
 
 #endif  //  C_NETWORK_IO_H
-

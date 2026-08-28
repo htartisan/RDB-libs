@@ -13,6 +13,10 @@
 #ifndef _StrUtils_H_
 #define _StrUtils_H_
 
+#if (defined(_WIN32) || defined(WIN32)) && !defined(WINDOWS)
+#define WINDOWS
+#endif
+
 #include <sstream>
 #include <string>
 #include <functional>
@@ -60,24 +64,54 @@ inline std::string eol() throw()
 #endif
 
 
-inline std::string strPrintf(const char *pFmt, ...)
+inline std::string vstrPrintf(const char *pFmt, va_list args)
 {
-	char szTmp[2048];
+	if (pFmt == nullptr)
+	{
+		return "";
+	}
 
-	memset(szTmp, 0, sizeof(szTmp));
-
-	va_list args;
-	va_start(args, pFmt); // Initialize va_list
-
-#ifdef WINDOWS
-	::sprintf_s(szTmp, sizeof(szTmp), pFmt, args);
+	va_list lengthArgs;
+#if defined(_MSC_VER)
+	lengthArgs = args;
+	const int nLen = _vscprintf(pFmt, lengthArgs);
 #else
-	::sprintf(szTmp, pFmt, args);
+	va_copy(lengthArgs, args);
+	const int nLen = vsnprintf(nullptr, 0, pFmt, lengthArgs);
+	va_end(lengthArgs);
 #endif
 
-	va_end(args); // Clean up va_list
+	if (nLen < 0)
+	{
+		return "";
+	}
 
-	std::string sOut(szTmp);
+	std::vector<char> buffer(static_cast<size_t>(nLen) + 1, '\0');
+
+	va_list formatArgs;
+#if defined(_MSC_VER)
+	formatArgs = args;
+	const int nWritten = vsnprintf_s(buffer.data(), buffer.size(), _TRUNCATE, pFmt, formatArgs);
+#else
+	va_copy(formatArgs, args);
+	const int nWritten = vsnprintf(buffer.data(), buffer.size(), pFmt, formatArgs);
+	va_end(formatArgs);
+#endif
+
+	if (nWritten < 0)
+	{
+		return "";
+	}
+
+	return std::string(buffer.data(), static_cast<size_t>(nWritten));
+}
+
+inline std::string strPrintf(const char *pFmt, ...)
+{
+	va_list args;
+	va_start(args, pFmt);
+	std::string sOut = vstrPrintf(pFmt, args);
+	va_end(args);
 
 	return sOut;
 }
@@ -203,8 +237,6 @@ inline std::string removeAllSpaces(const std::string& sIn, bool bRemoveTabs = tr
 	{
 		return sOut;
 	}
-
-	int x = 0;
 
 	for (auto c = sIn.begin(); c != sIn.end(); c++)
 	{ 
@@ -506,6 +538,30 @@ inline bool toBool(const std::string &sVal)
 	//* bad value... throw an error
 	throw std::runtime_error("toBool - ERROR: Invalid input string value");
 }
+
+#if defined(_WIN32) || defined(WIN32) || defined(WINDOWS)
+inline BOOL toBOOL(const std::string &sVal)
+{
+	if (sVal == "")
+	{
+		return FALSE;
+	}
+
+	std::string sCmpVal = toLower(sVal);
+
+	if ((sCmpVal == "true") || (sCmpVal == "yes") || (sCmpVal == "y") || (sVal == "1"))
+	{
+		return TRUE;
+	}
+
+	if ((sCmpVal == "false") || (sCmpVal == "no") || (sCmpVal == "n") || (sVal == "0"))
+	{
+		return FALSE;
+	}
+
+	throw std::runtime_error("toBOOL - ERROR: Invalid input string value");
+}
+#endif
 
 
 enum eStringCompareResult
@@ -938,6 +994,168 @@ std::vector<S> tokenizer(const S &ins,F isdelimiter) throw()
 }
 
 
+inline std::string appendStrings(const char *szFirst, ...)
+{
+	std::string sRet = "";
+
+	if (szFirst == nullptr)
+	{
+		return sRet;
+	}
+
+	sRet.append(szFirst);
+
+	va_list argList;
+	va_start(argList, szFirst);
+
+	try
+	{
+		while (true)
+		{
+			const char *szNext = va_arg(argList, const char *);
+			if (szNext == nullptr)
+			{
+				break;
+			}
+			sRet.append(szNext);
+		}
+	}
+	catch (...)
+	{
+	}
+
+	va_end(argList);
+
+	return sRet;
+}
+
+
+inline std::string strPrintf(int nLen, const char *pFmt, ...)
+{
+	if (nLen < 0 || pFmt == nullptr)
+	{
+		return "";
+	}
+
+	va_list args;
+	va_start(args, pFmt);
+	std::string sOut = vstrPrintf(pFmt, args);
+	va_end(args);
+
+	return sOut;
+}
+
+
+inline void str2wstr(std::wstring &wsTarget, const std::string &sSource, long nLen = -1)
+{
+	long nSize = 0;
+
+	if (nLen < 1)
+	{
+		nSize = (long) (sSource.size() + 2);
+	}
+	else
+	{
+		nSize = nLen;
+	}
+
+	wchar_t *pTmp = (wchar_t *) calloc((size_t) nSize + 1, sizeof(wchar_t));
+
+	if (pTmp == nullptr)
+	{
+		wsTarget.clear();
+		return;
+	}
+
+	memset(pTmp, 0, ((size_t) nSize + 1) * sizeof(wchar_t));
+	mbstowcs(pTmp, sSource.c_str(), (size_t) nSize);
+
+	wsTarget = pTmp;
+
+	free(pTmp);
+}
+
+
+inline std::wstring str2wstr(const std::string &sStr, long nLen = -1)
+{
+	std::wstring wsTmp = L"";
+	str2wstr(wsTmp, sStr, nLen);
+	return wsTmp;
+}
+
+
+inline void wstr2str(std::string &sTarget, const std::wstring &wsSource, long nLen = -1)
+{
+	long nSize = 0;
+
+	if (nLen < 1)
+	{
+		nSize = (long) (wsSource.size() + 2);
+	}
+	else
+	{
+		nSize = nLen;
+	}
+
+	std::vector<char> buffer((size_t) nSize + 1, '\0');
+	wcstombs(buffer.data(), wsSource.c_str(), (size_t) nSize);
+	sTarget = buffer.data();
+}
+
+
+inline std::string wstr2str(const std::wstring &wsStr, long nLen = -1)
+{
+	std::string sTmp = "";
+	wstr2str(sTmp, wsStr, nLen);
+	return sTmp;
+}
+
+
+template<typename T>
+inline std::wstring toWStr(T v)
+{
+	std::wostringstream o;
+	o << v;
+	return o.str();
+}
+
+
+#if defined(_WIN32) || defined(WIN32) || defined(WINDOWS)
+inline std::wstring wstrPrintf(int nLen, const char *pFmt, ...)
+{
+	if (nLen < 0 || pFmt == nullptr)
+	{
+		return L"";
+	}
+
+	va_list args;
+	va_start(args, pFmt);
+	std::string sOut = vstrPrintf(pFmt, args);
+	va_end(args);
+
+	return tows(sOut);
+}
+
+
+inline std::wstring wstrPrintf(const char *pFmt, ...)
+{
+	if (pFmt == nullptr)
+	{
+		return L"";
+	}
+
+	va_list args;
+	va_start(args, pFmt);
+	std::string sOut = vstrPrintf(pFmt, args);
+	va_end(args);
+
+	return tows(sOut);
+}
+#endif
+
+
 };
+
+namespace stringUtil = StrUtils;
 
 #endif  //  _StrUtils_H_

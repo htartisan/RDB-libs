@@ -12,6 +12,10 @@
 #ifndef xmlUtils_H_
 #define xmlUtils_H_
 
+#if (defined(_WIN32) || defined(WIN32)) && !defined(WINDOWS)
+#define WINDOWS
+#endif
+
 #include <string>
 #include <ostream>
 #include <stdexcept>
@@ -2364,4 +2368,3 @@ public:
 
 
 #endif  //  xmlUtils_H_
-

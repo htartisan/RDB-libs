@@ -21,6 +21,8 @@ using namespace CNetworkIO;
 
 void CUdpProcessingContext::run()
 {
+    m_bActive = true;
+
     m_ioContext.run();
 
     while (m_bExit == false)
@@ -36,6 +38,8 @@ void CUdpProcessingContext::run()
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     }
+
+    m_bActive = false;
 }
 
 
@@ -270,21 +274,39 @@ bool CUdpSession::readMsgData(CNetMessageData& msgData)
 {
     std::scoped_lock lock(m_mutex);
 
-    // read/decode the message header
-    if (readMsgHeader(msgData) == true)
-    {
-        // read the message body
+    msgData.clearAll();
 
-        if (readMsgBody(msgData) == false)
-        {
-            return false;
-        }
-    }
-    else
+    auto pData = msgData.getDataPtr();
+    if (pData == nullptr)
     {
         return false;
     }
 
+    const auto maxMessageSize =
+        static_cast<std::size_t>(msgData.getHeaderLength()) + msgData.getMaxDataLen();
+    asio::error_code error;
+    const auto bytesRead =
+        m_socket.receive_from(asio::buffer(pData, maxMessageSize), m_endpoint, 0, error);
+    msgData.releasePtr();
+
+    if (error || bytesRead < static_cast<std::size_t>(msgData.getHeaderLength()))
+    {
+        return false;
+    }
+
+    if (!msgData.decodeMsgHeader(m_sMsgType))
+    {
+        return false;
+    }
+
+    const auto expectedSize =
+        static_cast<std::size_t>(msgData.getHeaderLength()) + msgData.getBodyLength();
+    if (bytesRead != expectedSize)
+    {
+        return false;
+    }
+
+    msgData.setUpdated(true);
     return true;
 }
 
@@ -297,6 +319,7 @@ CUdpServer::CUdpServer(eNetIoDirection eDir, const unsigned int nPort, const uns
     m_eIoDirection(eDir),
     m_pSession(nullptr),
     m_pEndpoint(nullptr),
+    m_pSocket(nullptr),
     m_inputMsg(MsgHeaderLen_def),
     m_outputMsg(MsgHeaderLen_def),
     m_pProcessingContext(nullptr),
@@ -316,10 +339,11 @@ CUdpServer::CUdpServer(eNetIoDirection eDir, const unsigned int nPort, const uns
 
 CUdpServer::~CUdpServer()
 {
-    if (m_ioContext.stopped() == false)
-    {
-        m_ioContext.stop();
-    }
+    stop();
+    delete m_pSession;
+    delete m_pSocket;
+    delete m_pEndpoint;
+    delete m_pProcessingContext;
 }
 
 
@@ -1060,10 +1084,9 @@ CTcpServer::CTcpServer(eNetIoDirection eDir, const unsigned int nPort, const uns
 
 CTcpServer::~CTcpServer()
 {
-    if (m_ioContext.stopped() == false)
-    {
-        m_ioContext.stop();
-    }
+    stop();
+    delete m_pAcceptor;
+    delete m_pEndpoint;
 }
 
 
@@ -1173,7 +1196,16 @@ bool CTcpServer::start()
     try
     {
         if (m_pAcceptor != nullptr)
+        {
             delete m_pAcceptor;
+            m_pAcceptor = nullptr;
+        }
+
+        if (m_pEndpoint != nullptr)
+        {
+            delete m_pEndpoint;
+            m_pEndpoint = nullptr;
+        }
     }
     catch (...)
     {
@@ -1290,7 +1322,16 @@ bool CTcpServer::stop()
     try
     {
         if (m_pAcceptor != nullptr)
+        {
             delete m_pAcceptor;
+            m_pAcceptor = nullptr;
+        }
+
+        if (m_pEndpoint != nullptr)
+        {
+            delete m_pEndpoint;
+            m_pEndpoint = nullptr;
+        }
     }
     catch (...)
     {
@@ -1638,10 +1679,10 @@ bool CTcpServer::acceptConnection()
 
                                     m_outputMsg.setUpdated(false);
                                 }
-                                //else
-                                //{
-                                //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                                //}
+                                else
+                                {
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                                }
                             }
                             break;
 
@@ -1809,5 +1850,3 @@ bool CTcpServer::acceptConnection()
 
     return true;   //bRet;
 }
-
-

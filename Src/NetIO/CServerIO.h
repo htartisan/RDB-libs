@@ -54,6 +54,7 @@ class CUdpProcessingContext
     ProcessMsgProc_def      m_pProcessMsgProc;
 
     bool                    m_bExit;
+    bool                    m_bActive;
 
 public:
 
@@ -68,7 +69,8 @@ public:
         m_inputMsg(inputMsg),
         m_outputMsg(outputMsg),
         m_pUdpServer(pSrvr),
-        m_bExit(false)
+        m_bExit(false),
+        m_bActive(false)
     {
 
     }
@@ -94,7 +96,7 @@ public:
 
     bool stopped()
     {
-        return m_bExit;
+        return !m_bActive;
     }
 
     void stop()

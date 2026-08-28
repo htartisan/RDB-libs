@@ -103,6 +103,13 @@ template <class T> class CSimpleDataBuffer :
 
     bool alloc(unsigned int blockSize = 0)
     {
+        std::lock_guard<std::mutex> lock(m_ioLock);
+
+        if (m_bAllocated)
+        {
+            return false;
+        }
+
         if (blockSize > 0)
             m_blockSize = blockSize;
 
@@ -149,8 +156,12 @@ template <class T> class CSimpleDataBuffer :
         if (m_pBuffer != nullptr)
         {
             ::free(m_pBuffer);
+            m_pBuffer = nullptr;
         }
 
+        m_arraySize = 0;
+        m_readIdx = 0;
+        m_writeIdx = 0;
         m_bAllocated = false;
     }
 
@@ -244,7 +255,7 @@ template <class T> class CSimpleDataBuffer :
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_frameSize < 1 || frame > m_frameSize || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_frameSize < 1 || idx >= m_frameSize || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated)
         {            
             return 0;
         }
@@ -265,7 +276,7 @@ template <class T> class CSimpleDataBuffer :
     {
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if (m_frameSize < 1 || idx > m_frameSize || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated)
+        if (m_frameSize < 1 || idx >= m_frameSize || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated)
         {
             return;
         }
@@ -355,13 +366,13 @@ template <class T> class CSimpleDataBuffer :
             return 0;
         }
 
-        if ((m_readIdx + numItems) >= m_arraySize)
+        if (numItems > (m_arraySize - m_readIdx))
         {
             return 0;
         }
 
         for (unsigned int x = 0; x < numItems; x++)
-            buf[x] = *(m_pBuffer + x);
+            buf[x] = *(m_pBuffer + m_readIdx + x);
 
         m_readIdx += numItems;
 
@@ -380,7 +391,7 @@ template <class T> class CSimpleDataBuffer :
             return 0;
         }
 
-        if ((startPos + numItems) >= m_arraySize)
+        if (numItems > (m_arraySize - startPos))
         {
             return 0;
         }
@@ -446,7 +457,7 @@ template <class T> class CSimpleDataBuffer :
             return 0;
         }
 
-        if ((m_writeIdx + numItems) >= m_arraySize)
+        if (numItems > (m_arraySize - m_writeIdx))
         {
             return 0;
         }
@@ -472,7 +483,7 @@ template <class T> class CSimpleDataBuffer :
             return 0;
         }
 
-        if ((m_writeIdx + numItems) >= m_arraySize)
+        if (numItems > (m_arraySize - m_writeIdx))
         {
             return 0;
         }
@@ -501,7 +512,7 @@ template <class T> class CSimpleDataBuffer :
             return 0;
         }
 
-        if ((startPos + numItems) >= m_arraySize)
+        if (numItems > (m_arraySize - startPos))
         {
             return 0;
         }

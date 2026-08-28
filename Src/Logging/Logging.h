@@ -595,7 +595,6 @@ class CLogger
         }
         else
         {
-            
             sLogFilePath = getLogFilePath(sDir);
         } 
 

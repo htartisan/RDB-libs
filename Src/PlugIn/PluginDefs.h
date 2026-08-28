@@ -74,42 +74,25 @@ class CVersionNumber
 
       CVersionNumber strToVersionNum(const std::string& sVerNum)
       {
+        
           CVersionNumber out;
 
-          size_t dotPos = 0;
-
-          std::string sTmp1 = "";
-          std::string sTmp2 = "";
-
-          dotPos = sVerNum.find('.', 1);
-
-          if (dotPos == std::string::npos)
+          auto status = 
+              sscanf
+              (
+                  sVerNum.c_str(), 
+                  "%d.%d.%d", 
+                  &(out.m_nMajorVersionNum), 
+                  &(out.m_nMinorVersionNum), 
+                  &(out.m_nSubVersionNum)
+              );
+          if (status != 3) 
           {
-              out.m_nMajorVersionNum = atoi(sVerNum.c_str());
-              return out;
+              // String parse error
+              out.m_nMajorVersionNum = 0;
+              out.m_nMinorVersionNum = 0;
+              out.m_nSubVersionNum = 0;
           }
-
-          sTmp1 = sVerNum.substr(0, dotPos);
-
-          out.m_nMajorVersionNum = atoi(sTmp1.c_str());
-
-          sTmp2 = sVerNum.substr((dotPos + 1));
-
-          dotPos = sTmp2.find('.', 1);
-
-          if (dotPos == std::string::npos)
-          {
-              out.m_nMinorVersionNum = atoi(sTmp2.c_str());
-              return out;
-          }
-
-          sTmp1 = sTmp2.substr(0, dotPos);
-
-          out.m_nMinorVersionNum = atoi(sTmp1.c_str());
-
-          sTmp1 = sTmp2.substr((dotPos + 1));
-
-          out.m_nMajorVersionNum = atoi(sTmp1.c_str());
 
           return out;
       };
@@ -247,9 +230,9 @@ class CVersionNumber
 
         sOut = std::to_string(m_nMajorVersionNum);
         sOut.append(".");
-        sOut = std::to_string(m_nMinorVersionNum);
+        sOut.append(std::to_string(m_nMinorVersionNum));
         sOut.append(".");
-        sOut = std::to_string(m_nSubVersionNum);
+        sOut.append(std::to_string(m_nSubVersionNum));
 
         return sOut;
     }

@@ -13,12 +13,18 @@
 #ifndef _CFILEIO_H
 #define _CFILEIO_H
 
+#if (defined(_WIN32) || defined(WIN32)) && !defined(WINDOWS)
+#define WINDOWS
+#endif
+
 #include <locale>
 #include <string>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "../String/StrUtils.h"
 
 
 #define MAX_LINE_IO_SIZE        1024
@@ -377,9 +383,9 @@ class CFileIO
                 return -1;
             }
 
-            if (fgetpos(m_pFileHandle, &fPos) != 0)
+            if (fsetpos(m_pFileHandle, &fPos) != 0)
             {
-                m_sLastErrorStr = "File 'getpos' call failed";
+                m_sLastErrorStr = "File 'setpos' call failed";
                 m_nLastErrorNum = ferror(m_pFileHandle);
 
                 return -1;
@@ -718,7 +724,7 @@ class CFileIO
             m_lCurrFilePos = pos;
 #endif
 
-            if (length != sOutput.length())
+            if (length != 1)
             {
                 m_sLastErrorStr = "File 'fputs' operation failed";
                 m_nLastErrorNum = ferror(m_pFileHandle);

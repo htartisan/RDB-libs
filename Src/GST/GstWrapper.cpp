@@ -300,14 +300,14 @@ static gboolean gst_bus_callback
 
             //g_printerr("Debugging information: %s\n", (debug_info) ? debug_info : "none");
 
-            g_clear_error(&err);
-            g_free(debug_info);
-
             // Log that the window was closed
             if (g_strstr_len(debug_info, -1, "Window closed")) 
             {
                 pControlData->m_sLastError = "autovideosink window closed";
             }
+
+            g_clear_error(&err);
+            g_free(debug_info);
 
             // Stop processing
 
@@ -727,13 +727,6 @@ bool CGstWrapper::BuildOutputPipeline
 
     try
     {
-        // Build the pipeline using gst_parse_launch
-
-        if (BuildPipeline(sPipeline) == false)
-        {
-            return false;
-        }
-
         // Build the pipeline using gst_parse_launch
 
         if (BuildPipeline(sPipeline) == false)
@@ -1215,9 +1208,14 @@ bool CGstWrapper::WriteToPipeline(GstBuffer* pBuffer)
 
     // sleep for a few ms to give gStreamer time to process the buffer
 
-    long delay = (long) ((float) 1000 / (float) (m_controlData.m_videoConfig.m_frameRate / 2));
+    if (m_controlData.m_videoConfig.m_frameRate < 1)
+    {
+        m_controlData.m_sLastError = "Invalid video frame rate";
+        return false;
+    }
 
-    std::this_thread::sleep_for(std::chrono::microseconds(delay));
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(1000 / m_controlData.m_videoConfig.m_frameRate));
 
     return true; // Success - Continue ..
 }
@@ -1252,9 +1250,7 @@ bool CGstWrapper::StartPipeline()
 
         //auto runBusLoopAsync = std::async(std::launch::async, RunBusLoop, (void*) &m_controlData);
 
-        std::thread runBusLoopAsync(RunBusLoop, (void*)&m_controlData);
-        
-        runBusLoopAsync.detach();
+        m_busLoopThread = std::thread(RunBusLoop, (void*)&m_controlData);
     }
 #endif
 
@@ -1298,6 +1294,11 @@ bool CGstWrapper::StopPipeline()
     std::this_thread::sleep_for(std::chrono::microseconds(10));
 
     m_controlData.stopPipeline();
+
+    if (m_busLoopThread.joinable())
+    {
+        m_busLoopThread.join();
+    }
 
     m_controlData.m_bPipelineActive = false;
 
@@ -1357,6 +1358,10 @@ void CGstWrapper::Release()
         m_controlData.m_pPipeline = nullptr;
     }
 
+    if (m_controlData.m_pBusLoop != nullptr)
+    {
+        g_main_loop_unref(m_controlData.m_pBusLoop);
+        m_controlData.m_pBusLoop = nullptr;
+    }
+
 }
-
-

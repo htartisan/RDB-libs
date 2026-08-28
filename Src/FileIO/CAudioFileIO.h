@@ -73,18 +73,18 @@ eAudioFileType_def getAudioFileType(const std::string &filepath);
 #ifdef USE_DR_WAV
 
 /// #define DR_WAV_NO_CONVERSION_API 
-#include "../Libs/drwav-lib/dr_wav.h"
+#include <drwav-lib/dr_wav.h>
 
 #else
 
-#include "../Libs/AudioFile-lib/AudioFile.h"
+#include <AudioFile-lib/AudioFile.h>
 
 #endif /// USE_DR_WAV
 
 
 #ifdef USE_DR_MP3
 
-#include "../Libs/drwav-lib/dr_mp3.h"
+#include <drwav-lib/dr_mp3.h>
 
 #endif
 

@@ -14,7 +14,8 @@
 
 
 #include <stdarg.h>
-
+#include <cstdio>
+#include <cstring>
 
 #pragma warning( disable : 4290 )
 
@@ -22,8 +23,13 @@
 typedef unsigned char		byte;
 #endif
 
-#ifndef DWORD
-typedef unsigned long       DWORD;
+#if !defined(_WIN32) && !defined(WIN32) && !defined(DWORD) && !defined(DWORD_DEFINED)
+#define DWORD_DEFINED
+typedef unsigned int       DWORD;
+#endif
+
+#if !defined(_WIN32) && !defined(WIN32) && !defined(sprintf_s)
+#define sprintf_s(buffer, ...) sprintf(buffer, __VA_ARGS__)
 #endif
 
 
@@ -56,4 +62,3 @@ public:
 
 
 #endif // _VA_PASS_
-

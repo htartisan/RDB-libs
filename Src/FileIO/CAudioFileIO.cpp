@@ -173,7 +173,7 @@ std::shared_ptr<CAudioFileIO> CAudioFileIO::openFileTypeByExt
             return pAFIO;
         }
 
-        if (pRawFileIO->getNumChannels() != (int)numChannels)
+        if (pRawFileIO->getNumChannels() != (int) numChannels)
         {
             LogDebug("file does not have correct number of channels");
             return pAFIO;

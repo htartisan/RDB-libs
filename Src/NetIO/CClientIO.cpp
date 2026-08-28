@@ -160,7 +160,7 @@ bool CUdpClient::freeBuffer()
 
     try
     {
-        delete m_pDataBuffer;
+        free(m_pDataBuffer);
     }
     catch (...)
     {
@@ -214,7 +214,7 @@ bool CUdpClient::setBuffer(const void* pSource, const unsigned int nLen)
 
         m_nCurrDataLen = nLen;
 
-        int nFillLen = (m_nBufferSize - nLen);
+        int nFillLen = (m_nBufferSize - m_nHeaderSize - nLen);
 
         if (nFillLen > 0)
         {
@@ -268,7 +268,8 @@ bool CUdpClient::getBuffer(void *pTarget, const unsigned int nLen, const unsigne
     if (pTarget == nullptr || nLen < 1)
         return false;
 
-    if (nLen > (m_nBufferSize - m_nHeaderSize))
+    if (nStartingAt > (m_nBufferSize - m_nHeaderSize) ||
+        nLen > (m_nBufferSize - m_nHeaderSize - nStartingAt))
         return false;
 
     memcpy(pTarget, (m_pDataBuffer + (m_nHeaderSize + nStartingAt)), nLen);
@@ -301,7 +302,7 @@ bool CUdpClient::setDataSize(const unsigned int nLen)
     if (nLen > (m_nBufferSize - m_nHeaderSize))
         return false;
 
-    m_nCurrDataLen = (m_nHeaderSize + nLen);
+    m_nCurrDataLen = nLen;
 
     return true;
 }
@@ -582,7 +583,7 @@ int CUdpClient::write(const void *pSource, const unsigned int nLen)
 
                 if (m_nHeaderSize == sizeof(NetworkDataHeaderInfo_def))
                 {
-                    m_pBufferHeader->m_nDataLen = (uint32_t) dataSize;
+                    m_pBufferHeader->m_nDataLen = m_nCurrDataLen;
                 }
             }
 
@@ -781,7 +782,7 @@ bool CTcpClient::freeBuffer()
 
     try
     {
-        delete m_pDataBuffer;
+        free(m_pDataBuffer);
     }
     catch (...)
     {
@@ -835,7 +836,7 @@ bool CTcpClient::setBuffer(const void* pSource, const unsigned int nLen)
 
         m_nCurrDataLen = nLen;
 
-        int nFillLen = (m_nBufferSize - nLen);
+        int nFillLen = (m_nBufferSize - m_nHeaderSize - nLen);
 
         if (nFillLen > 0)
         {
@@ -889,7 +890,8 @@ bool CTcpClient::getBuffer(void *pTarget, const unsigned int nLen, const unsigne
     if (pTarget == nullptr || nLen < 1)
         return false;
 
-    if (nLen > (m_nBufferSize - m_nHeaderSize))
+    if (nStartingAt > (m_nBufferSize - m_nHeaderSize) ||
+        nLen > (m_nBufferSize - m_nHeaderSize - nStartingAt))
         return false;
 
     memcpy(pTarget, (m_pDataBuffer + (m_nHeaderSize + nStartingAt)), nLen);
@@ -922,7 +924,7 @@ bool CTcpClient::setDataSize(const unsigned int nLen)
     if (nLen > (m_nBufferSize - m_nHeaderSize))
         return false;
 
-    m_nCurrDataLen = (m_nHeaderSize + nLen);
+    m_nCurrDataLen = nLen;
 
     return true;
 }
@@ -1445,5 +1447,3 @@ int CTcpClient::write(const void *pSource, const unsigned int nLen)
 
     return nWriteSize;
 }
-
-

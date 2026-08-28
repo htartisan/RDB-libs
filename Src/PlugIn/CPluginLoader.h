@@ -17,6 +17,8 @@
 #include <vector>
 #include <memory>
 #include <vector>
+#include <mutex>
+
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -34,11 +36,16 @@ ERROR_MESSAGE("Unicode NOT supported.  Multi byte compile type must be set.")
 #endif
 
 
-//class CPluginLoader;
+#ifdef WINDOWS
+typedef HINSTANCE        LibHandle_def;
+#else
+typedef void *           LibHandle_def;
+#endif
 
 
 template <typename T> 
-class CPluginLoader : public CErrorHandler
+class CPluginLoader : 
+    public CErrorHandler
 {
     typedef T * (*createPluginFileMgrFunc)();
 
@@ -50,22 +57,46 @@ protected:
 
     T                      *m_pPluginFileInstMgr;
 
+    LibHandle_def           m_hLib;
+
+    std::mutex              m_mutex;
+
 public:
 
-    CPluginLoader(std::string sPath = "")
+    CPluginLoader(std::string sPath = "", LibHandle_def hLib = nullptr)
     {
-        clear();
-
         m_sFilePath = sPath;  
+
+        m_hLib = hLib;
+
+        if (m_hLib != nullptr)
+        {
+            m_bLoaded = true;
+        }
+        else
+        {
+            m_bLoaded = false;
+        }
+
+        m_pPluginFileInstMgr = nullptr;
     }
 
     ~CPluginLoader()
     {
-        clear();
+        //clear();
     }
 
     void clear()
     {
+        if (m_bLoaded == true)
+        {
+#ifdef WINDOWS
+            FreeLibrary(m_hLib);
+#else
+            dlclose(m_hLib);
+#endif
+        }
+
         m_sFilePath.clear();
         
         m_bLoaded = false;
@@ -84,6 +115,7 @@ public:
         m_sFilePath = sPath;  
 
         ClearError();
+
         return true;
     }
 
@@ -94,31 +126,43 @@ public:
             m_sFilePath = sPath;  
         }
 
+        try
+        {
+            std::scoped_lock lock(m_mutex);
+
 #ifdef WINDOWS
 
-        HINSTANCE hLib = LoadLibrary(m_sFilePath.c_str());
-        if (hLib == NULL)
-        {
-            SetErrorText("Failed to load lib at specified path");
-            return false;
-        }
+            m_hLib = LoadLibrary(m_sFilePath.c_str());
+            if (m_hLib == NULL)
+            {
+                SetErrorText("Failed to load lib at specified path");
+                return false;
+            }
 
-        auto createPluginFileMgr = (createPluginFileMgrFunc) GetProcAddress(hLib, "CreatePluginMgrInstance");
+            auto createPluginFileMgr = (createPluginFileMgrFunc) GetProcAddress(m_hLib, "CreatePluginMgrInstance");
 
 #else
 
-        void *pLib = dlopen(m_sFilePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
-        if (pLib == nullptr)
-        {
-            auto message = dlerror();
+            m_Lib = dlopen(m_sFilePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
+            if (m_Lib == nullptr)
+            {
+                auto message = dlerror();
+                SetErrorText("Failed to load lib at specified path " + message);
+                return false;
+            }
 
-            SetErrorText("Failed to load lib at specified path " + message);
-            return false;
-        }
-
-        auto createPluginFileMgr = (createPluginFileMgrFunc) dlsym(pLib, "CreatePluginMgrInstance");
+            auto createPluginFileMgr = (createPluginFileMgrFunc) dlsym(m_hLib, "CreatePluginMgrInstance");
 
 #endif
+        }
+        catch(const std::exception& e)
+        {
+            SetErrorText(e.what());
+        }
+        catch(...)
+        {
+            SetErrorText("Unknown exception during CPluginLoader::Load");
+        }
 
         if (createPluginFileMgr != nullptr)
         {
@@ -139,6 +183,11 @@ public:
     T * GetPluginFileInstMgr()
     {
         return m_pPluginFileInstMgr;
+    }
+
+    LibHandle_def getLibHandle()
+    {
+        return m_hLib;
     }
 
 };

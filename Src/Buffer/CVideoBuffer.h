@@ -341,7 +341,7 @@ public:
 
     bool getFrame(void* pTarget, const unsigned int frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
         {
             return false;
         }
@@ -371,7 +371,7 @@ public:
 
     bool setFrame(const void* pSource, const unsigned int frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
         {
             return false;
         }
@@ -415,7 +415,7 @@ public:
     // and then increment the offset.
     int readPixel(void *pTrgtPixel, const unsigned int frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || m_nBitsPerPixel < 1)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || m_nBitsPerPixel < 1)
         {
             return -1;
         }
@@ -457,7 +457,7 @@ public:
     // read a single pixel at 'index' offset.
     bool readPixelAt(void* pTrgtPixel, const unsigned long index, const unsigned int frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || index > m_frameSize || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || index >= m_frameSize || m_nBitsPerPixel < 8)
         {
             return false;
         }
@@ -497,7 +497,7 @@ public:
     // return: the pixel value at that offset
     bool readPixel(void* pTrgtPixel, const unsigned long xPos, const unsigned long yPos, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || xPos > m_frameWidth || yPos > m_frameHeight || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || xPos >= m_frameWidth || yPos >= m_frameHeight || m_nBitsPerPixel < 8)
         {
             return false;
         }
@@ -534,7 +534,7 @@ public:
     // and then update the current read offset. return the updated read offset
     int readPixels(void* pTrgtPixel, const unsigned int count, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
         {
             return -1;
         }
@@ -576,7 +576,7 @@ public:
     // then increment the offset, return the updated write offset.
     int writePixel(const void* pSrctPixel, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
         {
             return -1;
         }
@@ -618,7 +618,7 @@ public:
     // return: the write offset    
     bool writePixelAt(const void* pSrctPixel, const unsigned long index, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || m_nBitsPerPixel < 8)
         {
             return false;
         }
@@ -657,7 +657,7 @@ public:
     // return: the write offset    
     bool writePixel(const void* pSrctPixel, const unsigned long xPos, const unsigned long yPos, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || xPos > m_frameWidth || yPos > m_frameHeight || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || xPos >= m_frameWidth || yPos >= m_frameHeight || m_nBitsPerPixel < 8)
         {
             return false;
         }
@@ -696,7 +696,7 @@ public:
     // return:  the updated write offset.
     int writePixels(const void* pSrctPixel, const unsigned int count, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame > m_blockSize || !m_bAllocated || count > m_frameSize || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || count > m_frameSize || m_nBitsPerPixel < 8)
         {
             return -1;
         }
