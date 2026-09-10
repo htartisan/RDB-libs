@@ -7,7 +7,12 @@
 ///
 
 
+#ifdef WINDOWS
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
+#define SPDLOG_WCHAR_TO_UTF8_SUPPORT 
+#endif
 
 
 #ifndef _ERROR_HANDLER_CLASS_H

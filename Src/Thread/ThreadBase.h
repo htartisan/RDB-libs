@@ -11,7 +11,12 @@
 //*
 
 
+#ifdef WINDOWS
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
+#define SPDLOG_WCHAR_TO_UTF8_SUPPORT 
+#endif
 
 
 #ifndef THREAD_BASE_H
@@ -28,7 +33,7 @@
 #include <thread>
 
 #if defined(WINDOWS)
-//#include <windows.h>
+#include <windows.h>
 #include <thread>
 #include <processthreadsapi.h>
 #ifndef THREAD_PRIORITY_NORMAL

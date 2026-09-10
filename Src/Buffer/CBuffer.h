@@ -193,7 +193,7 @@ public:
 		//return sVal;
 	}
 
-	std::string getStr()
+	std::string getStr() const
 	{
 		std::string sOut = "";
 

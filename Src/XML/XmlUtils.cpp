@@ -1,4 +1,4 @@
-//**************************************************************************************************
+﻿//**************************************************************************************************
 //* FILE:		xmlUtils.cpp
 //*
 //* DESCRIP:	
@@ -281,12 +281,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName)  //throw(std::ru
 		{
 			if (strlen((char *)pFolder) > 0)
 			{
-#ifdef UNICODE
-				std::wstring sTmp = stringUtil::str2wstr(pFolder);
-				bStatus = cFileManager.setFileDir((WCHAR *) sTmp.c_str());
-#else
 				bStatus = cFileManager.setFileDir((char *) pFolder);
-#endif
 				if (bStatus == false)
 				{
 					//throw std::runtime_error("Problem setting XML file firectory");
@@ -295,14 +290,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName)  //throw(std::ru
 			}
 		}
 
-#ifdef UNICODE
-		{
-			std::wstring sTmp = stringUtil::str2wstr(pFileName);
-			bStatus = cFileManager.setFileName((WCHAR *) sTmp.c_str());
-		}
-#else
 		bStatus = cFileManager.setFileName((char *) pFileName);
-#endif
 		if (bStatus == false)
 		{
 			//throw std::runtime_error("Problem setting XML file name");
@@ -415,12 +403,7 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName)  //throw(std::r
 	{
 		if (pFolder != NULL)
 		{
-#ifdef UNICODE
-			std::wstring sTmp = stringUtil::str2wstr(pFolder);
-			bStatus = cFileManager.setFileDir((WCHAR *) sTmp.c_str());
-#else
 			bStatus = cFileManager.setFileDir((char *) pFolder);
-#endif
 			if (bStatus == FALSE)
 			{
 				//throw std::runtime_error("Problem setting XML file firectory");
@@ -428,14 +411,7 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName)  //throw(std::r
 			}
 		}
 
-#ifdef UNICODE
-		{
-			std::wstring sTmp = stringUtil::str2wstr(pFileName);
-			bStatus = cFileManager.setFileName((WCHAR *) sTmp.c_str());
-		}
-#else
 		bStatus = cFileManager.setFileName((char *) pFileName);
-#endif
 		if (bStatus == false)
 		{
 			//throw std::runtime_error("Problem setting XML file name");
@@ -518,24 +494,14 @@ bool XmlParserUtil::DumpXmlBuffer(char *pFolder, char *pFileName, bool bSpaceFil
 
 		if (pFolder != NULL)
 		{
-#ifdef UNICODE
-			std::wstring sTmp = stringUtil::str2wstr(pFolder);
-			bStatus = cFileManager.setFileDir((WCHAR *) sTmp.c_str());
-#else
 			bStatus = cFileManager.setFileDir((char *) pFolder);
-#endif
 			if (bStatus == false)
 			{
 				return false;
 			}
 		}
 
-#ifdef UNICODE
-		std::wstring sTmp = stringUtil::str2wstr(sDumpFile);
-		bStatus = cFileManager.setFileName((WCHAR *) sTmp.c_str());
-#else
 		bStatus = cFileManager.setFileName((char *) sDumpFile.c_str());
-#endif
 		if (bStatus == false)
 		{
 			return false;

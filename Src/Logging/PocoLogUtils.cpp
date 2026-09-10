@@ -1,7 +1,7 @@
 //*******************************************************************************
 //* FILE:				PocoLogUtils.cpp
 //*
-//* DESCRIPTION:		LoggerCls utility functions
+//* DESCRIPTION:		Logging utility functions
 //*
 
 

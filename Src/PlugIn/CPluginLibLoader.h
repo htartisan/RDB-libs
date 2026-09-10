@@ -27,6 +27,8 @@
 
 #include "../Error/CError.h"
 
+#include "../FileIO/FileUtils.h"
+
 #include "CPluginFileInfoMgr.h"
 
 #ifdef WINDOWS
@@ -169,7 +171,7 @@ public:
             { 
                 try
                 { 
-                    sAbsPath = getAbsolutePath(m_sSharedLibSearchPath);
+                    sAbsPath = fileUtil::getAbsolutePath(m_sSharedLibSearchPath);
                     std::wstring wsPath = StrUtils::tows(sAbsPath.c_str());
 
                     auto status = AddDllDirectory(wsPath.c_str());
@@ -191,7 +193,7 @@ public:
 
             try
             { 
-                sAbsPath = getAbsolutePath(m_sFilePath);
+                sAbsPath = fileUtil::getAbsolutePath(m_sFilePath);
 
                 m_hLib = LoadLibrary(sAbsPath.c_str());
             }

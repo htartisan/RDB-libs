@@ -22,6 +22,8 @@
 
 #include "../Logging/Logging.h"
 
+#define CPPLIB_EXPORTS
+
 #include "CAudioFileIO.h"
 
 #include <map>
@@ -52,7 +54,7 @@
 
 
 
-std::string audioFileTypeToString(eAudioFileType_def value)
+CPPLIB_API std::string audioFileTypeToString(eAudioFileType_def value)
 {
     static std::map<eAudioFileType_def, std::string> map = 
     {
@@ -77,7 +79,7 @@ std::string audioFileTypeToString(eAudioFileType_def value)
 }
 
 
-eAudioFileType_def getAudioFileType(const std::string &filepath)
+CPPLIB_API eAudioFileType_def getAudioFileType(const std::string &filepath)
 {
     if (filepath.empty())
         return eFileType_unknown;
@@ -427,9 +429,9 @@ int CRawAudioFileIO::getNumericStringAt(const std::string &sText, const unsigned
 
     std::string sTemp = sText.substr(pos);
 
-    sTemp             = removeLeadingSpaces(sTemp);
+    sTemp             = fileUtil::removeLeadingSpaces(sTemp);
 
-    sTemp             = removeTrailingSpaces(sTemp);
+    sTemp             = fileUtil::removeTrailingSpaces(sTemp);
 
     if (!StrUtils::isNumeric(sTemp))
         return -1;
@@ -556,7 +558,7 @@ bool CRawAudioFileIO::parseInfoTextFile(const std::string &sFile, SRawFileInfo &
         {
             std::string sTemp = sInputText.substr(pos + sSearchText.length());
 
-            sTemp             = removeLeadingSpaces(sTemp);
+            sTemp             = fileUtil::removeLeadingSpaces(sTemp);
 
             bOut              = true;
 
@@ -671,9 +673,9 @@ bool CRawAudioFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                 if (m_eFileType == eAudioFileType_def::eFileType_raw && m_bCreateInfoTextFile)
                 {
                     /// Create out audio info text file
-                    std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in
+                    std::string sInfoFilePath = fileUtil::getFileDir(m_sFilePath);    /// get the directory the file is in
 
-                    std::string sFileName = getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
+                    std::string sFileName = fileUtil::getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
 
                     if (sInfoFilePath.empty() == false)
                         sInfoFilePath.append("/" + sFileName);
@@ -3000,5 +3002,3 @@ bool CMp3FileIO::resetPlayPosition()
 }
 
 #endif  //  USE_DR_MP3
-
-

@@ -6,8 +6,8 @@
 
 
 
-#ifndef _LOGUTILS_H_
-#define _LOGUTILS_H_
+#ifndef _POCOLOGUTILS_H_
+#define _POCOLOGUTILS_H_
 
 
 
@@ -29,6 +29,15 @@ extern loggerCls				*g_Log;
 #include "Poco/FileChannel.h"
 #include "Poco/Message.h"
 
+using Poco::Logger;
+using Poco::PatternFormatter;
+using Poco::FormattingChannel;
+using Poco::SplitterChannel;
+using Poco::ConsoleChannel;
+using Poco::FileChannel;
+using Poco::Channel;
+using Poco::Message;
+
 #else
 	
 #include <mutex>
@@ -42,8 +51,8 @@ extern loggerCls				*g_Log;
 #endif
 
 
-#include "../stl/stringUtils.h"
-#include "../file/FileUtils.h"
+#include "../String/StrUtils.h"
+#include "../FileIO/FileUtils.h"
 
 
 
@@ -215,4 +224,4 @@ void LogWrite(int nLogLevel, std::string sMsg);
 void LogWrite(int nLogLevel, std::string sPrefix, std::string sMsg);
 
 
-#endif  // _LOGUTILS_H_
+#endif  // _POCOLOGUTILS_H_

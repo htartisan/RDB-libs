@@ -29,6 +29,7 @@
 COMPILE_ERROR("ERRORL: C++17 not supported")
 #endif
 
+#include "../../../ME-Common/Src/CppLibDefs.h"
 
 #include "CFileIO.h"
 
@@ -58,10 +59,10 @@ enum eAudioFileType_def
 /// @param[in] value enum value
 /// @return string representation of enum value
 
-std::string audioFileTypeToString(eAudioFileType_def value);
+CPPLIB_API std::string audioFileTypeToString(eAudioFileType_def value);
 
 
-eAudioFileType_def getAudioFileType(const std::string &filepath);
+CPPLIB_API eAudioFileType_def getAudioFileType(const std::string &filepath);
 
 
 /// The following determines whether to use 
@@ -77,7 +78,7 @@ eAudioFileType_def getAudioFileType(const std::string &filepath);
 
 #else
 
-#include <AudioFile-lib/AudioFile.h>
+#include <Libs/AudioFile-lib/AudioFile.h>
 
 #endif /// USE_DR_WAV
 
@@ -98,7 +99,7 @@ eAudioFileType_def getAudioFileType(const std::string &filepath);
 #define ConvertFloatToInt16(fSample)  ((int16_t)(fSample * 0x7FFF))
 
 
-class CAudioFileIO
+class CPPLIB_API CAudioFileIO
 {
   protected:
 

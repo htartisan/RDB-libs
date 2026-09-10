@@ -6,8 +6,8 @@
 
 
 
-#ifndef _CLOGGING_H_
-#define _CLOGGING_H_
+#ifndef _POCOLOGGING_H_
+#define _POCOLOGGING_H_
 
 
 
@@ -177,4 +177,4 @@ void LogWrite(int nLogLevel, std::string sMsg);
 void LogWrite(int nLogLevel, std::string sPrefix, std::string sMsg);
 
 
-#endif  // _LOGUTILS_H_
+#endif  // _POCOLOGGING_H_

@@ -101,6 +101,11 @@ public:
         m_nBitsPerPixel = nBitsPerPixel;
     }
 
+    unsigned int getBitsPerPixel()
+    {
+        return m_nBitsPerPixel;
+    }
+
     void setVideoFormat(const unsigned int nFmt)
     {
         m_nVideoFormat = nFmt;

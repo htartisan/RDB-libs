@@ -681,7 +681,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SVideoFormatIn
         auto        pos         = sInputText.find(sSearchText);
         if (pos != std::string::npos)
         {
-            int val = getNumericStringAt(sInputText, (unsigned int) sSearchText.length());
+            int val = fileUtil::getNumericStringAt(sInputText, (unsigned int) sSearchText.length());
 
             if (val < 0)
                 break;
@@ -698,7 +698,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SVideoFormatIn
         pos = sInputText.find(sSearchText);
         if (pos != std::string::npos)
         {
-            int val = getNumericStringAt(sInputText, (unsigned int)sSearchText.length());
+            int val = fileUtil::getNumericStringAt(sInputText, (unsigned int)sSearchText.length());
 
             if (val < 0)
                 break;
@@ -715,7 +715,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SVideoFormatIn
         pos         = sInputText.find(sSearchText);
         if (pos != std::string::npos)
         {
-            int val = getNumericStringAt(sInputText, (unsigned int) sSearchText.length());
+            int val = fileUtil::getNumericStringAt(sInputText, (unsigned int) sSearchText.length());
 
             if (val < 0)
                 break;
@@ -734,7 +734,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SVideoFormatIn
         {
             std::string sTemp = sInputText.substr(pos + sSearchText.length());
 
-            sTemp             = removeLeadingSpaces(sTemp);
+            sTemp             = fileUtil::removeLeadingSpaces(sTemp);
 
             bOut              = true;
 
@@ -774,7 +774,7 @@ bool CRawVideoFileIO::parseInfoTextFile(const std::string &sFile, SVideoFormatIn
         {
             std::string sTemp = sInputText.substr(pos + sSearchText.length());
 
-            sTemp = removeLeadingSpaces(sTemp);
+            sTemp = fileUtil::removeLeadingSpaces(sTemp);
 
             info.sFourCC = sTemp;
 
@@ -914,9 +914,9 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                 }
 
                 /// Create out videp info text file
-                std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in
+                std::string sInfoFilePath = fileUtil::getFileDir(m_sFilePath);    /// get the directory the file is in
 
-                std::string sFileName = getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
+                std::string sFileName = fileUtil::getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
 
                 if (sInfoFilePath.empty() == false)
                     sInfoFilePath.append("/" + sFileName);
@@ -970,9 +970,9 @@ bool CRawVideoFileIO::openFile(const eFileIoMode_def mode, const std::string &sF
                     m_fileInfo.sFourCC =        videoFormatToFourCC(m_eVideoFormat);
 
                     /// Create out videp info text file
-                    std::string sInfoFilePath = getFileDir(m_sFilePath);    /// get the directory the file is in
+                    std::string sInfoFilePath = fileUtil::getFileDir(m_sFilePath);    /// get the directory the file is in
 
-                    std::string sFileName = getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
+                    std::string sFileName = fileUtil::getFileName(m_sFilePath);       /// get the filename with no ext (.xxx)
 
                     if (sInfoFilePath.empty() == false)
                         sInfoFilePath.append("/" + sFileName);

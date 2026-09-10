@@ -7,7 +7,12 @@
 //*
 
 
+#ifdef WINDOWS
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
+#define SPDLOG_WCHAR_TO_UTF8_SUPPORT 
+#endif
 
 
 #ifndef _StrUtils_H_
@@ -37,6 +42,21 @@
 //#define string  basic_string
 #endif
 
+// NOTE: <windows.h> must be included here, at global scope, BEFORE the
+// "namespace StrUtils" block below. If it were included from inside the
+// namespace (as it previously was), all of its declarations (HANDLE, DWORD,
+// HINSTANCE, BOOL, etc.) would be nested inside StrUtils:: instead of being
+// declared globally. Since <windows.h> has its own internal include guard
+// (_WINDOWS_), any later attempt elsewhere in the same translation unit to
+// #include <windows.h> at global scope would then silently become a no-op,
+// leaving HANDLE/DWORD/etc. undeclared at global scope for the rest of the
+// file (breaking spdlog, CPluginLibLoader.h, ThreadBase.h, etc.).
+#if defined(_WIN32) || defined(WIN32) || defined(WINDOWS)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace StrUtils
 {
