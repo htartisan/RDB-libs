@@ -52,8 +52,8 @@
 
 #include <iostream>
 
-#include "stringUtils.h"
-#include "stlx.h"
+#include "..\String\StrUtils.h"
+//#include "stlx.h"
 
 
 
@@ -231,9 +231,7 @@ public:
 };
 
 
-//typedef stlx::ptr_xmap<int, CWebletCmdData>	WebletCmdList_def;
-//typedef stlx::ptr_xvector<CWebletCmdData>	WebletCmdList_def;
-typedef stlx::ptr_xmap<std::string, CWebletCmdData>	WebletCmdList_def;
+typedef std::map<std::string, CWebletCmdData>	WebletCmdList_def;
 
 
 class CWebletReqHandler: public HTTPRequestHandler

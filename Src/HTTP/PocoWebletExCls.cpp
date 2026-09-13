@@ -44,7 +44,7 @@ PVOID NewCWebletCmdData()
 		CWebletCmdData *pNew = (CWebletCmdData *) 
 			malloc(sizeof(CWebletCmdData)); 
 
-		if (pNew != NULL) 
+		if (pNew != nullptr) 
 		{
 			//pNew->Init(); 
 			new (pNew) CWebletCmdData();
@@ -57,14 +57,14 @@ PVOID NewCWebletCmdData()
 
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 void DelCWebletCmdData(CWebletCmdData *pNode)
 {
 	try
 	{
-		if (pNode != NULL) 
+		if (pNode != nullptr) 
 		{
 			//pNode->Free();
 			pNode->~CWebletCmdData();
@@ -87,7 +87,7 @@ void DelCWebletCmdData(CWebletCmdData *pNode)
 
 void CWebletExReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerResponse& response)
 {
-	if (m_pCmdList == NULL)
+	if (m_pCmdList == nullptr)
 	{
 		// no commands currently defined
 
@@ -153,7 +153,7 @@ void CWebletExReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerRe
 		WebletCmdList_def::iterator x = m_pCmdList->find(sPath);
 		if (x == m_pCmdList->end())
 		{
-			if (m_pDefCb == NULL)
+			if (m_pDefCb == nullptr)
 			{
 				// we did not find a registered weblet for this command
 				// so return a "404" error to the calling server
@@ -172,7 +172,7 @@ void CWebletExReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerRe
 					sParams,
 					sReply,
 					nReplyLen,
-					NULL
+					nullptr
 				);
 		}
 		else
@@ -181,7 +181,7 @@ void CWebletExReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerRe
 
 			CPocoWebletEx *pCls = (CPocoWebletEx *)((*x).second->m_pWebletCls);
 
-			if (pCallback != NULL)
+			if (pCallback != nullptr)
 			{
 				nStatus =
 					pCallback
@@ -195,7 +195,7 @@ void CWebletExReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerRe
 						((*x).second)
 					);
 			}
-			else if (pCls != NULL)
+			else if (pCls != nullptr)
 			{
 				int nCmd = ((*x).second->m_nCmdID);
 
@@ -335,7 +335,7 @@ CWebletExReqHandler * CWebletExReqHandlerFactory::createRequestHandler(const HTT
 			new CWebletExReqHandler(m_nPort, m_bHTML, m_pCmdList, m_sAuthInfo, m_pDefCb);
 
 #ifdef SUPPORT_POCO_SSL
-		if (pWebletReqHandler != NULL)
+		if (pWebletReqHandler != nullptr)
 		{
 			pWebletReqHandler->SetSSL(m_bSSL);
 		}
@@ -348,7 +348,7 @@ CWebletExReqHandler * CWebletExReqHandlerFactory::createRequestHandler(const HTT
 
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 
@@ -392,11 +392,13 @@ void CPocoWebletEx::clsInit()
 		m_bCfgSet = false;
 		m_bStarted = false;
 
-		m_pServer = NULL;
+		m_pServer = nullptr;
 
-		m_pDefCb = NULL;
+		m_pDefCb = nullptr;
 	
 		m_nError = 0;
+
+		m_pAppData = nullptr;
 
 #ifdef SUPPORT_POCO_SSL
 		if (m_bSupportSSL == true)
@@ -515,14 +517,14 @@ int CPocoWebletEx::webInit()
 		return m_nError;
 	}
 
-	if (m_pServer != NULL)
+	if (m_pServer != nullptr)
 	{
 		// already started... must be stopped first
 		m_nError = WEBLETCLS_ERROR_ALREADY_STARTED;
 		return m_nError;
     } 
 
-	HTTPServer *pWebServer = NULL;
+	HTTPServer *pWebServer = nullptr;
 
 	try
 	{
@@ -537,7 +539,7 @@ int CPocoWebletEx::webInit()
 		pParams->setMaxQueued(maxQueued);
 		pParams->setMaxThreads(maxThreads);
 
-		ServerSocket *pSvS = NULL;
+		ServerSocket *pSvS = nullptr;
 
 #ifdef SUPPORT_POCO_SSL
 		if (bEnableSSL)
@@ -552,7 +554,7 @@ int CPocoWebletEx::webInit()
 			pSvS = (ServerSocket *) new ServerSocket(m_CfgData.nPort);
 		}
 
-		if (pSvS == NULL)
+		if (pSvS == nullptr)
 		{
 			m_nError = WEBLETCLS_ERROR_SERVER_START_FAILED;
 			return m_nError;
@@ -568,7 +570,7 @@ int CPocoWebletEx::webInit()
 			CWebletExReqHandlerFactory((m_CfgData.nPort), (m_CfgData.bHTML), &m_CmdList);
 #endif
 		
-		if (pReqHandlerFactory == NULL)
+		if (pReqHandlerFactory == nullptr)
 		{
 			m_nError = WEBLETCLS_ERROR_SERVER_START_FAILED;
 			return m_nError;
@@ -576,7 +578,7 @@ int CPocoWebletEx::webInit()
 
 		pWebServer = new HTTPServer(pReqHandlerFactory, (*pSvS), pParams);
 
-		if ( pWebServer == NULL )
+		if ( pWebServer == nullptr )
 		{
 			m_nError = WEBLETCLS_ERROR_SERVER_START_FAILED;
 			return m_nError;
@@ -608,7 +610,7 @@ int CPocoWebletEx::webInit(WebletCfgData *pCfg)
 		return m_nError;
     } 
 
-	if (pCfg == NULL)
+	if (pCfg == nullptr)
 	{
 		m_nError = WEBLETCLS_ERROR_INVALID_PARAM;
 		return m_nError;
@@ -694,16 +696,16 @@ int CPocoWebletEx::AddWebletCmdToList
 			sCmd = stringUtil::toLower(sPath);
 		}
 
-		CWebletCmdData	*pCmdData = NULL;
+		CWebletCmdData	*pCmdData = nullptr;
 
 		pCmdData = NewCmdListEntry(nCmdID, sCmd);
-		if (pCmdData == NULL)
+		if (pCmdData == nullptr)
 		{
 			//* Invalid cmd table entry.
 			//* NOTE: If there is already
 			//* an entry with the same 
 			//* CmdID, NewCmdListEntry
-			//* will fail (return NULL).
+			//* will fail (return nullptr).
 			return WEBLETCLS_ERROR_INVALID_CMD_ENTRY;
 		} 
 
@@ -714,7 +716,7 @@ int CPocoWebletEx::AddWebletCmdToList
 	
 		pCmdData->m_bRetType =	bRet;
 
-		pCmdData->m_pCb =		NULL;
+		pCmdData->m_pCb =		nullptr;
 
 		pCmdData->m_pWebletCls =	(void *) this;
 
@@ -746,8 +748,8 @@ int CPocoWebletEx::AddWebletWithCallback
 		bool bRet
 	)
 {
-	//if (pWebCallback == NULL || sPath == "")
-	if (pWebCallback == NULL)
+	//if (pWebCallback == nullptr || sPath == "")
+	if (pWebCallback == nullptr)
 	{
 		return WEBLETCLS_ERROR_INVALID_PARAM;
 	}
@@ -767,16 +769,16 @@ int CPocoWebletEx::AddWebletWithCallback
 			sCmd = stringUtil::toLower(sPath);
 		}
 
-		CWebletCmdData	*pCmdData = NULL;
+		CWebletCmdData	*pCmdData = nullptr;
 
 		pCmdData = NewCmdListEntry(WEBLETCLS_NO_CMD_ID, sCmd);
-		if (pCmdData == NULL)
+		if (pCmdData == nullptr)
 		{
 			//* Invalid cmd table entry.
 			//* NOTE: If there is already
 			//* an entry with the same 
 			//* CmdID, NewCmdListEntry
-			//* will fail (return NULL).
+			//* will fail (return nullptr).
 			return WEBLETCLS_ERROR_INVALID_CMD_ENTRY;
 		} 
 
@@ -816,11 +818,11 @@ int CPocoWebletEx::Start()
 
 	try
 	{
-		if (m_pServer == NULL)
+		if (m_pServer == nullptr)
 		{
 			webInit();
 
-			if (m_pServer == NULL)
+			if (m_pServer == nullptr)
 			{
 				return WEBLETCLS_ERROR_NOT_INITIALIZED;
 			}
@@ -835,13 +837,13 @@ int CPocoWebletEx::Start()
 			//* Set up the weblet sub-URLs and assign callback functions
 			//* for all entries in the command list
 
-			CWebletCmdData	*pCmdData = NULL;
+			CWebletCmdData	*pCmdData = nullptr;
 
 			//for (int x = 0; x < m_nCmdListLen; x++)
 			for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 			{
 				pCmdData = (*x).second;
-				if (pCmdData == NULL)
+				if (pCmdData == nullptr)
 				{
 					//* Invalid cmd table entry
 					nStatus = WEBLETCLS_ERROR_INVALID_CMD_CONFIG;
@@ -892,13 +894,13 @@ int CPocoWebletEx::Stop()
 
 	try
 	{
-		CWebletCmdData *pCmdData = NULL;
+		CWebletCmdData *pCmdData = nullptr;
 	
 		//* Stop everything 
 		for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
 			pCmdData = (*x).second;
-			if (pCmdData == NULL)
+			if (pCmdData == nullptr)
 			{
 				//* Invalid cmd table entry
 				m_nError = 3;
@@ -942,7 +944,7 @@ int CPocoWebletEx::Stop()
 //		void *pUserData
 //	)
 //{
-//	if (pUserData == NULL)
+//	if (pUserData == nullptr)
 //	{
 //		// unable to handle calls to this "callback" 
 //		// without valid UserData (pointer to CmdDataEntry)
@@ -954,14 +956,14 @@ int CPocoWebletEx::Stop()
 //	{
 //		CWebletCmdData	*pCmdData = (CWebletCmdData *) pUserData;
 //
-//		CPocoWebletEx		*pCls = NULL;
+//		CPocoWebletEx		*pCls = nullptr;
 //
-//		if (pCmdData != NULL)
+//		if (pCmdData != nullptr)
 //		{
 //			pCls = (CPocoWebletEx *) pCmdData->m_pWebletCls;
 //		}
 //
-//		if (pCls == NULL)
+//		if (pCls == nullptr)
 //		{
 //			// invalid weblet class pointer
 //
@@ -1052,7 +1054,7 @@ int CPocoWebletEx::GetFreeCmdID()
 		{
 			CWebletCmdData	*pCmdData = GetCmdListEntryByID(i);
 
-			if (pCmdData == NULL)
+			if (pCmdData == nullptr)
 			{
 				return i;
 			}
@@ -1073,7 +1075,7 @@ CWebletCmdData * CPocoWebletEx::NewCmdListEntry(int nID, const std::string &sPat
 {
 	if (nID < 1 && nID != WEBLETCLS_NO_CMD_ID)
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	try
@@ -1084,11 +1086,11 @@ CWebletCmdData * CPocoWebletEx::NewCmdListEntry(int nID, const std::string &sPat
 		{
 			for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 			{
-				if (((*x).second) != NULL)
+				if (((*x).second) != nullptr)
 				{
 					if (((*x).second)->m_nCmdID == nID)
 					{
-						return NULL;
+						return nullptr;
 					}
 				}
 			}
@@ -1112,16 +1114,16 @@ CWebletCmdData * CPocoWebletEx::NewCmdListEntry(int nID, const std::string &sPat
 		WebletCmdList_def::iterator x = m_CmdList.find(sCmd);
 		if (x != m_CmdList.end())
 		{
-			return NULL;
+			return nullptr;
 		}
 
 		//* create a CWebletCmdData class
 
 		CWebletCmdData *pNewCmdData = NEW_CMDDATA();
-		if (pNewCmdData == NULL)
+		if (pNewCmdData == nullptr)
 		{
 			//* some kind of class allocation (new) error
-			return NULL;
+			return nullptr;
 		}
 
 		//* initialize it
@@ -1145,7 +1147,7 @@ CWebletCmdData * CPocoWebletEx::NewCmdListEntry(int nID, const std::string &sPat
 
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 
@@ -1157,7 +1159,7 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntry(const std::string &sPath)
 	{
 		if (m_CmdList.size() < 1)
 		{
-			return NULL;
+			return nullptr;
 		}
 
 		std::string sCmd = "";
@@ -1173,7 +1175,7 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntry(const std::string &sPath)
 			sCmd = sPath;
 		}
 
-		CWebletCmdData	*pCmdData = NULL;
+		CWebletCmdData	*pCmdData = nullptr;
 
 		WebletCmdList_def::iterator x = m_CmdList.find(sCmd);
 		if (x != m_CmdList.end())
@@ -1188,7 +1190,7 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntry(const std::string &sPath)
 
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 
@@ -1200,12 +1202,12 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntryByIdx(int nIdx)
 	{
 		if (nIdx < 0 || nIdx >= (int) m_CmdList.size())
 		{
-			return NULL;
+			return nullptr;
 		}
 
 		int nCntr = 0;
 
-		CWebletCmdData	*pCmdData = NULL;
+		CWebletCmdData	*pCmdData = nullptr;
 
 		for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
@@ -1222,7 +1224,7 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntryByIdx(int nIdx)
 
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 
@@ -1234,16 +1236,16 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntryByID(int nID)
 {
 	if (nID < 1)
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	try
 	{
-		CWebletCmdData	*pCmdData = NULL;
+		CWebletCmdData	*pCmdData = nullptr;
 
 		for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if (((*x).second) != NULL)
+			if (((*x).second) != nullptr)
 			{
 				if (((*x).second)->m_nCmdID == nID)
 				{
@@ -1259,7 +1261,7 @@ CWebletCmdData * CPocoWebletEx::GetCmdListEntryByID(int nID)
 
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 
@@ -1273,14 +1275,14 @@ bool CPocoWebletEx::DeleteCmdListEntry(int nID)
 {
 	if (nID < 1)
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	try
 	{
 		for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if (((*x).second) != NULL)
+			if (((*x).second) != nullptr)
 			{
 				if (((*x).second)->m_nCmdID == nID)
 				{
@@ -1306,14 +1308,14 @@ bool CPocoWebletEx::DeleteCmdListEntry(const std::string &sPath)
 {
 	if (sPath == "")
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	try
 	{
 		for (WebletCmdList_def::iterator x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if (((*x).second) != NULL)
+			if (((*x).second) != nullptr)
 			{
 				if (((*x).second)->m_sPath == sPath)
 				{
@@ -1344,7 +1346,7 @@ void AssignCharPtr2String(std::string &sStr, char *pStr)
 	try
 	{
 		//ASSERT(pStr);
-		if (pStr == NULL)
+		if (pStr == nullptr)
 		{
 			sStr.clear();
 			return;
@@ -1367,7 +1369,7 @@ void AssignCharPtr2String2(std::string &sStr, char *pStr, int nLen)
 	try
 	{
 		//ASSERT(pStr);
-		if (pStr == NULL)
+		if (pStr == nullptr)
 		{
 			sStr.clear();
 			return;

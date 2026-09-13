@@ -219,8 +219,8 @@ public:
 	
 	bool				m_bRetType;
 
-	bool			m_bCreated;
-	bool			m_bStarted;
+	bool				m_bCreated;
+	bool				m_bStarted;
 
 	CWebletCmdData()
 	{
@@ -684,6 +684,7 @@ public:
 
 	//int ClsCallbackMethod(const std::string &sParams, std::string &sReply, void *pUserData);
 
+	std::string GetParam(const std::string &sContent, const std::string &sParams, const std::string &sName);
 
 protected:
 

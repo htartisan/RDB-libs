@@ -26,6 +26,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 #include "PocoWebletCls.h"
 
@@ -178,9 +179,9 @@ void CWebletReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerResp
 		}
 		else
 		{
-			WEBLETCALLBACK *pCallback = ((*x).second->m_pCb);
+			WEBLETCALLBACK *pCallback = ((*x).second.m_pCb);
 
-			CPocoWeblet *pCls = (CPocoWeblet *)((*x).second->m_pWebletCls);
+			CPocoWeblet *pCls = (CPocoWeblet *)((*x).second.m_pWebletCls);
 
 			if (pCallback != NULL)
 			{
@@ -190,12 +191,12 @@ void CWebletReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerResp
 						sPath,
 						sParams,
 						sReply,
-						((*x).second)
+						&((*x).second)
 					);
 			}
 			else if (pCls != NULL)
 			{
-				int nCmd = ((*x).second->m_nCmdID);
+				int nCmd = ((*x).second.m_nCmdID);
 
 				nStatus =
 					pCls->HandleWebEvent
@@ -214,9 +215,9 @@ void CWebletReqHandler::handleRequest(HTTPServerRequest& request, HTTPServerResp
 				throw std::exception("Server not configured");
 			}
 
-			if ((*x).second->m_sContent != "")
+			if ((*x).second.m_sContent != "")
 			{
-				sContent = ((*x).second->m_sContent);
+				sContent = ((*x).second.m_sContent);
 			}
 		}
 
@@ -825,7 +826,7 @@ int CPocoWeblet::Start()
 			//for (int x = 0; x < m_nCmdListLen; x++)
 			for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 			{
-				pCmdData = (*x).second;
+				pCmdData = &((*x).second);
 				if (pCmdData == NULL)
 				{
 					//* Invalid cmd table entry
@@ -882,7 +883,7 @@ int CPocoWeblet::Stop()
 		//* Stop everything 
 		for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			pCmdData = (*x).second;
+			pCmdData = &((*x).second);
 			if (pCmdData == NULL)
 			{
 				//* Invalid cmd table entry
@@ -1009,7 +1010,7 @@ bool CPocoWeblet::ClearCmdList()
 
 		for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if ((*x).second->m_pWebletCls == this)
+			if ((*x).second.m_pWebletCls == this)
 			{
 				m_CmdList.erase(x);
 
@@ -1075,12 +1076,9 @@ CWebletCmdData * CPocoWeblet::NewCmdListEntry(int nID, const std::string &sPath)
 		{
 			for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 			{
-				if (((*x).second) != NULL)
+				if (((*x).second.m_nCmdID == nID)
 				{
-					if (((*x).second)->m_nCmdID == nID)
-					{
-						return NULL;
-					}
+					return NULL;
 				}
 			}
 		}
@@ -1169,7 +1167,7 @@ CWebletCmdData * CPocoWeblet::GetCmdListEntry(const std::string &sPath)
 		WebletCmdList_def::iterator x = m_CmdList.find(sCmd);
 		if (x != m_CmdList.end())
 		{
-			pCmdData = (*x).second;
+			pCmdData = &((*x).second);
 
 			return pCmdData;
 		}
@@ -1202,7 +1200,7 @@ CWebletCmdData * CPocoWeblet::GetCmdListEntryByIdx(int nIdx)
 		{
 			if (nCntr == nIdx)
 			{
-				pCmdData = (*x).second;
+				pCmdData = &((*x).second);
 
 				return pCmdData;
 			}
@@ -1234,14 +1232,11 @@ CWebletCmdData * CPocoWeblet::GetCmdListEntryByID(int nID)
 
 		for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if (((*x).second) != NULL)
+			if (((*x).second.m_nCmdID == nID)
 			{
-				if (((*x).second)->m_nCmdID == nID)
-				{
-					pCmdData = (*x).second;
+				pCmdData = &((*x).second);
 
-					return pCmdData;
-				}
+				return pCmdData;
 			}
 		}
 	}
@@ -1271,14 +1266,11 @@ bool CPocoWeblet::DeleteCmdListEntry(int nID)
 	{
 		for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if (((*x).second) != NULL)
+			if (((*x).second.m_nCmdID == nID)
 			{
-				if (((*x).second)->m_nCmdID == nID)
-				{
-					m_CmdList.erase(x);
+				m_CmdList.erase(x);
 
-					return true;
-				}
+				return true;
 			}
 		}
 	}
@@ -1304,14 +1296,11 @@ bool CPocoWeblet::DeleteCmdListEntry(const std::string &sPath)
 	{
 		for (auto x = m_CmdList.begin(); x != m_CmdList.end(); x++)
 		{
-			if (((*x).second) != NULL)
+			if (((*x).second.m_sPath == sPath)
 			{
-				if (((*x).second)->m_sPath == sPath)
-				{
-					m_CmdList.erase(x);
+				m_CmdList.erase(x);
 
-					return true;
-				}
+				return true;
 			}
 		}
 	}
