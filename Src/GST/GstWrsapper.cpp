@@ -153,13 +153,13 @@ bool CGstWrapper::BuildInputPipeline(const std::string& sPipeline, const std::st
 
         g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(new_sample_callback), &m_controlData);
 
-        //gst_app_sink_set_emit_signals((GstAppSink*) m_controlData.m_pAppsink, TRUE);
+        //gst_app_sink_set_emit_signals((GstAppSink*) m_controlData.m_pAppsink, true);
         
-        //gst_app_sink_set_drop((GstAppSink*)m_controlData.m_pAppsink, TRUE); // Drop old buffers if app is slow
+        //gst_app_sink_set_drop((GstAppSink*)m_controlData.m_pAppsink, true); // Drop old buffers if app is slow
 
         // Configure appsrc
 
-        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", true, "max-buffers", 1, "drop", true, NULL);
     }
     catch (...)
     {
@@ -218,7 +218,7 @@ bool CGstWrapper::BuildOutputPipeline(const std::string& sPipeline, const std::s
 
         // Configure appsrc
 
-        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", true, "is-live", true, "format", GST_FORMAT_TIME, NULL);
 
         // Set the pipeline to the PLAYING state
 
@@ -297,13 +297,13 @@ bool CGstWrapper::BuildIoPipeline(const std::string& sPipeline, const std::strin
 
         g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(new_sample_callback), &m_controlData);
 
-        //gst_app_sink_set_emit_signals((GstAppSink*) m_controlData.m_pAppsink, TRUE);
+        //gst_app_sink_set_emit_signals((GstAppSink*) m_controlData.m_pAppsink, true);
 
-        //gst_app_sink_set_drop((GstAppSink*)m_controlData.m_pAppsink, TRUE); // Drop old buffers if app is slow
+        //gst_app_sink_set_drop((GstAppSink*)m_controlData.m_pAppsink, true); // Drop old buffers if app is slow
 
         // Configure appsrc
 
-        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", true, "max-buffers", 1, "drop", true, NULL);
     }
     catch (...)
     {

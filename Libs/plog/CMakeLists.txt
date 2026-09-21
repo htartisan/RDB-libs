@@ -8,9 +8,9 @@ project(plog VERSION 1.1.10 LANGUAGES CXX)
 
 # check if building as a stand-alone project
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    set(IS_TOPLEVEL_PROJECT TRUE)
+    set(IS_TOPLEVEL_PROJECT true)
 else()
-    set(IS_TOPLEVEL_PROJECT FALSE)
+    set(IS_TOPLEVEL_PROJECT false)
 endif()
 
 # options

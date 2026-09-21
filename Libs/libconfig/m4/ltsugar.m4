@@ -105,7 +105,7 @@ m4_define([lt_dict_fetch],
     m4_ifdef([$1($2)], [m4_defn([$1($2)])]))])
 
 
-# lt_if_dict_fetch(DICT, KEY, [SUBKEY], VALUE, IF-TRUE, [IF-FALSE])
+# lt_if_dict_fetch(DICT, KEY, [SUBKEY], VALUE, IF-true, [IF-false])
 # -----------------------------------------------------------------
 m4_define([lt_if_dict_fetch],
 [m4_if(lt_dict_fetch([$1], [$2], [$3]), [$4],

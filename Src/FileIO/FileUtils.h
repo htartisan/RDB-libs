@@ -253,6 +253,15 @@ bool copyFile(
 	const std::string &fullSrcPath,
 	const std::string &fullDstPath);
 
+inline uint64_t getFileLength(const std::string& sPath)
+{
+	std::filesystem::path filePath(sPath);
+
+	auto fileSize = std::filesystem::file_size(filePath);
+
+	return (uint64_t) fileSize;
+}
+
 };
 
 #endif

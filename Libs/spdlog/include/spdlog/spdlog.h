@@ -193,6 +193,7 @@ inline void log(level::level_enum lvl, const T &msg) {
     default_logger_raw()->log(lvl, msg);
 }
 
+#ifdef WINDOWS
 #ifdef SPDLOG_WCHAR_TO_UTF8_SUPPORT
 template <typename... Args>
 inline void log(source_loc source,
@@ -236,6 +237,7 @@ template <typename... Args>
 inline void critical(wformat_string_t<Args...> fmt, Args &&...args) {
     default_logger_raw()->critical(fmt, std::forward<Args>(args)...);
 }
+#endif
 #endif
 
 template <typename T>

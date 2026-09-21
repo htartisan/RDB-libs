@@ -52,8 +52,8 @@
 
 #include <iostream>
 
-#include "..\String\StrUtils.h"
-//#include "stlx.h"
+#include "stringUtils.h"
+#include "stlx.h"
 
 
 
@@ -154,8 +154,8 @@ std::string getHttpParams(HTTPServerRequest& request);
 class CPocoWeblet;
 
 
-PVOID NewCWebletCmdData();
-PVOID DelCWebletCmdData();
+void* NewCWebletCmdData();
+void* DelCWebletCmdData();
 
 
 typedef struct WebletCfgData_def
@@ -231,7 +231,9 @@ public:
 };
 
 
-typedef std::map<std::string, CWebletCmdData>	WebletCmdList_def;
+//typedef stlx::ptr_xmap<int, CWebletCmdData>	WebletCmdList_def;
+//typedef stlx::ptr_xvector<CWebletCmdData>	WebletCmdList_def;
+typedef stlx::ptr_xmap<std::string, CWebletCmdData>	WebletCmdList_def;
 
 
 class CWebletReqHandler: public HTTPRequestHandler

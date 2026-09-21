@@ -3881,7 +3881,7 @@ drfs_result drfs_open_file_from_archive(drfs_archive* pArchive, const char* rela
     // The lock.
 #ifdef _WIN32
 #ifdef DR_FS_WIN32_USE_EVENT_MUTEX
-    pFile->lock = CreateEvent(NULL, FALSE, TRUE, NULL);
+    pFile->lock = CreateEvent(NULL, false, true, NULL);
 #else
     InitializeCriticalSection(&pFile->lock);
 #endif

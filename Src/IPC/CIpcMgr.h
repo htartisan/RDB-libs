@@ -410,7 +410,7 @@ public:
 
 			std::wstring wsIpcName = StrUtils::tows(sIpcName);
 
-			m_smHandle = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, wsIpcName.c_str());
+			m_smHandle = OpenFileMappingW(FILE_MAP_ALL_ACCESS, false, wsIpcName.c_str());
 
 #else
 
@@ -475,7 +475,7 @@ public:
 		std::wstring wsMutexName = StrUtils::tows(sMutexName);
 
 		m_ipcMutex =
-			CreateMutexW(NULL, FALSE, wsMutexName.c_str());
+			CreateMutexW(NULL, false, wsMutexName.c_str());
 
 		std::string sCvName = "Local\\";
 		sCvName.append(m_name);
@@ -485,7 +485,7 @@ public:
 
 		m_readCV = m_isCreator
 			? CreateSemaphoreW(NULL, 0, LONG_MAX, wsCvName.c_str())
-			: OpenSemaphoreW(SEMAPHORE_ALL_ACCESS, FALSE, wsCvName.c_str());
+			: OpenSemaphoreW(SEMAPHORE_ALL_ACCESS, false, wsCvName.c_str());
 
 		sCvName = "Local\\";
 		sCvName.append(m_name);
@@ -495,7 +495,7 @@ public:
 
 		m_writeCV = m_isCreator
 			? CreateSemaphoreW(NULL, 0, LONG_MAX, wsCvName.c_str())
-			: OpenSemaphoreW(SEMAPHORE_ALL_ACCESS, FALSE, wsCvName.c_str());
+			: OpenSemaphoreW(SEMAPHORE_ALL_ACCESS, false, wsCvName.c_str());
 
 		if (m_ipcMutex == NULL || m_readCV == NULL || m_writeCV == NULL)
 		{

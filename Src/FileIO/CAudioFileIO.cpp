@@ -1643,9 +1643,9 @@ void CWavFileIO::setBlockSize(const unsigned int blockSize)
 int CWavFileIO::getSampleRate()
 {
 #ifndef USE_DR_WAV
-    m_sampleRate = (unsigned int)m_audioFile.getSampleRate();
+    m_sampleRate = (unsigned int) m_audioFile.getSampleRate();
 #else
-    m_sampleRate  = (unsigned int)m_audioFile.sampleRate;
+    m_sampleRate  = (unsigned int) m_audioFile.sampleRate;
 #endif
 
     return (int) m_sampleRate;
@@ -1655,9 +1655,9 @@ int CWavFileIO::getSampleRate()
 int CWavFileIO::getNumChannels()
 {
 #ifndef USE_DR_WAV
-    m_numChls = (unsigned int)m_audioFile.getNumChannels();
+    m_numChls = (unsigned int) m_audioFile.getNumChannels();
 #else
-    m_numChls = (unsigned int)m_audioFile.channels;
+    m_numChls = (unsigned int) m_audioFile.channels;
 #endif
 
     return (int)m_numChls;

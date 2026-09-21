@@ -428,8 +428,8 @@ For example, in our hypothetical configuration file, the path to the
 The datatype of a value is determined from the format of the value
 itself. If the value is enclosed in double quotes, it is treated as a
 string. If it looks like an integer or floating point number, it is
-treated as such. If it is one of the values @code{TRUE}, @code{true},
-@code{FALSE}, or @code{false} (or any other mixed-case version of
+treated as such. If it is one of the values @code{true}, @code{true},
+@code{false}, or @code{false} (or any other mixed-case version of
 those tokens, e.g., @code{True} or @code{FaLsE}), it is treated as a
 boolean. If it consists of a comma-separated list of values enclosed
 in square brackets, it is treated as an array. And if it consists of a

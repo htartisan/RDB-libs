@@ -699,41 +699,41 @@ public:
     // starting at the current write offset,
     // and then update the current write offset.
     // return:  the updated write offset.
-    int writePixels(const void* pSrctPixel, const unsigned int count, const unsigned long frame = 0)
+    int writePixels(const void* pSrcBuffer, const unsigned int numPixels, const unsigned long frame = 0)
     {
-        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || count > m_frameSize || m_nBitsPerPixel < 8)
+        if (m_frameSize < 1 || m_blockSize < 1 || frame >= m_blockSize || !m_bAllocated || numPixels > m_frameSize || m_nBitsPerPixel < 8)
         {
             return -1;
         }
 
-        if (pSrctPixel == nullptr)
+        if (pSrcBuffer == nullptr)
+        {
+            return -1;
+        }
+
+        if ((m_writeIdx + numPixels) > (unsigned long) m_frameSize)
         {
             return -1;
         }
 
         std::lock_guard<std::mutex> lock(m_ioLock);
 
-        if ((m_writeIdx + count) > (unsigned long) m_frameSize)
-        {
-            return -1;
-        }
+        auto  currentFrameLen = m_frameDataLen[frame];
 
-        unsigned int bytesPerFrame = ((m_frameSize * m_nBitsPerPixel) / 8);
+        float bytesPerBixel = ((float) m_nBitsPerPixel / 8.0f);
 
-        unsigned offset = ((frame * bytesPerFrame) + ((m_writeIdx * m_nBitsPerPixel) / 8));
-
-        unsigned int copySize = ((((m_nBitsPerPixel * count) + 8) - 1) / 8);       // divide by 8 and round up
+        unsigned int offset = (unsigned int) (frame * currentFrameLen);
 
         try
         {
-            memcpy((((uint8_t*)m_pBuffer) + offset), pSrctPixel, copySize);
+            memcpy((((uint8_t*) m_pBuffer) + offset), pSrcBuffer, currentFrameLen);
         }
         catch (...)
         {
             return false;
         }
 
-        m_writeIdx += count;
+        m_writeIdx += numPixels;
 
         return m_writeIdx;
     }

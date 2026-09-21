@@ -1659,9 +1659,9 @@ bool dr2d_on_create_font_gdi(dr2d_font* pFont)
     default: break;
     }
 
-	BYTE slantGDI = FALSE;
+	BYTE slantGDI = false;
     if (pFont->slant == dr2d_font_slant_italic || pFont->slant == dr2d_font_slant_oblique) {
-        slantGDI = TRUE;
+        slantGDI = true;
     }
 
 

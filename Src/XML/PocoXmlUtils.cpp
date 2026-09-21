@@ -267,7 +267,7 @@ bool PocoXmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName) throw(std::r
 		return false;
 	}
 
-	bool bStatus = FALSE;
+	bool bStatus = false;
 
 	CFileIO		cFileManager;
 
@@ -421,7 +421,7 @@ bool PocoXmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::
 #else
 			bStatus = cFileManager.SetFileDir((char *) pFolder);
 #endif
-			if (bStatus == FALSE)
+			if (bStatus == false)
 			{
 				//throw std::runtime_error("Problem setting XML file firectory");
 				return false;
@@ -476,7 +476,7 @@ bool PocoXmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName) throw(std::
 
 	cFileManager.Close();
 
-	return ((bStatus == TRUE) ? true : false);
+	return ((bStatus == true) ? true : false);
 }
 
 

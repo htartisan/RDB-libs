@@ -2791,7 +2791,7 @@ draudio_event_dsound* draudio_create_event_dsound(draudio_event_manager_dsound* 
     if (pEvent != NULL)
     {
         pEvent->pEventManager = pEventManager;
-        pEvent->hEvent        = CreateEventA(NULL, FALSE, FALSE, NULL);
+        pEvent->hEvent        = CreateEventA(NULL, false, false, NULL);
         pEvent->callback      = NULL;
         pEvent->pBuffer       = pBuffer;
         pEvent->eventID       = eventID;
@@ -2903,7 +2903,7 @@ DWORD WINAPI DSound_EventWorkerThreadProc(draudio_event_manager_dsound *pEventMa
 
 
 
-            DWORD rc = WaitForMultipleObjects(eventCount, eventHandles, FALSE, INFINITE);
+            DWORD rc = WaitForMultipleObjects(eventCount, eventHandles, false, INFINITE);
             if (rc >= WAIT_OBJECT_0 && rc < eventCount)
             {
                 const unsigned int eventIndex = rc - WAIT_OBJECT_0;
@@ -2963,12 +2963,12 @@ bool draudio_init_event_manager_dsound(draudio_event_manager_dsound* pEventManag
 
     pEventManager->pMessageQueue = pMessageQueue;
 
-    HANDLE hTerminateEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
+    HANDLE hTerminateEvent = CreateEventA(NULL, false, false, NULL);
     if (hTerminateEvent == NULL) {
         return false;
     }
 
-    HANDLE hRefreshEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
+    HANDLE hRefreshEvent = CreateEventA(NULL, false, false, NULL);
     if (hRefreshEvent == NULL)
     {
         CloseHandle(hTerminateEvent);
@@ -2992,7 +2992,7 @@ bool draudio_init_event_manager_dsound(draudio_event_manager_dsound* pEventManag
         return false;
     }
 
-    HANDLE hEventCompletionLock = CreateEventA(NULL, FALSE, FALSE, NULL);
+    HANDLE hEventCompletionLock = CreateEventA(NULL, false, false, NULL);
     if (hEventCompletionLock == NULL)
     {
         CloseHandle(hTerminateEvent);
@@ -3047,7 +3047,7 @@ void draudio_uninit_event_manager_dsound(draudio_event_manager_dsound* pEventMan
 
 
     // Terminate the thread and wait for the thread to finish executing before freeing the context for real.
-    SignalObjectAndWait(pEventManager->hTerminateEvent, pEventManager->hThread, INFINITE, FALSE);
+    SignalObjectAndWait(pEventManager->hTerminateEvent, pEventManager->hThread, INFINITE, false);
 
     // Only delete the thread after it has returned naturally.
     CloseHandle(pEventManager->hThread);
@@ -3100,9 +3100,9 @@ static GUID* g_KSDATAFORMAT_SUBTYPE_IEEE_FLOAT_GUID = &_g_KSDATAFORMAT_SUBTYPE_I
 
 
 typedef HRESULT (WINAPI * pDirectSoundCreate8Proc)(LPCGUID pcGuidDevice, LPDIRECTSOUND8 *ppDS8, LPUNKNOWN pUnkOuter);
-typedef HRESULT (WINAPI * pDirectSoundEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, LPVOID pContext);
+typedef HRESULT (WINAPI * pDirectSoundEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, void* pContext);
 typedef HRESULT (WINAPI * pDirectSoundCaptureCreate8Proc)(LPCGUID pcGuidDevice, LPDIRECTSOUNDCAPTURE8 *ppDSC8, LPUNKNOWN pUnkOuter);
-typedef HRESULT (WINAPI * pDirectSoundCaptureEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, LPVOID pContext);
+typedef HRESULT (WINAPI * pDirectSoundCaptureEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, void* pContext);
 
 typedef struct
 {
@@ -3381,7 +3381,7 @@ draudio_device* draudio_create_output_device_dsound(draudio_context* pContext, u
 
     // Listener.
     LPDIRECTSOUND3DLISTENER pDSListener = NULL;
-    hr = IDirectSound3DListener_QueryInterface(pDSPrimaryBuffer, g_DSListenerGUID, (LPVOID*)&pDSListener);
+    hr = IDirectSound3DListener_QueryInterface(pDSPrimaryBuffer, g_DSListenerGUID, (void**)&pDSListener);
     if (FAILED(hr)) {
         IDirectSoundBuffer_Release(pDSPrimaryBuffer);
         IDirectSound_Release(pDS);
@@ -3634,7 +3634,7 @@ void draudio_set_buffer_data_dsound(draudio_buffer* pBuffer, size_t offset, cons
     assert(pBufferDS != NULL);
     assert(pData != NULL);
 
-    LPVOID lpvWrite;
+    void* lpvWrite;
     DWORD dwLength;
     HRESULT hr = IDirectSoundBuffer8_Lock(pBufferDS->pDSBuffer, (DWORD)offset, (DWORD)dataSizeInBytes, &lpvWrite, &dwLength, NULL, NULL, 0);
     if (FAILED(hr)) {
@@ -4102,7 +4102,7 @@ draudio_3d_mode draudio_get_3d_mode_dsound(draudio_buffer* pBuffer)
 }
 
 
-static BOOL CALLBACK DSEnumCallback_OutputDevices(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, LPVOID lpContext)
+static BOOL CALLBACK DSEnumCallback_OutputDevices(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, void* lpContext)
 {
     // From MSDN:
     //
@@ -4124,16 +4124,16 @@ static BOOL CALLBACK DSEnumCallback_OutputDevices(LPGUID lpGuid, LPCSTR lpcstrDe
         draudio_strcpy(pContextDS->outputDeviceInfo[pContextDS->outputDeviceCount].moduleName,  256, lpcstrModule);
 
         pContextDS->outputDeviceCount += 1;
-        return TRUE;
+        return true;
     }
     else
     {
         // Ran out of device slots.
-        return FALSE;
+        return false;
     }
 }
 
-static BOOL CALLBACK DSEnumCallback_InputDevices(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, LPVOID lpContext)
+static BOOL CALLBACK DSEnumCallback_InputDevices(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, void* lpContext)
 {
     // From MSDN:
     //
@@ -4155,12 +4155,12 @@ static BOOL CALLBACK DSEnumCallback_InputDevices(LPGUID lpGuid, LPCSTR lpcstrDes
         draudio_strcpy(pContextDS->inputDeviceInfo[pContextDS->inputDeviceCount].moduleName,  256, lpcstrModule);
 
         pContextDS->inputDeviceCount += 1;
-        return TRUE;
+        return true;
     }
     else
     {
         // Ran out of device slots.
-        return FALSE;
+        return false;
     }
 }
 

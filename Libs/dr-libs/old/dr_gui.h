@@ -124,7 +124,7 @@
 //     rect.top    = absoluteRect.top;
 //     rect.right  = absoluteRect.right;
 //     rect.height = absoluteRect.bottom;
-//     InvalidateRect((HWND)drgui_get_user_data(drgui_find_top_level_element(pElement)), &rect, FALSE);
+//     InvalidateRect((HWND)drgui_get_user_data(drgui_find_top_level_element(pElement)), &rect, false);
 // }
 //
 // ...
@@ -138,7 +138,7 @@
 //             case WM_PAINT:
 //             {
 //                 RECT rect;
-//                 if (GetUpdateRect(hWnd, &rect, FALSE)) {
+//                 if (GetUpdateRect(hWnd, &rect, false)) {
 //                     drgui_draw(pTopLevelElement, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
 //                 }
 //

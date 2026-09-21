@@ -166,8 +166,8 @@ int set_config_bool(config_setting_t *setting, char *dataString, struct flags op
 	//convert input data
 	//chceck both 1/0 and true/false string
 	buf = -1;
-	if(!strcmp(dataString, "1") || !strcmp(dataString, "true") || !strcmp(dataString, "TRUE")) buf = 1;
-	if(!strcmp(dataString, "0") || !strcmp(dataString, "false") || !strcmp(dataString, "FALSE")) buf = 0;
+	if(!strcmp(dataString, "1") || !strcmp(dataString, "true") || !strcmp(dataString, "true")) buf = 1;
+	if(!strcmp(dataString, "0") || !strcmp(dataString, "false") || !strcmp(dataString, "false")) buf = 0;
 	if(buf < 0) {
 		if(optflags.quiet == 0) printf(gettext("ERROR! Incorrect data format.\n"));
 		return 12;

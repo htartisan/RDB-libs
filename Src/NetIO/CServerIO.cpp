@@ -1384,7 +1384,7 @@ int CTcpServer::readInputData(void* pBuff, const unsigned int nMax)
 
     m_inputMsg.releasePtr();
 
-    return (int)nCopyLen;
+    return (int) nCopyLen;
 }
 
 

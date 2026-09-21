@@ -269,7 +269,7 @@ bool XmlParserUtil::LoadXmlFile(char *pFolder, char *pFileName)  //throw(std::ru
 		return false;
 	}
 
-	bool bStatus = FALSE;
+	bool bStatus = false;
 
 	CFileIO		cFileManager;
 
@@ -404,7 +404,7 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName)  //throw(std::r
 		if (pFolder != NULL)
 		{
 			bStatus = cFileManager.setFileDir((char *) pFolder);
-			if (bStatus == FALSE)
+			if (bStatus == false)
 			{
 				//throw std::runtime_error("Problem setting XML file firectory");
 				return false;
@@ -447,7 +447,7 @@ bool XmlParserUtil::WriteXmlFile(char *pFolder, char *pFileName)  //throw(std::r
 
 	cFileManager.closeFile();
 
-	return ((bStatus == TRUE) ? true : false);
+	return ((bStatus == true) ? true : false);
 }
 
 

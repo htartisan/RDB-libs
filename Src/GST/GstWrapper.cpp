@@ -60,7 +60,7 @@ static bool gst_find_All_elementts(GstBin* pBin,  GstElementList_def& elementLis
         case GST_ITERATOR_ERROR:
         case GST_ITERATOR_DONE:
         default:
-            bDone = TRUE;
+            bDone = true;
             break;
         }
     }
@@ -415,7 +415,7 @@ bool CGstWrapper::Initialize()
 
     m_controlData.m_bGstInitialized = true;
 
-    m_controlData.m_pBusLoop = g_main_loop_new(NULL, FALSE);
+    m_controlData.m_pBusLoop = g_main_loop_new(NULL, false);
 
     return true;
 }
@@ -663,11 +663,11 @@ bool CGstWrapper::BuildInputPipeline
 
         // Configure AppSink
 
-        //g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, NULL);
-        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
+        //g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", true, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", true, "max-buffers", 1, "drop", true, NULL);
 
-        //gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, TRUE);
-        //gst_app_sink_set_drop(m_controlData.m_pAppsink, TRUE);
+        //gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, true);
+        //gst_app_sink_set_drop(m_controlData.m_pAppsink, true);
         //gst_app_sink_set_max_buffers(m_controlData.m_pAppsink, 1);
 
 #ifdef USE_GST_SAMPLE_CALLBACK
@@ -757,7 +757,7 @@ bool CGstWrapper::BuildOutputPipeline
 
         // Configure Appsrc
 
-        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", true, "is-live", true, "format", GST_FORMAT_TIME, NULL);
     }
     catch (...)
     {
@@ -853,7 +853,7 @@ bool CGstWrapper::BuildIoPipeline
 
         // Configure Appsrc
 
-        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", TRUE, "is-live", TRUE, "format", GST_FORMAT_TIME, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsrc), "emit-signals", true, "is-live", true, "format", GST_FORMAT_TIME, NULL);
 
         // Get the AppSink element
 
@@ -876,13 +876,13 @@ bool CGstWrapper::BuildIoPipeline
 
         // Configure AppSink
 
-        gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, TRUE);
-        gst_app_sink_set_drop(m_controlData.m_pAppsink, TRUE);
+        gst_app_sink_set_emit_signals(m_controlData.m_pAppsink, true);
+        gst_app_sink_set_drop(m_controlData.m_pAppsink, true);
         gst_app_sink_set_max_buffers(m_controlData.m_pAppsink, 1);
 
         g_signal_connect(m_controlData.m_pAppsink, "new-sample", G_CALLBACK(gst_new_sample_callback), &m_controlData);
 
-        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", TRUE, "max-buffers", 1, "drop", TRUE, NULL);
+        g_object_set(G_OBJECT(m_controlData.m_pAppsink), "emit-signals", true, "max-buffers", 1, "drop", true, NULL);
     }
     catch (...)
     {

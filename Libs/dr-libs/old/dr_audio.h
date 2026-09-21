@@ -1043,7 +1043,7 @@ struct dra_backend_device
 #include <windows.h>
 
 //// Threading (Win32) ////
-typedef DWORD (* dra_thread_entry_proc)(LPVOID pData);
+typedef DWORD (* dra_thread_entry_proc)(void* pData);
 
 dra_thread dra_thread_create(dra_thread_entry_proc entryProc, void* pData)
 {
@@ -1063,7 +1063,7 @@ void dra_thread_wait(dra_thread thread)
 
 dra_mutex dra_mutex_create()
 {
-    return (dra_mutex)CreateEventA(NULL, FALSE, TRUE, NULL);
+    return (dra_mutex)CreateEventA(NULL, false, true, NULL);
 }
 
 void dra_mutex_delete(dra_mutex mutex)
@@ -1127,9 +1127,9 @@ static GUID* g_draGUID_IID_IDirectSoundCaptureBuffer8  = &_g_draGUID_IID_IDirect
 #endif
 
 typedef HRESULT (WINAPI * pDirectSoundCreate8Proc)(LPCGUID pcGuidDevice, LPDIRECTSOUND8 *ppDS8, LPUNKNOWN pUnkOuter);
-typedef HRESULT (WINAPI * pDirectSoundEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, LPVOID pContext);
+typedef HRESULT (WINAPI * pDirectSoundEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, void* pContext);
 typedef HRESULT (WINAPI * pDirectSoundCaptureCreate8Proc)(LPCGUID pcGuidDevice, LPDIRECTSOUNDCAPTURE8 *ppDSC8, LPUNKNOWN pUnkOuter);
-typedef HRESULT (WINAPI * pDirectSoundCaptureEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, LPVOID pContext);
+typedef HRESULT (WINAPI * pDirectSoundCaptureEnumerateAProc)(LPDSENUMCALLBACKA pDSEnumCallback, void* pContext);
 
 typedef struct
 {
@@ -1194,7 +1194,7 @@ typedef struct
     const GUID* pGuid;
 } dra_dsound__device_enum_data;
 
-static BOOL CALLBACK dra_dsound__get_device_guid_by_id__callback(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, LPVOID lpContext)
+static BOOL CALLBACK dra_dsound__get_device_guid_by_id__callback(LPGUID lpGuid, LPCSTR lpcstrDescription, LPCSTR lpcstrModule, void* lpContext)
 {
     (void)lpcstrDescription;
     (void)lpcstrModule;
@@ -1514,7 +1514,7 @@ dra_backend_device* dra_backend_device_open_playback_dsound(dra_backend* pBacken
     DSBPOSITIONNOTIFY notifyPoints[DR_AUDIO_DEFAULT_FRAGMENT_COUNT];  // One notification event for each fragment.
     for (int i = 0; i < DR_AUDIO_DEFAULT_FRAGMENT_COUNT; ++i)
     {
-        pDeviceDS->pNotifyEvents[i] = CreateEventA(NULL, FALSE, FALSE, NULL);
+        pDeviceDS->pNotifyEvents[i] = CreateEventA(NULL, false, false, NULL);
         if (pDeviceDS->pNotifyEvents[i] == NULL) {
             goto on_error;
         }
@@ -1532,7 +1532,7 @@ dra_backend_device* dra_backend_device_open_playback_dsound(dra_backend* pBacken
 
     // The termination event is used to determine when the playback thread should be terminated. The playback thread
     // will wait on this event in addition to the notification events in it's main loop.
-    pDeviceDS->hStopEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
+    pDeviceDS->hStopEvent = CreateEventA(NULL, false, false, NULL);
     if (pDeviceDS->hStopEvent == NULL) {
         goto on_error;
     }
@@ -1634,7 +1634,7 @@ dra_backend_device* dra_backend_device_open_capture_dsound(dra_backend* pBackend
         goto on_error;
     }
 
-    hr = IDirectSoundCapture_QueryInterface(pDSCB_Temp, g_draGUID_IID_IDirectSoundCaptureBuffer8, (LPVOID*)&pDeviceDS->pDSCaptureBuffer);
+    hr = IDirectSoundCapture_QueryInterface(pDSCB_Temp, g_draGUID_IID_IDirectSoundCaptureBuffer8, (void**)&pDeviceDS->pDSCaptureBuffer);
     IDirectSoundCaptureBuffer_Release(pDSCB_Temp);
     if (FAILED(hr)) {
         goto on_error;  // Failed to retrieve the DirectSoundCaptureBuffer8 interface.
@@ -1651,7 +1651,7 @@ dra_backend_device* dra_backend_device_open_capture_dsound(dra_backend* pBackend
     DSBPOSITIONNOTIFY notifyPoints[DR_AUDIO_DEFAULT_FRAGMENT_COUNT];  // One notification event for each fragment.
     for (int i = 0; i < DR_AUDIO_DEFAULT_FRAGMENT_COUNT; ++i)
     {
-        pDeviceDS->pNotifyEvents[i] = CreateEventA(NULL, FALSE, FALSE, NULL);
+        pDeviceDS->pNotifyEvents[i] = CreateEventA(NULL, false, false, NULL);
         if (pDeviceDS->pNotifyEvents[i] == NULL) {
             goto on_error;
         }
@@ -1668,7 +1668,7 @@ dra_backend_device* dra_backend_device_open_capture_dsound(dra_backend* pBackend
 
     // The termination event is used to determine when the capture thread should be terminated. This thread
     // will wait on this event in addition to the notification events in it's main loop.
-    pDeviceDS->hStopEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
+    pDeviceDS->hStopEvent = CreateEventA(NULL, false, false, NULL);
     if (pDeviceDS->hStopEvent == NULL) {
         goto on_error;
     }
@@ -1751,7 +1751,7 @@ dr_bool32 dra_backend_device_wait(dra_backend_device* pDevice)   // <-- Returns 
     memcpy(eventHandles, pDeviceDS->pNotifyEvents, sizeof(HANDLE) * DR_AUDIO_DEFAULT_FRAGMENT_COUNT);
     eventHandles[DR_AUDIO_DEFAULT_FRAGMENT_COUNT] = pDeviceDS->hStopEvent;
 
-    DWORD rc = WaitForMultipleObjects(DR_AUDIO_DEFAULT_FRAGMENT_COUNT + 1, eventHandles, FALSE, INFINITE);
+    DWORD rc = WaitForMultipleObjects(DR_AUDIO_DEFAULT_FRAGMENT_COUNT + 1, eventHandles, false, INFINITE);
     if (rc >= WAIT_OBJECT_0 && rc < eventCount)
     {
         unsigned int eventIndex = rc - WAIT_OBJECT_0;
@@ -2852,7 +2852,7 @@ void dra_device__voice_playback_count_dec(dra_device* pDevice)
 
 // The entry point signature is slightly different depending on whether or not we're using Win32 or POSIX threads.
 #ifdef _WIN32
-DWORD dra_device__thread_proc(LPVOID pData)
+DWORD dra_device__thread_proc(void* pData)
 #else
 void* dra_device__thread_proc(void* pData)
 #endif

@@ -143,7 +143,7 @@ public:
         // get user token
         std::vector<unsigned char> buffer(static_cast<size_t>(tusize));
         if (!::GetTokenInformation(current_process_token.token_handle_, TokenUser,
-                                   (LPVOID)buffer.data(), tusize, &tusize)) {
+                                   (void*)buffer.data(), tusize, &tusize)) {
             SPDLOG_THROW(win32_error("GetTokenInformation"));
         }
 

@@ -42,11 +42,11 @@ typedef char TCHAR;
 #define ASSERT assert
 #endif
 #define SYSTEMTIME struct tm
-#ifndef TRUE
-#define TRUE true
+#ifndef true
+#define true true
 #endif
-#ifndef FALSE
-#define FALSE false
+#ifndef false
+#define false false
 #endif
 
 

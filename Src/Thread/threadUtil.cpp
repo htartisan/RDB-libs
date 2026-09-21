@@ -18,7 +18,7 @@ using namespace std;
 mutex::mutex() throw(runtime_error)
     :m_mutex(NULL)
 {
-    m_mutex = ::CreateMutex(NULL,FALSE,NULL);
+    m_mutex = ::CreateMutex(NULL,false,NULL);
     if (!m_mutex)
         throw runtime_error("Could not create mutex");
 }
@@ -32,7 +32,7 @@ mutex::~mutex() throw()
 event::event(BOOL bManualReset) throw(runtime_error)
     :m_event(NULL)
 {
-    m_event = ::CreateEvent(NULL,bManualReset,FALSE,NULL);
+    m_event = ::CreateEvent(NULL,bManualReset,false,NULL);
     if (!m_event)
         throw runtime_error("Could not create event object");
 }

@@ -31,10 +31,12 @@
         #include <share.h>
     #endif
 
+#ifdef WINDOWS
     #if defined(SPDLOG_WCHAR_TO_UTF8_SUPPORT) || defined(SPDLOG_WCHAR_FILENAMES)
         #include <cassert>
         #include <limits>
     #endif
+#endif
 
     #include <direct.h>  // for _mkdir/_wmkdir
 
@@ -437,6 +439,7 @@ SPDLOG_INLINE bool in_terminal(FILE *file) SPDLOG_NOEXCEPT {
 #endif
 }
 
+#ifdef WINDOWS
 #if (defined(SPDLOG_WCHAR_TO_UTF8_SUPPORT) || defined(SPDLOG_WCHAR_FILENAMES)) && defined(_WIN32)
 SPDLOG_INLINE void wstr_to_utf8buf(wstring_view_t wstr, memory_buf_t &target) {
     if (wstr.size() > static_cast<size_t>((std::numeric_limits<int>::max)()) / 4 - 1) {
@@ -500,6 +503,7 @@ SPDLOG_INLINE void utf8_to_wstrbuf(string_view_t str, wmemory_buf_t &target) {
 }
 #endif  // (defined(SPDLOG_WCHAR_TO_UTF8_SUPPORT) || defined(SPDLOG_WCHAR_FILENAMES)) &&
         // defined(_WIN32)
+#endif
 
 // return true on success
 static SPDLOG_INLINE bool mkdir_(const filename_t &path) {

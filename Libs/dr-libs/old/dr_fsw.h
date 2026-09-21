@@ -414,7 +414,7 @@ DRFSW_PRIVATE int drfsw_event_queue_init(drfsw_event_queue* pQueue)
             return 0;
         }
 
-        pQueue->hLock = CreateEventW(NULL, FALSE, TRUE, NULL);
+        pQueue->hLock = CreateEventW(NULL, false, true, NULL);
         if (pQueue->hLock == NULL)
         {
             CloseHandle(pQueue->hSemaphore);
@@ -986,7 +986,7 @@ DRFSW_PRIVATE int drfsw_directory_win32_beginwatch(drfsw_directory_win32* pDirec
     {
         DWORD dwNotifyFilter = FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION;
         DWORD dwBytes        = 0;
-        if (ReadDirectoryChangesW(pDirectory->hDirectory, pDirectory->pFNIBuffer1, pDirectory->fniBufferSizeInBytes, TRUE, dwNotifyFilter, &dwBytes, &pDirectory->overlapped, drfsw_win32_completionroutine))
+        if (ReadDirectoryChangesW(pDirectory->hDirectory, pDirectory->pFNIBuffer1, pDirectory->fniBufferSizeInBytes, true, dwNotifyFilter, &dwBytes, &pDirectory->overlapped, drfsw_win32_completionroutine))
         {
             pDirectory->flags &= ~WIN32_RDC_PENDING_WATCH;
             return 1;
@@ -1005,7 +1005,7 @@ DRFSW_PRIVATE int drfsw_directory_list_win32_init(drfsw_directory_list_win32* pD
     {
         drfsw_list_init(&pDirectories->list);
 
-        pDirectories->hLock = CreateEvent(NULL, FALSE, TRUE, NULL);
+        pDirectories->hLock = CreateEvent(NULL, false, true, NULL);
         if (pDirectories->hLock != NULL)
         {
             return 1;
@@ -1200,13 +1200,13 @@ DRFSW_PRIVATE DWORD WINAPI _WatcherThreadProc_RDC(drfsw_context_win32 *pContextR
     {
         // Important that we use the Ex version here because we need to put the thread into an alertable state (last argument). If the thread is not put into
         // an alertable state, ReadDirectoryChangesW() won't ever call the notification event.
-        DWORD rc = WaitForSingleObjectEx(pContextRDC->hTerminateEvent, INFINITE, TRUE);
+        DWORD rc = WaitForSingleObjectEx(pContextRDC->hTerminateEvent, INFINITE, true);
         switch (rc)
         {
         case WAIT_OBJECT_0 + 0:
             {
                 // The context has signaled that it needs to be deleted.
-                pContextRDC->terminateThread = TRUE;
+                pContextRDC->terminateThread = true;
                 break;
             }
 
@@ -1231,9 +1231,9 @@ DRFSW_PRIVATE drfsw_context* drfsw_create_context_win32()
         {
             if (drfsw_event_queue_init(&pContext->eventQueue))
             {
-                pContext->hTerminateEvent     = CreateEvent(NULL, FALSE, FALSE, NULL);
+                pContext->hTerminateEvent     = CreateEvent(NULL, false, false, NULL);
                 pContext->hDeleteDirSemaphore = CreateSemaphoreW(NULL, 0, 1, NULL);
-                pContext->terminateThread = FALSE;
+                pContext->terminateThread = false;
 
                 if (pContext->hTerminateEvent != NULL)
                 {
@@ -1271,7 +1271,7 @@ DRFSW_PRIVATE void drfsw_delete_context_win32(drfsw_context_win32* pContext)
 
 
         // Signal the close event, and wait for the thread to finish.
-        SignalObjectAndWait(pContext->hTerminateEvent, pContext->hThread, INFINITE, FALSE);
+        SignalObjectAndWait(pContext->hTerminateEvent, pContext->hThread, INFINITE, false);
 
         // The thread has finished, so close the handle.
         CloseHandle(pContext->hThread);
@@ -1441,7 +1441,7 @@ DRFSW_PRIVATE int drfsw_next_event_win32(drfsw_context_win32* pContext, drfsw_ev
         hEvents[0] = pContext->hThread;
         hEvents[1] = pContext->eventQueue.hSemaphore;
 
-        DWORD rc = WaitForMultipleObjects(sizeof(hEvents) / sizeof(hEvents[0]), hEvents, FALSE, INFINITE);
+        DWORD rc = WaitForMultipleObjects(sizeof(hEvents) / sizeof(hEvents[0]), hEvents, false, INFINITE);
         switch (rc)
         {
         case WAIT_OBJECT_0 + 0:

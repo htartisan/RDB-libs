@@ -2441,11 +2441,11 @@ static BOOL CALLBACK win32_get_monitor_dpi_callback(HMONITOR hMonitor, HDC hdcMo
             dr_win32_get_system_dpi(&pData->dpiX, &pData->dpiY);
         }
 
-        return FALSE;   // Return DR_FALSE to terminate the enumerator.
+        return false;   // Return DR_FALSE to terminate the enumerator.
     }
 
     pData->i += 1;
-    return TRUE;
+    return true;
 }
 
 void dr_win32_get_monitor_dpi(int monitor, int* pDPIXOut, int* pDPIYOut)
@@ -2495,7 +2495,7 @@ static BOOL CALLBACK win32_get_monitor_count_callback(HMONITOR hMonitor, HDC hdc
     int *count = (int*)dwData;
     (*count)++;
 
-    return TRUE;
+    return true;
 }
 
 int dr_win32_get_monitor_count()
@@ -2951,7 +2951,7 @@ typedef struct
 
 } dr_thread_win32;
 
-static DWORD WINAPI dr_thread_entry_proc_win32(LPVOID pUserData)
+static DWORD WINAPI dr_thread_entry_proc_win32(void* pUserData)
 {
     dr_thread_win32* pThreadWin32 = (dr_thread_win32*)pUserData;
     assert(pThreadWin32 != NULL);
@@ -3052,7 +3052,7 @@ void dr_unlock_mutex(dr_mutex mutex)
 #else
 dr_mutex dr_create_mutex()
 {
-    return CreateEventA(NULL, FALSE, TRUE, NULL);
+    return CreateEventA(NULL, false, true, NULL);
 }
 
 void dr_delete_mutex(dr_mutex mutex)

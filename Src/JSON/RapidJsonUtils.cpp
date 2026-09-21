@@ -398,7 +398,7 @@ bool CRapidJsonParserUtil::WriteJsonFile(char *pFolder, char *pFileName) throw(s
 
 	cFileManager.Close();
 
-	return ((bStatus == TRUE) ? true : false);
+	return ((bStatus == true) ? true : false);
 }
 #endif
 

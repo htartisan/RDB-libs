@@ -58,9 +58,9 @@
 #if (defined(WIN32) || defined(_WIN32) || defined(__WIN32__) \
   || defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
 
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, void* lpvReserved)
 {
-  return(TRUE);
+  return(true);
 }
 
 #endif /* WIN32 || WIN64 */

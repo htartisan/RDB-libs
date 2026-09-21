@@ -18,11 +18,13 @@
 #include <spdlog/details/backtracer.h>
 #include <spdlog/details/log_msg.h>
 
+#ifdef WINDOWS
 #ifdef SPDLOG_WCHAR_TO_UTF8_SUPPORT
     #ifndef _WIN32
         #error SPDLOG_WCHAR_TO_UTF8_SUPPORT only supported on windows
     #endif
     #include <spdlog/details/os.h>
+#endif
 #endif
 
 #include <vector>
@@ -155,6 +157,7 @@ public:
         log(level::critical, fmt, std::forward<Args>(args)...);
     }
 
+#ifdef WINDOWS
 #ifdef SPDLOG_WCHAR_TO_UTF8_SUPPORT
     template <typename... Args>
     void log(source_loc loc, level::level_enum lvl, wformat_string_t<Args...> fmt, Args &&...args) {
@@ -226,6 +229,7 @@ public:
     void critical(wformat_string_t<Args...> fmt, Args &&...args) {
         log(level::critical, fmt, std::forward<Args>(args)...);
     }
+#endif
 #endif
 
     template <typename T>
@@ -334,6 +338,7 @@ protected:
         SPDLOG_LOGGER_CATCH(loc)
     }
 
+#ifdef WINDOWS
 #ifdef SPDLOG_WCHAR_TO_UTF8_SUPPORT
     template <typename... Args>
     void log_(source_loc loc, level::level_enum lvl, wstring_view_t fmt, Args &&...args) {
@@ -356,6 +361,7 @@ protected:
         SPDLOG_LOGGER_CATCH(loc)
     }
 #endif  // SPDLOG_WCHAR_TO_UTF8_SUPPORT
+#endif
 
     // log the given message (if the given log level is high enough),
     // and save backtrace (if backtrace is enabled).

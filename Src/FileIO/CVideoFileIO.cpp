@@ -292,9 +292,9 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
     (
         const std::string &sFilePath, 
         const eFileIoMode_def mode, 
+        const int frameRate,
         const int width,
         const int height,
-        const int frameRate,
         const int bitsPerPixel,
         const std::string &sFourCC
     )
@@ -337,7 +337,7 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         if (!pRawFileIO->openFile(mode, sFilePath))
         {
             LogDebug("unable to open file:{}", sFilePath);
-            return pVFIO;
+            return nullptr;
         }
 
         pVFIO = pRawFileIO;
@@ -350,28 +350,43 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         std::shared_ptr<CAviFileIO> pAviFileIO =
             std::make_shared<CAviFileIO>();
 
-        if (width > 0 || height > 0)
-            pAviFileIO->setFrameSize(width, height);
+        if (mode != eFileIoMode_input)
+        {
+            if (width < 1 || height < 1 || bitsPerPixel < 1)
+                return nullptr;
+
+            if (sFourCC == "")
+                return nullptr;
+
+            //if (blockSize > 0)
+            //    pAviFileIO->setIoBlockSize(blockSize);
+
+            pAviFileIO->setVideoConfig(width, height, bitsPerPixel, 0, sFourCC);
+        }
 
         if (frameRate > 0)
             pAviFileIO->setFrameRate(frameRate);
+        else
+            return nullptr;
 
-        //if (blockSize > 0)
-        //    pAviFileIO->setIoBlockSize(blockSize);
+        auto status = pAviFileIO->openFile(mode, sFilePath);
 
-        pAviFileIO->setVideoConfig(width, height, bitsPerPixel, 0, sFourCC);
-
-        if (!pAviFileIO->openFile(mode, sFilePath))
+        if (status == false)
         {
             LogDebug("unable to open file:{}", sFilePath);
-            return pVFIO;
+            return nullptr;
+        }
+
+        if (mode != eFileIoMode_output)
+        {
+            pAviFileIO->updateInputVideoInfo();
         }
 
         pVFIO = pAviFileIO;
     }
 #endif
 #ifdef SUPPORT_MKV_IO_LOGIC
-    else if (eFileType == eFileType_mkv)
+    else if (eFileType == eFileType_mkv || eFileType == eFileType_webm)
     {
         // Open video file using 'mkv' IO functions
 
@@ -388,6 +403,13 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         //    pMkvFileIO->setIoBlockSize(blockSize);
 
         pMkvFileIO->setBitsPerPixel(bitsPerPixel);
+
+        if (sFourCC != "")
+        {
+            auto nVideoFormat = fourCcToVideoFormat(sFourCC);
+
+            pMkvFileIO->setVideoFormat(nVideoFormat);
+        }
 
         if (!pMkvFileIO->openFile(mode, sFilePath))
         {
@@ -1227,7 +1249,7 @@ bool CRawVideoFileIO::readVideoBlock(void *pData, const unsigned int numFrames)
 }
 
 
-bool CRawVideoFileIO::writeVideoFrame(const void *pData)
+bool CRawVideoFileIO::writeVideoFrame(const void *pData, const uint64 timestamp)
 {
     if (pData == nullptr)
     {
@@ -1275,7 +1297,7 @@ bool CRawVideoFileIO::writeVideoFrame(const void *pData)
 }
 
 
-bool CRawVideoFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen)
+bool CRawVideoFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen, const uint64 timestamp)
 {
     if (pData == nullptr)
     {
@@ -1527,6 +1549,10 @@ void CAviFileIO::setVideoConfig
     if (sFourCC != "")
     {
         m_fileInfo.sVideo4CC = sFourCC;
+
+        m_fileInfo.videoFormat = fourCcToVideoFormat(sFourCC);
+
+        m_eVideoFormat = m_fileInfo.videoFormat;
     }
 }
 
@@ -1660,7 +1686,7 @@ bool CAviFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
 }
 
 
-bool CAviFileIO::writeVideoFrame(const void* pData)
+bool CAviFileIO::writeVideoFrame(const void* pData, const uint64 timestamp)
 {
     if (pData == nullptr)
     {
@@ -1690,10 +1716,20 @@ bool CAviFileIO::writeVideoFrame(const void* pData)
         return false;
     }
 
+    if (m_eVideoFormat != m_fileInfo.videoFormat)
+    {
+        updateVideoConfig(m_eVideoFormat);
+    }
+
+    if (timestamp != 0)
+    {
+        m_pFileCtrl->stream_header_v.start_time = (unsigned int) timestamp;
+    }
+
     /// This "write" logic writes 1 video frame
     /// at a time to the output file.
 
-    bool status = gwavi_add_frame(m_pFileCtrl, (const unsigned char*)pData, m_nFrameSize);
+    bool status = gwavi_add_frame(m_pFileCtrl, (const unsigned char*) pData, m_nFrameSize);
 
     if (status != 0)
     {
@@ -1704,7 +1740,7 @@ bool CAviFileIO::writeVideoFrame(const void* pData)
 }
 
 
-bool CAviFileIO::writeVideoFrame(const void* pData, unsigned int frameSize)
+bool CAviFileIO::writeVideoFrame(const void* pData, unsigned int frameSize, const uint64 timestamp)
 {
     if (pData == nullptr)
     {
@@ -1732,6 +1768,16 @@ bool CAviFileIO::writeVideoFrame(const void* pData, unsigned int frameSize)
             (int)m_eMode
         );
         return false;
+    }
+
+    if (m_eVideoFormat != m_fileInfo.videoFormat)
+    {
+        updateVideoConfig(m_eVideoFormat);
+    }
+
+    if (timestamp != 0)
+    {
+        m_pFileCtrl->stream_header_v.start_time = (unsigned int) timestamp;
     }
 
     /// This "write" logic writes 1 video frame
@@ -1804,7 +1850,7 @@ bool CAviFileIO::readAudioBlock(void* pData, const unsigned int numFrames)
 }
 
 
-bool CAviFileIO::writeAudioFrame(const void* pData)
+bool CAviFileIO::writeAudioFrame(const void* pData, const uint64 timestamp)
 {
     if (pData == nullptr)
     {
@@ -1826,6 +1872,11 @@ bool CAviFileIO::writeAudioFrame(const void* pData)
             (int)m_eMode
         );
         return false;
+    }
+
+    if (timestamp != 0)
+    {
+        m_pFileCtrl->stream_header_a.start_time = (unsigned int) timestamp;
     }
 
     unsigned int nAudioFrameSize = (m_audioInfo.channels * (m_audioInfo.bits / 8));
@@ -1909,19 +1960,62 @@ bool CAviFileIO::resetPlayPosition()
 
 #ifdef SUPPORT_MKV_IO_LOGIC
 
+using namespace libebml;
+using namespace libmatroska;
+
+namespace
+{
+    /// number of nanoseconds represented by a single Matroska "timestamp scale" tick.
+    /// 1,000,000 ns == 1 ms, which is the scale used by most Matroska muxers.
+    const uint64 MKV_TIMESTAMP_SCALE_NS = 1000000ULL;
+}
+
+
+void CMkvFileIO::initMembers()
+{
+    m_bitsPerPixel              = 24;
+    m_width                     = 0;
+    m_height                    = 0;
+    m_frameRate                 = 0;
+    m_eMode                     = eFileIoMode_def::eFileIoMode_unknown;
+    m_nCurrentFrameIdx          = 0;
+    m_lFileSize                 = 0;
+    m_lastFrameRead             = -1;
+    m_lastFrameWritten          = -1;
+
+    m_pIoCallback               = nullptr;
+    m_pInStream                 = nullptr;
+    m_pSegment                  = nullptr;
+    m_pTracks                   = nullptr;
+    m_pVideoTrack               = nullptr;
+    m_pAudioTrack               = nullptr;
+    m_pCues                     = nullptr;
+    m_pSeekHead                 = nullptr;
+    m_pSeekHeadPlaceholder      = nullptr;
+    m_pDurationElem             = nullptr;
+
+    m_nTimestampScaleNs         = MKV_TIMESTAMP_SCALE_NS;
+    m_nNextVideoTimestampNs     = 0;
+    m_nNextAudioTimestampNs     = 0;
+    m_nPrevClusterTimestampNs   = 0;
+    m_nInfoElementSize          = 0;
+    m_nTracksElementSize        = 0;
+    m_nWrittenClusterBytes      = 0;
+
+    m_nVideoTrackNumber         = 0;
+    m_nAudioTrackNumber         = 0;
+
+    m_nVideoReadIdx             = 0;
+    m_nAudioReadIdx             = 0;
+}
+
+
 CMkvFileIO::CMkvFileIO() :
     CVideoFileIO()
 {
     LogTrace("class created");
 
-    m_bitsPerPixel = 24;
-    m_width = 0;
-    m_height = 0;
-    m_frameRate = 0;
-    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_pFramebuffer = nullptr;
-    m_nCurrentFrameIdx = 0;
-    m_lFileSize = 0;
+    initMembers();
 }
 
 
@@ -1930,40 +2024,30 @@ CMkvFileIO::CMkvFileIO(const unsigned int width, const unsigned int height, cons
 {
     LogTrace("class created");
 
-    m_pFileCtrl = nullptr;
+    initMembers();
 
-    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_pFramebuffer = nullptr;
     m_bitsPerPixel = 24;
     if (bitsPerPixel > 0)
     {
         m_bitsPerPixel = bitsPerPixel;
     }
-    m_width = width;
-    m_height = height;
-    m_frameRate = 0;
-    m_nFrameSize = (width * height * (m_bitsPerPixel / 8));
-    m_nCurrentFrameIdx = 0;
-    m_lFileSize = 0;
+    m_width         = width;
+    m_height        = height;
+    m_frameRate     = 0;
+    m_nFrameSize    = (width * height * (m_bitsPerPixel / 8));
 }
 
 
-CMkvFileIO::CAviFileIO(const std::string& sFilePath) :
+CMkvFileIO::CMkvFileIO(const std::string& sFilePath) :
     CVideoFileIO(sFilePath)
 {
     LogTrace("class created");
 
-    m_pFileCtrl = nullptr;
+    initMembers();
 
-    m_bitsPerPixel = 24;
-    m_width = 0;
-    m_height = 0;
-    m_frameRate = 0;
-    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_pFramebuffer = nullptr;
-    m_nCurrentFrameIdx = 0;
-    m_lFileSize = 0;
+    m_sFilePath = sFilePath;
 }
+
 
 
 CMkvFileIO::~CMkvFileIO()
@@ -1972,6 +2056,67 @@ CMkvFileIO::~CMkvFileIO()
 
     if (m_bFileOpened)
         closeFile();
+}
+
+
+void CMkvFileIO::setAudioConfig
+    (
+        const int numTracks,
+        const int bitsPerSample,
+        const int sampleRate,
+        const std::string &sFourCC
+    )
+{
+    m_audioFormatInfo.numTracks     = numTracks;
+    m_audioFormatInfo.bitsPerSample = bitsPerSample;
+    m_audioFormatInfo.sampleRate    = sampleRate;
+    m_audioFormatInfo.m_sAudio4CC   = sFourCC;
+}
+
+
+/// Map an internal video format (and/or a raw FourCC) to a Matroska CodecID string.
+///
+/// Well known compressed formats are mapped to their official Matroska CodecID.
+/// Anything else (raw/uncompressed pixel formats, or an unrecognized format) falls
+/// back to the generic "V_MS/VFW/FOURCC" CodecID, with the 4CC stored as CodecPrivate
+/// data (this mirrors how AVI/VfW codecs are historically identified in Matroska).
+std::string CMkvFileIO::codecIdFromVideoFormat(const eVideoDataIoFormat_def fmt, const std::string &sFourCC)
+{
+    switch (fmt)
+    {
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_h264:
+            return "V_MPEG4/ISO/AVC";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_h265:
+            return "V_MPEGH/ISO/HEVC";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg1:
+            return "V_MPEG1";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg2:
+            return "V_MPEG2";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg4:
+            return "V_MPEG4/ISO/ASP";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_vp8:
+            return "V_VP8";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_vp9:
+            return "V_VP9";
+
+        case eVideoDataIoFormat_def::eVideoDataIoFormat_mjpeg:
+            return "V_MJPEG";
+
+        default:
+            break;
+    }
+
+    (void) sFourCC;
+
+    // raw/uncompressed (or unrecognized) formats: identify them using the
+    // Video-for-Windows FourCC based CodecID
+    return "V_MS/VFW/FOURCC";
 }
 
 
@@ -1990,29 +2135,366 @@ bool CMkvFileIO::openFile(const eFileIoMode_def mode, const std::string& sFilePa
 
     m_eFileType = getVideoFileType(m_sFilePath);
 
-    if (m_eFileType != eFileType_avi)
+    if (m_eFileType != eFileType_mkv && m_eFileType != eFileType_webm)
         return false;
 
-    m_pFileCtrl =
-        gwavi_open
-        (
-            m_sFilePath.c_str(),
-            m_width,
-            m_height,
-            m_sFourCC.c_str(),
-            m_frameRate,
-            &m_audioInfo
-        );
+    bool status = false;
 
-    if (m_pFileCtrl == nullptr)
+    if (mode == eFileIoMode_def::eFileIoMode_input)
+    {
+        status = openForRead(m_sFilePath);
+    }
+    else if (mode == eFileIoMode_def::eFileIoMode_output)
+    {
+        status = openForWrite(m_sFilePath);
+    }
+    else
+    {
+        LogDebug("unsupported file mode:{}", (int)mode);
+        return false;
+    }
+
+    if (status == false)
+    {
+        return false;
+    }
+
+    m_eMode             = mode;
+    m_nCurrentFrameIdx  = 0;
+    m_nIoCntr           = 0;
+    m_nCurrentFrame     = 0;
+    m_bFileOpened       = true;
+
+    return true;
+}
+
+
+bool CMkvFileIO::openForRead(const std::string& sFilePath)
+{
+    try
+    {
+        m_pIoCallback = new StdIOCallback(sFilePath.c_str(), MODE_READ);
+        m_pInStream   = new EbmlStream(*m_pIoCallback);
+
+        // skip over the EBML header
+        EbmlElement *pHead = m_pInStream->FindNextID<EbmlHead>(0xFFFFFFFFFFFFFFFFULL);
+        if (pHead != nullptr)
+        {
+            pHead->SkipData(*m_pInStream, EBML_CONTEXT(pHead));
+            delete pHead;
+        }
+
+        EbmlElement *pSeg = m_pInStream->FindNextID<KaxSegment>(0xFFFFFFFFFFFFFFFFULL);
+        if (pSeg == nullptr)
+        {
+            LogDebug("no Matroska Segment found in file:{}", sFilePath);
+            return false;
+        }
+
+        m_pSegment = static_cast<KaxSegment *>(pSeg);
+
+        if (!parseFile())
+        {
+            LogDebug("failed to parse Matroska file:{}", sFilePath);
+            return false;
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        LogDebug("exception while opening file for read:{}", ex.what());
+        return false;
+    }
+
+    m_nFramesInFile = (long) m_videoFrames.size();
+    m_nVideoReadIdx = 0;
+    m_nAudioReadIdx = 0;
+
+    return true;
+}
+
+
+bool CMkvFileIO::parseFile()
+{
+    if (m_pSegment == nullptr || m_pInStream == nullptr)
         return false;
 
-    m_eMode = mode;
+    int             upperLevel = 0;
+    EbmlElement     *pElt1     = nullptr;
 
-    m_nCurrentFrameIdx = 0;
-    m_nIoCntr = 0;
-    m_nCurrentFrame = 0;
-    m_bFileOpened = true;
+    pElt1 = m_pInStream->FindNextElement(EBML_CONTEXT(m_pSegment), upperLevel, 0xFFFFFFFFFFFFFFFFULL, true);
+
+    while (pElt1 != nullptr && upperLevel <= 0)
+    {
+        if (EbmlId(*pElt1) == EBML_ID(KaxTracks))
+        {
+            m_pTracks = static_cast<KaxTracks *>(pElt1);
+
+            int          trackUpperLevel = 0;
+            EbmlElement *pDummy          = nullptr;
+
+            m_pTracks->Read(*m_pInStream, EBML_CONTEXT(m_pTracks), trackUpperLevel, pDummy, true);
+
+            for (auto *pChild : m_pTracks->GetElementList())
+            {
+                if (EbmlId(*pChild) != EBML_ID(KaxTrackEntry))
+                    continue;
+
+                auto *pEntry = static_cast<KaxTrackEntry *>(pChild);
+
+                auto *pType   = static_cast<KaxTrackType *>(pEntry->FindFirstElt(EBML_INFO(KaxTrackType), false));
+                auto *pNumber = static_cast<KaxTrackNumber *>(pEntry->FindFirstElt(EBML_INFO(KaxTrackNumber), false));
+
+                if (pType == nullptr || pNumber == nullptr)
+                    continue;
+
+                auto trackType   = (uint8_t) *pType;
+                auto trackNumber = (uint64) *pNumber;
+
+                if (trackType == track_video && m_nVideoTrackNumber == 0)
+                {
+                    m_nVideoTrackNumber = (uint16_t) trackNumber;
+
+                    auto *pVideo = static_cast<KaxTrackVideo *>(pEntry->FindFirstElt(EBML_INFO(KaxTrackVideo), false));
+                    if (pVideo != nullptr)
+                    {
+                        auto *pWidth  = static_cast<KaxVideoPixelWidth *>(pVideo->FindFirstElt(EBML_INFO(KaxVideoPixelWidth), false));
+                        auto *pHeight = static_cast<KaxVideoPixelHeight *>(pVideo->FindFirstElt(EBML_INFO(KaxVideoPixelHeight), false));
+
+                        if (pWidth != nullptr)
+                            m_width = (unsigned int) (uint64) *pWidth;
+
+                        if (pHeight != nullptr)
+                            m_height = (unsigned int) (uint64) *pHeight;
+                    }
+
+                    auto *pDuration = static_cast<KaxTrackDefaultDuration *>(pEntry->FindFirstElt(EBML_INFO(KaxTrackDefaultDuration), false));
+                    if (pDuration != nullptr)
+                    {
+                        auto nDurationNs = (uint64) *pDuration;
+                        if (nDurationNs > 0)
+                            m_frameRate = (unsigned int) (1000000000ULL / nDurationNs);
+                    }
+                }
+                else if (trackType == track_audio && m_nAudioTrackNumber == 0)
+                {
+                    m_nAudioTrackNumber = (uint16_t) trackNumber;
+
+                    auto *pAudio = static_cast<KaxTrackAudio *>(pEntry->FindFirstElt(EBML_INFO(KaxTrackAudio), false));
+                    if (pAudio != nullptr)
+                    {
+                        auto *pFreq     = static_cast<KaxAudioSamplingFreq *>(pAudio->FindFirstElt(EBML_INFO(KaxAudioSamplingFreq), false));
+                        auto *pChannels = static_cast<KaxAudioChannels *>(pAudio->FindFirstElt(EBML_INFO(KaxAudioChannels), false));
+                        auto *pBitDepth = static_cast<KaxAudioBitDepth *>(pAudio->FindFirstElt(EBML_INFO(KaxAudioBitDepth), false));
+
+                        if (pFreq != nullptr)
+                            m_audioFormatInfo.sampleRate = (int) (double) *pFreq;
+
+                        if (pChannels != nullptr)
+                            m_audioFormatInfo.numTracks = (int) (uint64) *pChannels;
+
+                        if (pBitDepth != nullptr)
+                            m_audioFormatInfo.bitsPerSample = (int) (uint64) *pBitDepth;
+                    }
+                }
+            }
+        }
+        else if (EbmlId(*pElt1) == EBML_ID(KaxCluster))
+        {
+            auto *pCluster = static_cast<KaxCluster *>(pElt1);
+
+            int          clusterUpperLevel = 0;
+            EbmlElement *pDummy            = nullptr;
+
+            pCluster->Read(*m_pInStream, EBML_CONTEXT(pCluster), clusterUpperLevel, pDummy, true);
+
+            auto *pClusterTs = static_cast<KaxClusterTimestamp *>(pCluster->FindFirstElt(EBML_INFO(KaxClusterTimestamp), false));
+
+            uint64 nClusterTicks = (pClusterTs != nullptr) ? (uint64) *pClusterTs : 0;
+
+            for (auto *pChild : pCluster->GetElementList())
+            {
+                KaxInternalBlock *pBlock     = nullptr;
+                bool              bIsGroup   = false;
+
+                if (EbmlId(*pChild) == EBML_ID(KaxSimpleBlock))
+                {
+                    pBlock = static_cast<KaxSimpleBlock *>(pChild);
+                }
+                else if (EbmlId(*pChild) == EBML_ID(KaxBlockGroup))
+                {
+                    bIsGroup = true;
+
+                    auto *pGroup = static_cast<KaxBlockGroup *>(pChild);
+                    pBlock       = static_cast<KaxBlock *>(pGroup->FindFirstElt(EBML_INFO(KaxBlock), false));
+                }
+
+                if (pBlock == nullptr)
+                    continue;
+
+                (void) bIsGroup;
+
+                uint64 nGlobalTicks  = nClusterTicks + pBlock->GetRelativeTimestamp();
+                uint64 nTimestampNs  = nGlobalTicks * m_nTimestampScaleNs;
+                std::uint16_t nTrackNumber = pBlock->TrackNum();
+
+                std::vector<SMkvFrame> *pDest = nullptr;
+
+                if (nTrackNumber == m_nVideoTrackNumber)
+                    pDest = &m_videoFrames;
+                else if (nTrackNumber == m_nAudioTrackNumber)
+                    pDest = &m_audioFrames;
+                else
+                    continue;
+
+                for (unsigned int f = 0; f < pBlock->NumberFrames(); f++)
+                {
+                    DataBuffer &buffer = pBlock->GetBuffer(f);
+
+                    SMkvFrame frame;
+                    frame.timestampNs = nTimestampNs;
+                    frame.data.assign(buffer.Buffer(), buffer.Buffer() + buffer.Size());
+
+                    pDest->push_back(std::move(frame));
+                }
+            }
+        }
+        else
+        {
+            pElt1->SkipData(*m_pInStream, EBML_CONTEXT(pElt1));
+        }
+
+        auto *pOldElt = pElt1;
+
+        pElt1 = m_pInStream->FindNextElement(EBML_CONTEXT(m_pSegment), upperLevel, 0xFFFFFFFFFFFFFFFFULL, true);
+
+        delete pOldElt;
+    }
+
+    return true;
+}
+
+
+bool CMkvFileIO::openForWrite(const std::string& sFilePath)
+{
+    if (m_width < 1 || m_height < 1)
+    {
+        LogDebug("video width/height not set");
+        return false;
+    }
+
+    try
+    {
+        m_pIoCallback = new StdIOCallback(sFilePath.c_str(), MODE_CREATE);
+
+        EbmlHead fileHead;
+
+        GetChild<EDocType>(fileHead).SetValue(m_eFileType == eFileType_webm ? "webm" : "matroska");
+        GetChild<EDocTypeVersion>(fileHead).SetValue(4);
+        GetChild<EDocTypeReadVersion>(fileHead).SetValue(2);
+
+        fileHead.Render(*m_pIoCallback, EbmlElement::WriteSkipDefault);
+
+        m_pSegment = new KaxSegment();
+        m_pSegment->WriteHead(*m_pIoCallback, 5, EbmlElement::WriteSkipDefault);
+
+        // reserve some space for the Meta Seek (SeekHead) that will be written at close time
+        m_pSeekHeadPlaceholder = new EbmlVoid();
+        m_pSeekHeadPlaceholder->SetSize(300);
+        m_pSeekHeadPlaceholder->Render(*m_pIoCallback, EbmlElement::WriteSkipDefault);
+
+        m_pSeekHead = new KaxSeekHead();
+
+        // fill in the (mandatory) segment info
+        KaxInfo &info = GetChild<KaxInfo>(*m_pSegment);
+
+        GetChild<KaxTimestampScale>(info).SetValue(m_nTimestampScaleNs);
+
+        m_pDurationElem = &GetChild<KaxDuration>(info);
+        m_pDurationElem->SetValue(0.0);
+
+        GetChild<KaxMuxingApp>(info).SetValueUTF8("ReassembleSoftware CMkvFileIO");
+        GetChild<KaxWritingApp>(info).SetValueUTF8("ReassembleSoftware CMkvFileIO");
+
+        m_nInfoElementSize = info.Render(*m_pIoCallback, EbmlElement::WriteSkipDefault);
+        m_pSeekHead->IndexThis(info, *m_pSegment);
+
+        // create the (single) video track
+        m_pTracks = &GetChild<KaxTracks>(*m_pSegment);
+
+        m_pVideoTrack = &GetChild<KaxTrackEntry>(*m_pTracks);
+        m_pVideoTrack->SetGlobalTimestampScale(m_nTimestampScaleNs);
+
+        m_nVideoTrackNumber = 1;
+
+        GetChild<KaxTrackNumber>(*m_pVideoTrack).SetValue(m_nVideoTrackNumber);
+        GetChild<KaxTrackUID>(*m_pVideoTrack).SetValue(m_nVideoTrackNumber);
+        GetChild<KaxTrackType>(*m_pVideoTrack).SetValue(track_video);
+
+        m_sVideoCodecId = codecIdFromVideoFormat(m_eVideoFormat, videoFormatToFourCC(m_eVideoFormat));
+        GetChild<KaxCodecID>(*m_pVideoTrack).SetValue(m_sVideoCodecId);
+
+        if (m_sVideoCodecId == "V_MS/VFW/FOURCC")
+        {
+            auto sFourCC = videoFormatToFourCC(m_eVideoFormat);
+            if (!sFourCC.empty())
+            {
+                GetChild<KaxCodecPrivate>(*m_pVideoTrack).CopyBuffer
+                (
+                    (const binary *) sFourCC.c_str(),
+                    (std::uint32_t) sFourCC.size()
+                );
+            }
+        }
+
+        m_pVideoTrack->EnableLacing(false);
+
+        KaxTrackVideo &videoInfo = GetChild<KaxTrackVideo>(*m_pVideoTrack);
+        GetChild<KaxVideoPixelWidth>(videoInfo).SetValue(m_width);
+        GetChild<KaxVideoPixelHeight>(videoInfo).SetValue(m_height);
+
+        if (m_frameRate > 0)
+        {
+            GetChild<KaxTrackDefaultDuration>(*m_pVideoTrack).SetValue(1000000000ULL / m_frameRate);
+        }
+
+        // create the (optional) audio track
+        if (m_audioFormatInfo.numTracks > 0)
+        {
+            m_pAudioTrack = &GetNextChild<KaxTrackEntry>(*m_pTracks, *m_pVideoTrack);
+            m_pAudioTrack->SetGlobalTimestampScale(m_nTimestampScaleNs);
+
+            m_nAudioTrackNumber = 2;
+
+            GetChild<KaxTrackNumber>(*m_pAudioTrack).SetValue(m_nAudioTrackNumber);
+            GetChild<KaxTrackUID>(*m_pAudioTrack).SetValue(m_nAudioTrackNumber);
+            GetChild<KaxTrackType>(*m_pAudioTrack).SetValue(track_audio);
+
+            m_sAudioCodecId = "A_PCM/INT/LIT";
+            GetChild<KaxCodecID>(*m_pAudioTrack).SetValue(m_sAudioCodecId);
+
+            m_pAudioTrack->EnableLacing(false);
+
+            KaxTrackAudio &audioInfo = GetChild<KaxTrackAudio>(*m_pAudioTrack);
+            GetChild<KaxAudioSamplingFreq>(audioInfo).SetValue((double) m_audioFormatInfo.sampleRate);
+            GetChild<KaxAudioChannels>(audioInfo).SetValue(m_audioFormatInfo.numTracks);
+            GetChild<KaxAudioBitDepth>(audioInfo).SetValue(m_audioFormatInfo.bitsPerSample);
+        }
+
+        m_nTracksElementSize = m_pTracks->Render(*m_pIoCallback, EbmlElement::WriteSkipDefault);
+        m_pSeekHead->IndexThis(*m_pTracks, *m_pSegment);
+
+        m_pCues = new KaxCues();
+        m_pCues->SetGlobalTimestampScale(m_nTimestampScaleNs);
+
+        m_nNextVideoTimestampNs   = 0;
+        m_nNextAudioTimestampNs   = 0;
+        m_nPrevClusterTimestampNs = 0;
+    }
+    catch (const std::exception &ex)
+    {
+        LogDebug("exception while opening file for write:{}", ex.what());
+        return false;
+    }
 
     return true;
 }
@@ -2025,9 +2507,46 @@ long CMkvFileIO::getNumFrames()
     if (!m_bFileOpened || m_eMode == eFileIoMode_unknown || m_eMode == eFileIoMode_output)
         return -1;
 
-    auto numFrames = -1;
+    return (long) m_videoFrames.size();
+}
 
-    return numFrames;
+
+bool CMkvFileIO::finalizeWrite()
+{
+    if (m_pSegment == nullptr || m_pIoCallback == nullptr)
+        return false;
+
+    try
+    {
+        if (m_pCues != nullptr)
+        {
+            filepos_t cueSize = m_pCues->Render(*m_pIoCallback, EbmlElement::WriteSkipDefault);
+            m_pSeekHead->IndexThis(*m_pCues, *m_pSegment);
+
+            // patch in the final duration (largest of the two track's last timestamp)
+            if (m_pDurationElem != nullptr)
+            {
+                uint64 nLastTimestampNs = std::max(m_nNextVideoTimestampNs, m_nNextAudioTimestampNs);
+
+                m_pDurationElem->SetValue((double) (nLastTimestampNs / (double) m_nTimestampScaleNs));
+                m_pDurationElem->OverwriteData(*m_pIoCallback, true);
+            }
+
+            filepos_t seekHeadSize = m_pSeekHeadPlaceholder->ReplaceWith(*m_pSeekHead, *m_pIoCallback, true, EbmlElement::WriteSkipDefault);
+
+            if (m_pSegment->ForceSize(seekHeadSize + m_nInfoElementSize + m_nTracksElementSize + cueSize + (uint64) m_nWrittenClusterBytes))
+            {
+                m_pSegment->OverwriteHead(*m_pIoCallback);
+            }
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        LogDebug("exception while finalizing file:{}", ex.what());
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -2043,16 +2562,49 @@ bool CMkvFileIO::closeFile()
 
     bool bRetValue = true;
 
-    auto status = gwavi_close(m_pFileCtrl);
+    if (m_eMode == eFileIoMode_def::eFileIoMode_output)
+    {
+        bRetValue = finalizeWrite();
+    }
 
-    if (status < 0)
+    try
+    {
+        if (m_pIoCallback != nullptr)
+            m_pIoCallback->close();
+    }
+    catch (const std::exception &ex)
+    {
+        LogDebug("exception while closing file:{}", ex.what());
         bRetValue = false;
+    }
+
+    delete m_pInStream;               // does not own/close m_pIoCallback
+    delete m_pIoCallback;
+    delete m_pSegment;
+    delete m_pCues;
+    delete m_pSeekHead;
+
+    m_pInStream            = nullptr;
+    m_pIoCallback          = nullptr;
+    m_pSegment             = nullptr;
+    m_pTracks              = nullptr;
+    m_pVideoTrack          = nullptr;
+    m_pAudioTrack          = nullptr;
+    m_pCues                = nullptr;
+    m_pSeekHead            = nullptr;
+    m_pSeekHeadPlaceholder = nullptr;
+    m_pDurationElem        = nullptr;
+
+    m_videoFrames.clear();
+    m_audioFrames.clear();
+    m_nVideoReadIdx = 0;
+    m_nAudioReadIdx = 0;
 
     m_nCurrentFrameIdx = 0;
-    m_nIoCntr = -1;
-    m_nCurrentFrame = -1;
-    m_eMode = eFileIoMode_def::eFileIoMode_unknown;
-    m_bFileOpened = false;
+    m_nIoCntr          = -1;
+    m_nCurrentFrame    = -1;
+    m_eMode            = eFileIoMode_def::eFileIoMode_unknown;
+    m_bFileOpened      = false;
 
     return bRetValue;
 }
@@ -2060,7 +2612,7 @@ bool CMkvFileIO::closeFile()
 
 bool CMkvFileIO::isEOF()
 {
-    if (m_nCurrentFrameIdx >= m_nFramesInFile)
+    if (m_nVideoReadIdx >= m_videoFrames.size())
     {
         return true;
     }
@@ -2069,32 +2621,39 @@ bool CMkvFileIO::isEOF()
 }
 
 
-
 /// Read a frame from a "MKV" data file
 bool CMkvFileIO::readVideoFrame(void* pData)
 {
-    if (!m_bFileOpened || m_pFramebuffer == nullptr)
+    if (!m_bFileOpened || m_eMode != eFileIoMode_def::eFileIoMode_input || pData == nullptr)
     {
         return false;
     }
 
     if (isEOF() == true)
     {
-        return false;
+        if (!m_bUseLoopingRead)
+            return false;
+
+        m_nVideoReadIdx = 0;
     }
 
-    auto status = gwavi_read
+    const SMkvFrame &frame = m_videoFrames[m_nVideoReadIdx];
 
-        if (status == false)
-        {
-            return false;
-        }
+    memcpy(pData, frame.data.data(), frame.data.size());
+
+    // let the caller find out how many bytes were actually copied
+    m_nFrameSize = (unsigned int) frame.data.size();
+
+    m_nVideoReadIdx++;
+    m_nCurrentFrameIdx++;
+    m_nCurrentFrame++;
+    m_lastFrameRead = (int) m_nVideoReadIdx;
 
     return true;
 }
 
 
-bool CMkvFileIO::readReadBlock(void* pData, const unsigned int numFrames)
+bool CMkvFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
 {
     LogTrace("numFrames:{}", numFrames);
 
@@ -2103,179 +2662,42 @@ bool CMkvFileIO::readReadBlock(void* pData, const unsigned int numFrames)
         return false;
     }
 
-    if (isEOF() == true)
+    auto *pOut = (uint8_t *) pData;
+
+    for (unsigned int i = 0; i < numFrames; i++)
     {
-        return false;
-    }
-
-    auto nFramesLeftInFile = ((m_lFileSize - m_lCurrentFilePos) / m_nFrameSize);
-
-    unsigned int nReadSize = 0;
-
-    bool status = false;
-
-    if (nFramesLeftInFile < numFrames)
-    {
-        /// If our next read would exceed the file size...
-
-        if (nFramesLeftInFile > 0)
+        if (isEOF() == true)
         {
-            // read what's left in the file
+            if (!m_bUseLoopingRead)
+                return (i > 0);
 
-            status = m_fileIO.readBlock(pData, m_nFrameSize, nFramesLeftInFile);
-
-            if (status == false)
-            {
-                return false;
-            }
+            m_nVideoReadIdx = 0;
         }
 
-        auto nNumFramesNotRead = (numFrames - nFramesLeftInFile);
+        const SMkvFrame &frame = m_videoFrames[m_nVideoReadIdx];
 
-        /// If the "UseLoopingRead" flag = false
-        /// don't try to read anymore.
-        if (!m_bUseLoopingRead)
-        {
-            if (nFramesLeftInFile < 0)
-            {
-                // there was nothing left to read
-                return false;
-            }
+        memcpy(pOut, frame.data.data(), frame.data.size());
 
-            // zero out/pad the rest of the frames (from chosen read size)
+        pOut += frame.data.size();
 
-            auto nPadSize = 0;
-
-            void* pPadStart = nullptr;
-
-            if (m_bitsPerPixel == 16)
-            {
-                nPadSize = ((numFrames - nFramesLeftInFile) * m_nFrameSize * sizeof(int16_t));
-                pPadStart = (void*)(((int16_t*)pData) + (nFramesLeftInFile * m_nFrameSize));
-            }
-            else if (m_bitsPerPixel == 32)
-            {
-                nPadSize = ((numFrames - nFramesLeftInFile) * m_nFrameSize * sizeof(int32_t));
-                pPadStart = (void*)(((int32_t*)pData) + (nFramesLeftInFile * m_nFrameSize));
-            }
-            else
-            {
-                return false;
-            }
-
-            memset(pPadStart, 0, nPadSize);
-
-            return true;
-        }
-
-        /// If the "UseLoopingRead" flag = true
-        /// seek back to the beginning of the file
-
-        if (!m_fileIO.setFilePosition(0))
-        {
-            // set file pos failed
-            m_fileIO.closeFile();
-            return false;
-        }
-
-        m_lCurrentFilePos = 0;
-
-        m_nCurrentFrame = 0;
-
-        nReadSize = nNumFramesNotRead;
-
-        status = m_fileIO.readBlock(pData, m_nFrameSize, nReadSize);
-
-        if (status == false)
-        {
-            return false;
-        }
-    }
-    else
-    {
-        /// Read n frames of frames from the input file.
-
-        nReadSize = numFrames;
-
-        status = m_fileIO.readBlock(pData, m_nFrameSize, nReadSize);
-    }
-
-    /// Update the file read position
-#ifdef UPDATE_FILE_POSITION
-    m_lCurrentFilePos = m_fileIO.getFilePosition();
-#else
-    auto nReadSize = m_fileIO.getLastIoSize();
-
-    if (nReadSize > 0)
-    {
-        m_lCurrentFilePos += nReadSize;
-    }
-#endif
-
-    if (status == true)
-    {
-        m_nCurrentFrame += nReadSize;
-    }
-
-    return status;
-}
-
-
-bool CMkvFileIO::writeVideoFrame(const void* pData)
-{
-    if (m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
-    {
-        LogDebug
-        (
-            "bad param - eMode:{}",
-            (int)m_eMode
-        );
-        return false;
-    }
-
-    /// This "write" logic writes 1 "frame" 
-    /// at a time to the output file.
-
-    bool status = m_fileIO.writeBlock(pData, m_nFrameSize, 1);
-
-    if (status == false)
-    {
-        return false;
+        m_nVideoReadIdx++;
+        m_nCurrentFrameIdx++;
+        m_nCurrentFrame++;
     }
 
     return true;
 }
 
 
-bool CMkvFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen)
+bool CMkvFileIO::writeFrame
+    (
+        KaxTrackEntry *pTrack,
+        const void *pData,
+        const unsigned int frameLen,
+        const uint64 timestampNs
+    )
 {
-    if (m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
-    {
-        LogDebug
-        (
-            "bad param - eMode:{}",
-            (int)m_eMode
-        );
-        return false;
-    }
-
-    /// This "write" logic writes 1 "frame" 
-    /// at a time to the output file.
-
-    bool status = m_fileIO.writeBlock(pData, frameLen, 1);
-
-    if (status == false)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-
-bool CMkvFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames)
-{
-    if (pData == nullptr || numFrames < 1 || m_eMode == eFileIoMode_input || m_pFramebuffer == nullptr)
+    if (!m_bFileOpened || m_eMode != eFileIoMode_def::eFileIoMode_output || pTrack == nullptr || pData == nullptr || frameLen < 1)
     {
         LogDebug
         (
@@ -2286,22 +2708,214 @@ bool CMkvFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames
         return false;
     }
 
-    bool status = m_fileIO.writeBlock(pData, m_nFrameSize, numFrames);
+    try
+    {
+        KaxCluster cluster;
+        cluster.SetParent(*m_pSegment);
+        cluster.SetPreviousTimestamp(m_nPrevClusterTimestampNs, m_nTimestampScaleNs);
+        cluster.EnableChecksum();
 
-    auto pos = m_fileIO.getLastIoSize();
+        auto *pBuffer = new DataBuffer((binary *) pData, frameLen, nullptr, true);
 
-    return status;
+        KaxBlockGroup *pBlock = nullptr;
+
+        bool status = cluster.AddFrame(*pTrack, timestampNs, *pBuffer, pBlock, LACING_NONE);
+
+        if (!status || pBlock == nullptr)
+        {
+            delete pBuffer;
+            return false;
+        }
+
+        auto *pBlob = new KaxBlockBlob(BLOCK_BLOB_NO_SIMPLE);
+        pBlob->SetBlockGroup(*pBlock);
+        m_pCues->AddBlockBlob(*pBlob);
+
+        m_nWrittenClusterBytes += (uint64) cluster.Render(*m_pIoCallback, *m_pCues, EbmlElement::WriteSkipDefault);
+
+        m_pSeekHead->IndexThis(cluster, *m_pSegment);
+
+        cluster.ReleaseFrames();
+
+        m_nPrevClusterTimestampNs = timestampNs;
+    }
+    catch (const std::exception &ex)
+    {
+        LogDebug("exception while writing frame:{}", ex.what());
+        return false;
+    }
+
+    return true;
+}
+
+
+bool CMkvFileIO::writeVideoFrame(const void* pData, const uint64 timestamp)
+{
+    uint64 nDurationNs  = (m_frameRate > 0) ? (1000000000ULL / m_frameRate) : 1000000ULL;
+    uint64 nTimestampNs = (timestamp != 0) ? (timestamp * 1000000ULL) : m_nNextVideoTimestampNs;
+
+    if (!writeFrame(m_pVideoTrack, pData, m_nFrameSize, nTimestampNs))
+        return false;
+
+    m_nNextVideoTimestampNs = nTimestampNs + nDurationNs;
+
+    m_lastFrameWritten++;
+
+    return true;
+}
+
+
+bool CMkvFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen, const uint64 timestamp)
+{
+    uint64 nDurationNs  = (m_frameRate > 0) ? (1000000000ULL / m_frameRate) : 1000000ULL;
+    uint64 nTimestampNs = (timestamp != 0) ? (timestamp * 1000000ULL) : m_nNextVideoTimestampNs;
+
+    if (!writeFrame(m_pVideoTrack, pData, frameLen, nTimestampNs))
+        return false;
+
+    m_nNextVideoTimestampNs = nTimestampNs + nDurationNs;
+
+    m_lastFrameWritten++;
+
+    return true;
+}
+
+
+bool CMkvFileIO::writeVideoBlock(const void* pData, const unsigned int numFrames)
+{
+    if (pData == nullptr || numFrames < 1 || m_eMode != eFileIoMode_def::eFileIoMode_output)
+    {
+        LogDebug
+        (
+            "bad param - bFileOpened:{}, eMode:{}",
+            m_bFileOpened,
+            (int)m_eMode
+        );
+        return false;
+    }
+
+    auto *pIn = (const uint8_t *) pData;
+
+    for (unsigned int i = 0; i < numFrames; i++)
+    {
+        if (!writeVideoFrame(pIn, m_nFrameSize, 0))
+            return false;
+
+        pIn += m_nFrameSize;
+    }
+
+    return true;
+}
+
+
+/// Read an audio frame from an "MKV" data file
+///
+/// Each call reads a single interleaved audio "frame" - one sample across
+/// all of the configured audio channels (numTracks x bitsPerSample/8 bytes).
+bool CMkvFileIO::readAudioFrame(void* pData)
+{
+    if (!m_bFileOpened || m_eMode != eFileIoMode_def::eFileIoMode_input || pData == nullptr)
+    {
+        return false;
+    }
+
+    if (m_nAudioReadIdx >= m_audioFrames.size())
+    {
+        return false;
+    }
+
+    const SMkvFrame &frame = m_audioFrames[m_nAudioReadIdx];
+
+    memcpy(pData, frame.data.data(), frame.data.size());
+
+    m_nAudioReadIdx++;
+
+    return true;
+}
+
+
+bool CMkvFileIO::readAudioBlock(void* pData, const unsigned int numFrames)
+{
+    if (!m_bFileOpened || pData == nullptr || numFrames < 1)
+        return false;
+
+    auto *pOut = (uint8_t *) pData;
+
+    for (unsigned int i = 0; i < numFrames; i++)
+    {
+        if (!readAudioFrame(pOut))
+            return (i > 0);
+
+        pOut += m_audioFrames[m_nAudioReadIdx - 1].data.size();
+    }
+
+    return true;
+}
+
+
+/// Write a single interleaved audio "frame" (see readAudioFrame() note above).
+bool CMkvFileIO::writeAudioFrame(const void* pData, const uint64 timestamp)
+{
+    if (m_pAudioTrack == nullptr)
+    {
+        LogDebug("audio track not configured - call setAudioConfig() before openFile()");
+        return false;
+    }
+
+    unsigned int nFrameLen = (unsigned int) ((m_audioFormatInfo.numTracks * m_audioFormatInfo.bitsPerSample) / 8);
+
+    if (nFrameLen < 1)
+        return false;
+
+    uint64 nDurationNs  = (m_audioFormatInfo.sampleRate > 0) ? (1000000000ULL / m_audioFormatInfo.sampleRate) : 1000000ULL;
+    uint64 nTimestampNs = (timestamp != 0) ? (timestamp * 1000000ULL) : m_nNextAudioTimestampNs;
+
+    if (!writeFrame(m_pAudioTrack, pData, nFrameLen, nTimestampNs))
+        return false;
+
+    m_nNextAudioTimestampNs = nTimestampNs + nDurationNs;
+
+    return true;
+}
+
+
+bool CMkvFileIO::writeAudioBlock(const void* pData, const unsigned int numFrames)
+{
+    if (pData == nullptr || numFrames < 1 || m_pAudioTrack == nullptr)
+        return false;
+
+    unsigned int nFrameLen = (unsigned int) ((m_audioFormatInfo.numTracks * m_audioFormatInfo.bitsPerSample) / 8);
+
+    if (nFrameLen < 1)
+        return false;
+
+    auto *pIn = (const uint8_t *) pData;
+
+    for (unsigned int i = 0; i < numFrames; i++)
+    {
+        if (!writeAudioFrame(pIn, 0))
+            return false;
+
+        pIn += nFrameLen;
+    }
+
+    return true;
 }
 
 
 bool CMkvFileIO::setCurrentFrame(unsigned int frameNum)
 {
-    if (!m_bFileOpened)
+    if (!m_bFileOpened || m_eMode != eFileIoMode_def::eFileIoMode_input)
         return false;
 
+    if (frameNum >= m_videoFrames.size())
+        return false;
 
+    m_nVideoReadIdx    = frameNum;
+    m_nCurrentFrameIdx = (int) frameNum;
+    m_nCurrentFrame    = (long) frameNum;
 
-    return false;
+    return true;
 }
 
 
@@ -2648,7 +3262,7 @@ bool COcvFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
 }
 
 
-bool COcvFileIO::writeVideoFrame(const void* pData)
+bool COcvFileIO::writeVideoFrame(const void* pData, const uint64 timestamp)
 {
     if (m_eMode == eFileIoMode_input || m_eMode == eFileIoMode_IO)
     {
@@ -2741,7 +3355,7 @@ bool COcvFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
 }
 
 
-bool COcvFileIO::writeVideoFrame(const void* pData)
+bool COcvFileIO::writeVideoFrame(const void* pData, const uint64 timestamp)
 {
     LogWarning("writeVideoFrame Not currently implementedf");
     return false;

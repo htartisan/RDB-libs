@@ -51,10 +51,11 @@
 #include "Poco/Net/AcceptCertificateHandler.h"
 #endif
 
+#include <map>
 #include <iostream>
 
-#include "stringUtils.h"
-#include "stlx.h"
+#include "../String/StrUtils.h"
+//#include "stlx.h"
 
 
 
@@ -177,21 +178,21 @@ std::string getHttpParams(HTTPServerRequest& request);
 class CPocoWeblet;
 
 
-PVOID NewCWebletCmdData();
-PVOID DelCWebletCmdData();
+void* NewCWebletCmdData();
+void* DelCWebletCmdData();
 
 
 typedef struct WebletCfgData_def
 {
-	unsigned int	nPort;
+	unsigned int		nPort;
 
-	bool			bHTML;
+	bool				bHTML;
 
-	int				nMaxQueued;
-	int				nMaxThreads;
+	int					nMaxQueued;
+	int					nMaxThreads;
 	
-	std::string		sUser;
-	std::string		sPassword;
+	std::string			sUser;
+	std::string			sPassword;
 
 } WebletCfgData;
 
@@ -202,8 +203,6 @@ public:
 	void 				*m_pWebletCls;
 	
 	int 				m_nCmdID;
-
-	//unsigned int		m_nPort;
 
 	std::string			m_sPath;		//* ie: Cmd
 	std::string			m_sContent;
@@ -229,15 +228,15 @@ public:
 
 	void Init()
 	{
-		m_pWebletCls = NULL;
+		m_pWebletCls = nullptr;
 
 		m_nCmdID = 0;
 
 		//m_nPort = 0;
 
-		m_pCb = NULL;
+		m_pCb = nullptr;
 
-		m_pUserData = NULL;
+		m_pUserData = nullptr;
 
 		m_sContent = "";
 
@@ -256,13 +255,12 @@ public:
 };
 
 
-//typedef stlx::ptr_xmap<int, CWebletCmdData>	WebletCmdList_def;
-//typedef stlx::ptr_xvector<CWebletCmdData>	WebletCmdList_def;
-typedef stlx::ptr_xmap<std::string, CWebletCmdData>	WebletCmdList_def;
+typedef std::map<std::string, CWebletCmdData>	WebletCmdList_def;
 
 #endif
 
-class CWebletExReqHandler: public HTTPRequestHandler
+class CWebletExReqHandler: 
+	public HTTPRequestHandler
 {
 private:
 
@@ -316,7 +314,7 @@ public:
 #ifdef SUPPORT_POCO_SSL
 		m_bSSL = false;
 #endif
-		m_pCmdList = NULL;
+		m_pCmdList = nullptr;
 
 		m_sAuthInfo = "";
 
@@ -324,7 +322,7 @@ public:
 
 		m_sStatus = "";
 
-		m_pDefCb = NULL;
+		m_pDefCb = nullptr;
 
 		m_sHtmlTitle = "POCO based Weblet class";
 
@@ -339,7 +337,7 @@ public:
 			bool bHTML, 
 			WebletCmdList_def *pCmdList, 
 			const std::string &sAuth = "", 
-			WEBLETEXCALLBACK *pDefCb = NULL
+			WEBLETEXCALLBACK *pDefCb = nullptr
 		)
 	{
 		m_nPort = nPort;
@@ -419,7 +417,8 @@ public:
 };
 
 
-class CWebletExReqHandlerFactory: public HTTPRequestHandlerFactory
+class CWebletExReqHandlerFactory: 
+	public HTTPRequestHandlerFactory
 {
 private:
 
@@ -449,11 +448,11 @@ public:
 		m_bSSL = false;
 #endif
 
-		m_pCmdList = NULL;
+		m_pCmdList = nullptr;
 
 		m_sAuthInfo = "";
 
-		m_pDefCb = NULL;
+		m_pDefCb = nullptr;
 	}
 
 	CWebletExReqHandlerFactory
@@ -465,7 +464,7 @@ public:
 #endif
 			WebletCmdList_def *pCmdList, 
 			const std::string &sAuth = "", 
-			WEBLETEXCALLBACK *pDefCb = NULL
+			WEBLETEXCALLBACK *pDefCb = nullptr
 		) 
 	{
 		m_nPort = nPort;
@@ -516,13 +515,15 @@ protected:
 	int 					m_nCmdListLen;
 	
 	WEBLETEXCALLBACK		*m_pDefCb;
-	
+
+	void					*m_pAppData;
+
 public:
 
 #ifdef SUPPORT_POCO_SSL
-	CPocoWebletEx(bool bSupportSSL = false, WEBLETEXCALLBACK *pDefCb = NULL);
+	CPocoWebletEx(bool bSupportSSL = false, WEBLETEXCALLBACK *pDefCb = nullptr);
 #else
-	CPocoWebletEx(WEBLETEXCALLBACK *pDefCb = NULL);
+	CPocoWebletEx(WEBLETEXCALLBACK *pDefCb = nullptr);
 #endif
 
 	~CPocoWebletEx();
@@ -545,10 +546,20 @@ protected:
 	void clsInit();
 #endif	
 	
-
 	void clsDeInit();
 
 public:
+
+	void SetAppData(void *pData)
+	{
+		m_pAppData = pData;
+	}
+
+	void * GetAppData()
+	{
+		return m_pAppData;
+	}
+
 
 	// NOTE:  This should only be called once
 	// for all instances of this class
@@ -629,7 +640,7 @@ public:
 	{
 		m_pDefCb = pWebCallback;
 	
-		if (m_pDefCb == NULL)
+		if (m_pDefCb == nullptr)
 		{
 			return -1;
 		}
@@ -684,7 +695,14 @@ public:
 
 	//int ClsCallbackMethod(const std::string &sParams, std::string &sReply, void *pUserData);
 
-	std::string GetParam(const std::string &sContent, const std::string &sParams, const std::string &sName);
+	bool FindReqArg(const std::string& sReq, const std::string& sName);
+
+	std::string GetReqArg(const std::string& sReq, const std::string& sName);
+
+	bool FindParam(const std::string& sContent, const std::string& sParams, const std::string& sName);
+
+	std::string GetParam(const std::string& sContent, const std::string& sParams, const std::string& sName);
+
 
 protected:
 
@@ -692,7 +710,7 @@ protected:
 
 	int							GetFreeCmdID();
 
-	CWebletCmdData *			NewCmdListEntry(int nID, const std::string &sPath);
+	int							NewCmdListEntry(int nID, const std::string &sPath);
 
 	CWebletCmdData *			GetCmdListEntry(const std::string &sPath);
 
@@ -711,7 +729,7 @@ public:
 
 		try
 		{
-			if (m_pServer != NULL)
+			if (m_pServer != nullptr)
 			{
 				sOut = ((CWebletExReqHandler *) m_pServer)->GetStatus();
 			}

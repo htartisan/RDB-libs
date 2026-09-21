@@ -89,10 +89,12 @@ SPDLOG_API bool is_color_terminal() SPDLOG_NOEXCEPT;
 // Source: https://github.com/agauniyal/rang/
 SPDLOG_API bool in_terminal(FILE *file) SPDLOG_NOEXCEPT;
 
+#ifdef WINDOWS
 #if (defined(SPDLOG_WCHAR_TO_UTF8_SUPPORT) || defined(SPDLOG_WCHAR_FILENAMES)) && defined(_WIN32)
 SPDLOG_API void wstr_to_utf8buf(wstring_view_t wstr, memory_buf_t &target);
 
 SPDLOG_API void utf8_to_wstrbuf(string_view_t str, wmemory_buf_t &target);
+#endif
 #endif
 
 // Return directory name from given path or empty string

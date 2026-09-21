@@ -33,6 +33,8 @@ COMPILE_ERROR("ERRORL: C++17 not supported")
 #include "CFileIO.h"
 
 #include <string>
+#include <vector>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -46,12 +48,30 @@ extern "C"
 #endif
 
 #ifdef SUPPORT_MKV_IO_LOGIC
+#include "../../../libEBML/ebml/EbmlHead.h"
+#include "../../../libEBML/ebml/EbmlVoid.h"
 #include "../../../libEBML/ebml/EbmlStream.h"
-#include "../../../libMatroska/matroska/c/libmatroska.h"
+#include "../../../libEBML/ebml/StdIOCallback.h"
+#include "../../../libMatroska/matroska/KaxSegment.h"
+#include "../../../libMatroska/matroska/KaxTracks.h"
+#include "../../../libMatroska/matroska/KaxSemantic.h"
+#include "../../../libMatroska/matroska/KaxCluster.h"
+#include "../../../libMatroska/matroska/KaxBlock.h"
+#include "../../../libMatroska/matroska/KaxBlockData.h"
+#include "../../../libMatroska/matroska/KaxSeekHead.h"
+#include "../../../libMatroska/matroska/KaxCues.h"
+#include "../../../libMatroska/matroska/KaxCuesData.h"
 #endif
 
+#ifdef SUPPORT_OCV_IO_LOGIC
 #include "opencv2/opencv.hpp"
 #include "opencv2/videoio.hpp"
+#else
+// OpenCV's opencv2/core/hal/interface.h normally supplies the plain (non-namespaced)
+// "uint64" type used throughout this header/CVideoFileIO.cpp; provide the same
+// typedef here when OpenCV support is not enabled/included.
+typedef std::uint64_t uint64;
+#endif
 
 
 #ifndef E_VIDEO_DATA_FOTMAT_DEF
@@ -161,9 +181,9 @@ class CVideoFileIO
         (
             const std::string &sFilePath, 
             const eFileIoMode_def mode,
+            const int frameRate = 0,
             const int width = 0,
             const int height = 0,
-            const int frameRate = 0,
             const int bitsPerpixel = 24,
             const std::string &sFourCC = ""
         );
@@ -236,10 +256,10 @@ class CVideoFileIO
     virtual bool        readVideoBlock(void *pData, unsigned int numFrames) = 0;
 
     /// Write a single video frame, at the current frame offset.
-    virtual bool        writeVideoFrame(const void *pData) = 0;
+    virtual bool        writeVideoFrame(const void *pData, const uint64 timestamp = 0) = 0;
 
     /// Write a single video frame, at the current frame offset.
-    virtual bool        writeVideoFrame(const void* pData, unsigned int frameLen) = 0;
+    virtual bool        writeVideoFrame(const void* pData, unsigned int frameLen, const uint64 timestamp = 0) = 0;
 
     /// Write a block of video frames, for the specified number of frames, at the current frame offset.
     virtual bool        writeVideoBlock(const void *pData, unsigned int numFrames) = 0;
@@ -251,7 +271,7 @@ class CVideoFileIO
     virtual bool        readAudioBlock(void* pData, unsigned int numFrames) = 0;
 
     /// Write a single audio frame, at the current frame offset.
-    virtual bool        writeAudioFrame(const void* pData) = 0;
+    virtual bool        writeAudioFrame(const void* pData, const uint64 timestamp = 0) = 0;
 
     /// Write a block of audio frames, for the specified number of frames, at the current frame offset.
     virtual bool        writeAudioBlock(const void* pData, unsigned int numFrames) = 0;
@@ -357,9 +377,9 @@ public:
 
     virtual bool readVideoBlock(void *pData, unsigned int numFrames) override;
 
-    virtual bool writeVideoFrame(const void* pData) override;
+    virtual bool writeVideoFrame(const void* pData, const uint64 timestamp = 0) override;
 
-    virtual bool writeVideoFrame(const void* pData, unsigned int frameLen) override;
+    virtual bool writeVideoFrame(const void* pData, unsigned int frameLen, const uint64 timestamp = 0) override;
 
     virtual bool writeVideoBlock(const void *pData, unsigned int numFrames) override;
 
@@ -373,7 +393,7 @@ public:
         return false;
     }
 
-    virtual bool writeAudioFrame(const void* pData) override
+    virtual bool writeAudioFrame(const void* pData, const uint64 timestamp = 0) override
     {
         return false;
     }
@@ -400,19 +420,22 @@ public:
 
     struct SVideoFormatInfo
     {
-        int         width;
-        int         height;
-        int         bitsPerPixel;
-        int         frameRate;
+        int                     width;
+        int                     height;
+        int                     bitsPerPixel;
+        int                     frameRate;
+        
+        eVideoDataIoFormat_def  videoFormat;
 
-        std::string sVideo4CC;
+        std::string             sVideo4CC;
 
-        void        clear()
+        void clear()
         {
             width = 0;
             height = 0;
             bitsPerPixel = 0;
             frameRate = 0;
+            videoFormat = eVideoDataIoFormat_def::eVideoDataIoFormat_unknown;;
 
             sVideo4CC = "";
         }
@@ -450,8 +473,6 @@ private:
 
     gwavi_t             *m_pFileCtrl;
 
-    //std::string         m_sFourCC;
-
     gwavi_audio_t       m_audioInfo;
 
     unsigned long       m_lFileSize;
@@ -480,7 +501,6 @@ public:
 
     void setFileFourCC(const std::string& sFourCC)
     {
-        //m_sFourCC = sFourCC;
         m_fileInfo.sVideo4CC;
     }
 
@@ -501,6 +521,33 @@ public:
             std::string sFourCC
         );
 
+    void updateVideoConfig(eVideoDataIoFormat_def videoFmt)
+    {
+        m_fileInfo.videoFormat = videoFmt;
+        
+        m_fileInfo.sVideo4CC = videoFormatToFourCC(videoFmt);
+
+        if (m_pFileCtrl != nullptr)
+        {
+            memcpy(m_pFileCtrl->stream_header_v.codec, m_fileInfo.sVideo4CC.c_str(), m_fileInfo.sVideo4CC.size());
+        }
+    }
+
+    bool updateInputVideoInfo()
+    {
+        if (m_pFileCtrl == nullptr)
+        {
+            return false;
+        }
+
+        m_width = m_pFileCtrl->stream_format_v.width;
+        m_height = m_pFileCtrl->stream_format_v.height;
+        
+        m_bitsPerPixel = m_pFileCtrl->stream_format_v.bits_per_pixel;
+
+        return true;
+    }
+
     virtual bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
 
     virtual bool closeFile() override;
@@ -509,14 +556,16 @@ public:
 
     virtual bool isEOF() override;
 
+    virtual 
+
     /// Read a video frame from an "AVI" data file
     virtual bool readVideoFrame(void* pData) override;
 
     virtual bool readVideoBlock(void* pData, unsigned int numFrames) override;
 
-    virtual bool writeVideoFrame(const void* pData) override;
+    virtual bool writeVideoFrame(const void* pData, const uint64 timestamp = 0) override;
 
-    virtual bool writeVideoFrame(const void* pData, unsigned int frameSize) override;
+    virtual bool writeVideoFrame(const void* pData, unsigned int frameSize, const uint64 timestamp = 0) override;
 
     virtual bool writeVideoBlock(const void* pData, unsigned int numFrames) override;
 
@@ -525,7 +574,7 @@ public:
 
     virtual bool readAudioBlock(void* pData, unsigned int numFrames) override;
 
-    virtual bool writeAudioFrame(const void* pData) override;
+    virtual bool writeAudioFrame(const void* pData, const uint64 timestamp = 0) override;
 
     virtual bool writeAudioBlock(const void* pData, unsigned int numFrames) override;
 
@@ -538,6 +587,17 @@ public:
 
 
 #ifdef SUPPORT_MKV_IO_LOGIC
+
+/// CMkvFileIO
+///
+/// Reads/writes Matroska (.mkv/.webm) video (and, optionally, audio) files
+/// using libEBML/libMatroska. On input, the whole file is parsed once (when
+/// opened) and every video/audio frame payload is copied into memory, so
+/// that readVideoFrame()/readAudioFrame() can simply return the frames in
+/// order. On output, a single video (and, optionally, a single audio) track
+/// is created; every call to writeVideoFrame()/writeAudioFrame() wraps the
+/// supplied frame in its own Matroska Cluster/BlockGroup and renders it to
+/// disk immediately, so frames are not buffered/held in memory.
 
 class CMkvFileIO :
     public CVideoFileIO
@@ -586,7 +646,7 @@ public:
             m_sAudio4CC = "";
         }
 
-        SVideoFormatInfo()
+        SAudioFormatInfo()
         {
             clear();
         }
@@ -594,12 +654,80 @@ public:
 
 private:
 
+    /// a single, decoded, frame - used to hold both the frame's raw data
+    /// (as read from - or about to be written to - the Matroska file) and
+    /// its timestamp (in nanoseconds, relative to the start of the file)
+    struct SMkvFrame
+    {
+        std::vector<uint8_t>   data;
+        uint64                 timestampNs;
+    };
+
     unsigned long       m_lFileSize;
 
     int                 m_lastFrameRead;
     int                 m_lastFrameWritten;
 
     SVideoFormatInfo    m_videoFormatInfo;
+    SAudioFormatInfo    m_audioFormatInfo;
+
+    // libEBML / libMatroska I/O objects
+
+    libebml::IOCallback         *m_pIoCallback;    ///< the raw (stdio based) file callback
+    libebml::EbmlStream         *m_pInStream;      ///< used only when reading a file
+
+    libmatroska::KaxSegment     *m_pSegment;
+    libmatroska::KaxTracks      *m_pTracks;
+    libmatroska::KaxTrackEntry  *m_pVideoTrack;
+    libmatroska::KaxTrackEntry  *m_pAudioTrack;
+    libmatroska::KaxCues        *m_pCues;
+    libmatroska::KaxSeekHead    *m_pSeekHead;
+    libebml::EbmlVoid           *m_pSeekHeadPlaceholder;
+    libmatroska::KaxDuration    *m_pDurationElem;
+
+    uint64              m_nTimestampScaleNs;    ///< nanoseconds represented by 1 (Matroska) timestamp tick
+    uint64              m_nNextVideoTimestampNs;
+    uint64              m_nNextAudioTimestampNs;
+    uint64              m_nPrevClusterTimestampNs;
+    uint64              m_nInfoElementSize;
+    uint64              m_nTracksElementSize;
+    uint64              m_nWrittenClusterBytes; ///< running total of bytes rendered for all Clusters (used to compute the final Segment size)
+
+    std::uint16_t       m_nVideoTrackNumber;
+    std::uint16_t       m_nAudioTrackNumber;
+
+    std::string         m_sVideoCodecId;
+    std::string         m_sAudioCodecId;
+
+    // frames read from / to be written to the file
+
+    std::vector<SMkvFrame>  m_videoFrames;
+    std::vector<SMkvFrame>  m_audioFrames;
+
+    size_t              m_nVideoReadIdx;
+    size_t              m_nAudioReadIdx;
+
+    void initMembers();
+
+protected:
+
+    std::string codecIdFromVideoFormat(eVideoDataIoFormat_def fmt, const std::string &sFourCC);
+
+    bool openForRead(const std::string& sFilePath);
+
+    bool openForWrite(const std::string& sFilePath);
+
+    bool parseFile();
+
+    bool writeFrame
+        (
+            libmatroska::KaxTrackEntry *pTrack,
+            const void *pData,
+            unsigned int frameLen,
+            const uint64 timestampNs
+        );
+
+    bool finalizeWrite();
 
 public:
 
@@ -610,6 +738,14 @@ public:
     CMkvFileIO(const std::string& sFilePath);
 
     ~CMkvFileIO() override;
+
+    void setAudioConfig
+        (
+            int         numTracks,
+            int         bitsPerSample,
+            int         sampleRate,
+            const std::string &sFourCC = ""
+        );
 
     virtual bool openFile(eFileIoMode_def mode, const std::string& sFilePath) override;
 
@@ -624,18 +760,18 @@ public:
 
     virtual bool readVideoBlock(void* pData, unsigned int numFrames) override;
 
-    virtual bool writeVideoFrame(const void* pData) override;
+    virtual bool writeVideoFrame(const void* pData, const uint64 timestamp = 0) override;
 
-    virtual bool writeVideoFrame(const void* pData, unsigned int frameSize) override;
+    virtual bool writeVideoFrame(const void* pData, unsigned int frameSize, const uint64 timestamp = 0) override;
 
     virtual bool writeVideoBlock(const void* pData, unsigned int numFrames) override;
 
-    /// Read a video frame from an "MKV" data file
+    /// Read an audio frame from an "MKV" data file
     virtual bool readAudioFrame(void* pData) override;
 
     virtual bool readAudioBlock(void* pData, unsigned int numFrames) override;
 
-    virtual bool writeAudioFrame(const void* pData) override;
+    virtual bool writeAudioFrame(const void* pData, const uint64 timestamp = 0) override;
 
     virtual bool writeAudioBlock(const void* pData, unsigned int numFrames) override;
 
@@ -833,7 +969,7 @@ public:
 
     bool readVideoBlock(void* pData, unsigned int numFrames) override;
 
-    bool writeVideoFrame(const void* pData) override;
+    bool writeVideoFrame(const void* pData, const uint64 timestamp = 0) override;
 
     bool writeVideoBlock(const void* pData, unsigned int numFrames) override;
 
@@ -842,7 +978,7 @@ public:
 
     bool readAudioBlock(void* pData, unsigned int numFrames) override;
 
-    bool writeAudioFrame(const void* pData) override;
+    bool writeAudioFrame(const void* pData, const uint64 timestamp = 0) override;
 
     bool writeAudioBlock(const void* pData, unsigned int numFrames) override;
 

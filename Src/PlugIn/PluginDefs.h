@@ -54,7 +54,6 @@
 #ifndef COMPARE_RESULT_DEF
 #define COMPARE_RESULT_DEF
 
-
 enum eCompareResult
 {
     CompareResult_lessThan = -1,

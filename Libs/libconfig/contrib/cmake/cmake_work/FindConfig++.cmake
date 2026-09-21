@@ -3,7 +3,7 @@ FIND_PATH(CONFIG++_INCLUDE_DIR libconfig.h++ /usr/include /usr/local/include)
 FIND_LIBRARY(CONFIG++_LIBRARY NAMES config++ PATH /usr/lib /usr/local/lib) 
 
 IF (CONFIG++_INCLUDE_DIR AND CONFIG++_LIBRARY)
-    SET(CONFIG++_FOUND TRUE)
+    SET(CONFIG++_FOUND true)
 ENDIF ( CONFIG++_INCLUDE_DIR AND CONFIG++_LIBRARY)
 
 IF (CONFIG++_FOUND)

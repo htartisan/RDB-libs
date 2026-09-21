@@ -458,7 +458,7 @@ inline std::string tos(bool bVal, bool bCaps = false)
 	{
 		if (bCaps == true)
 		{
-			sOut = "TRUE";
+			sOut = "true";
 		}
 		else
 		{
@@ -469,7 +469,7 @@ inline std::string tos(bool bVal, bool bCaps = false)
 	{
 		if (bCaps == true)
 		{
-			sOut = "FALSE";
+			sOut = "false";
 		}
 		else
 		{
@@ -520,6 +520,33 @@ inline std::string wstos(const std::wstring& sIn)
 }
 
 
+inline int32_t toInt32(const std::string& sVal)
+{
+	//* if string is blank/empty, return false
+	if (sVal == "")
+	{
+		return 0;
+	}
+
+	int32_t value = atoi(sVal.c_str());
+
+	return value;
+}
+
+
+inline int64_t toInt64(const std::string& sVal)
+{
+	//* if string is blank/empty, return false
+	if (sVal == "")
+	{
+		return 0;
+	}
+
+	int64_t value = atol(sVal.c_str());
+
+	return value;
+}
+
 
 inline bool toBool(const std::string &sVal)
 {
@@ -564,19 +591,19 @@ inline BOOL toBOOL(const std::string &sVal)
 {
 	if (sVal == "")
 	{
-		return FALSE;
+		return false;
 	}
 
 	std::string sCmpVal = toLower(sVal);
 
 	if ((sCmpVal == "true") || (sCmpVal == "yes") || (sCmpVal == "y") || (sVal == "1"))
 	{
-		return TRUE;
+		return true;
 	}
 
 	if ((sCmpVal == "false") || (sCmpVal == "no") || (sCmpVal == "n") || (sVal == "0"))
 	{
-		return FALSE;
+		return false;
 	}
 
 	throw std::runtime_error("toBOOL - ERROR: Invalid input string value");

@@ -217,9 +217,9 @@ class CThreadBase
         try
         {
 #if defined(WINDOWS)
-            auto result = 
+            auto result = (bool) 
                 SetThreadPriority(m_threadHandle.get(), newPri);
-            if (result != TRUE)
+            if (result != true)
             {
                 m_sLastError = "'SetThreadPriority' failed ";
                 return false;

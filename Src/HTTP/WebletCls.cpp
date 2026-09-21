@@ -27,7 +27,7 @@
 //* global methods
 //----------------------
 
-PVOID NewCWebletCmdData()
+void* NewCWebletCmdData()
 {
 	try
 	{
@@ -132,7 +132,7 @@ void CWebletUtil::clsInit()
 
 void CWebletUtil::clsDeInit()
 {  
-	if (m_bClsInitialized == FALSE)
+	if (m_bClsInitialized == false)
 	{
 		return;
 	}
@@ -163,7 +163,7 @@ int CWebletUtil::Configure
 		//int maxReplySize
 	)
 {  
-	if (m_bClsInitialized == FALSE)
+	if (m_bClsInitialized == false)
 	{
 		//* not yet initialized
 		m_nError = WEBLETCLS_ERROR_NOT_INITIALIZED;
@@ -200,7 +200,7 @@ int CWebletUtil::Configure
 
 int CWebletUtil::webInit()
 {  
-	if (m_bClsInitialized == FALSE)
+	if (m_bClsInitialized == false)
 	{
 		// not yet initialized
 		m_nError = WEBLETCLS_ERROR_NOT_INITIALIZED;
@@ -214,7 +214,7 @@ int CWebletUtil::webInit()
 		return m_nError;
     } 
 
-	if (m_bCfgSet != TRUE)
+	if (m_bCfgSet != true)
 	{
 		//* config data pointer has not bee
 		m_nError = WEBLETCLS_ERROR_NOT_CONFIGURED;
@@ -257,7 +257,7 @@ int CWebletUtil::webInit()
 
 int CWebletUtil::webInit(WebletCfgData *pCfg)
 {  
-	if (m_bClsInitialized == FALSE)
+	if (m_bClsInitialized == false)
 	{
 		//* not yet initialized
 		m_nError = WEBLETCLS_ERROR_NOT_INITIALIZED;
@@ -470,7 +470,7 @@ int CWebletUtil::Start()
 
 int CWebletUtil::Stop()
 {  
-	if (m_bClsInitialized == FALSE)
+	if (m_bClsInitialized == false)
 	{
 		//* not yet initialized
 		m_nError = WEBLETCLS_ERROR_NOT_INITIALIZED;

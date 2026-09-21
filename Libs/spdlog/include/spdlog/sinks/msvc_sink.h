@@ -3,6 +3,7 @@
 
 #pragma once
 
+#ifdef WINDOWS
 #if defined(_WIN32)
 
     #include <spdlog/details/null_mutex.h>
@@ -65,4 +66,5 @@ using windebug_sink_st = msvc_sink_st;
 }  // namespace sinks
 }  // namespace spdlog
 
+#endif
 #endif

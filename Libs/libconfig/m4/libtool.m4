@@ -1742,8 +1742,8 @@ m4_defun([_LT_HEADER_DLFCN],
 ])# _LT_HEADER_DLFCN
 
 
-# _LT_TRY_DLOPEN_SELF (ACTION-IF-TRUE, ACTION-IF-TRUE-W-USCORE,
-#                      ACTION-IF-FALSE, ACTION-IF-CROSS-COMPILING)
+# _LT_TRY_DLOPEN_SELF (ACTION-IF-true, ACTION-IF-true-W-USCORE,
+#                      ACTION-IF-false, ACTION-IF-CROSS-COMPILING)
 # ----------------------------------------------------------------
 m4_defun([_LT_TRY_DLOPEN_SELF],
 [m4_require([_LT_HEADER_DLFCN])dnl

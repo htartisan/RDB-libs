@@ -69,8 +69,8 @@ void AssignCharPtr2String2(std::string &s, char *c, int l);
 #define WEBLETCLS_ERROR_UNKNOWN				999
 
 
-PVOID NewCWebletCmdData();
-PVOID DelCWebletCmdData();
+void* NewCWebletCmdData();
+void* DelCWebletCmdData();
 
 
 

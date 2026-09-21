@@ -771,7 +771,7 @@
 	* libconfig.c - fixed several signed/unsigned warnings
 	* doc/libconfig.texi - documentation updates, formatting fix
 	* scanner.l - allow lowercase 'true' and 'false' in addition to
-	  'TRUE' and 'FALSE'
+	  'true' and 'false'
 
 2006-03-27  Mark Lindner  <markl@neuromancer>
 

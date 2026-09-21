@@ -3659,9 +3659,9 @@ func_cygming_dll_for_implib_fallback_core ()
 }
 
 # func_cygming_gnu_implib_p ARG
-# This predicate returns with zero status (TRUE) if
+# This predicate returns with zero status (true) if
 # ARG is a GNU/binutils-style import library. Returns
-# with nonzero status (FALSE) otherwise.
+# with nonzero status (false) otherwise.
 func_cygming_gnu_implib_p ()
 {
   $opt_debug
@@ -3671,9 +3671,9 @@ func_cygming_gnu_implib_p ()
 }
 
 # func_cygming_ms_implib_p ARG
-# This predicate returns with zero status (TRUE) if
+# This predicate returns with zero status (true) if
 # ARG is an MS-style import library. Returns
-# with nonzero status (FALSE) otherwise.
+# with nonzero status (false) otherwise.
 func_cygming_ms_implib_p ()
 {
   $opt_debug

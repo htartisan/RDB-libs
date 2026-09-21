@@ -252,7 +252,7 @@ bool CPocoJsonParserUtil::WriteJsonFile(char *pFolder, char *pFileName) throw(st
 
 	cFileManager.Close();
 
-	return ((bStatus == TRUE) ? true : false);
+	return ((bStatus == true) ? true : false);
 }
 #endif
 

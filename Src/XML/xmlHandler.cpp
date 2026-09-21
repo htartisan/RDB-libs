@@ -241,7 +241,7 @@ bool CXmlHandler::LoadXmlFile(char *pFolder, char *pFileName) throw(std::runtime
 		return false;
 	}
 
-	bool bStatus = FALSE;
+	bool bStatus = false;
 
 	CFileIO		cFileManager;
 
@@ -360,7 +360,7 @@ bool CXmlHandler::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runtim
 		if (pFolder != NULL)
 		{
 			bStatus = cFileManager.SetFileDir((char *) pFolder);
-			if (bStatus == FALSE)
+			if (bStatus == false)
 			{
 				return false;
 			}
@@ -394,7 +394,7 @@ bool CXmlHandler::WriteXmlFile(char *pFolder, char *pFileName) throw(std::runtim
 
 	cFileManager.Close();
 
-	return ((bStatus == TRUE) ? true : false);
+	return ((bStatus == true) ? true : false);
 }
 
 
