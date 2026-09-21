@@ -244,6 +244,11 @@ class CVideoFileIO
                             return (unsigned int) m_height;
                         }
 
+    unsigned int        getBitsPerPixel()   // Get the pixel size (bits per pixel)
+                        {
+                            return m_bitsPerPixel;
+                        }
+
     unsigned int        getFrameSize()    // Get the frame size (in bytes)
                         {
                             return m_nFrameSize;
@@ -709,9 +714,28 @@ private:
 
     void initMembers();
 
+    /// Resolve the nanosecond timestamp to use for the next video/audio frame.
+    ///
+    /// Callers may supply a millisecond-resolution "wall clock" timestamp, but some
+    /// clock sources only have coarse (e.g. whole-second) resolution, which would
+    /// otherwise produce duplicate/stalled or wildly-out-of-pace timestamps once
+    /// scaled to nanoseconds (a discontinuity previously observed as MKV output
+    /// appearing to be encoded at an incorrect, much faster frame rate). A supplied
+    /// timestamp is only trusted if it represents genuine forward progress beyond
+    /// the last timestamp actually written to the file; otherwise the internally
+    /// tracked, frame-rate-derived timestamp is used instead.
+    uint64 resolveNextTimestampNs(uint64 timestampMs, uint64 nInternalNextTimestampNs) const;
+
 protected:
 
     std::string codecIdFromVideoFormat(eVideoDataIoFormat_def fmt, const std::string &sFourCC);
+
+    /// Reverse of codecIdFromVideoFormat(): determine the internal video format
+    /// from a Matroska CodecID (and, for "V_MS/VFW/FOURCC", the CodecPrivate data
+    /// containing the actual FourCC/bit depth) read from a file being opened for
+    /// input. As a side effect, also updates m_bitsPerPixel/m_nFrameSize from the
+    /// CodecPrivate BITMAPINFOHEADER data, when present.
+    eVideoDataIoFormat_def videoFormatFromTrackEntry(libmatroska::KaxTrackEntry &trackEntry);
 
     bool openForRead(const std::string& sFilePath);
 

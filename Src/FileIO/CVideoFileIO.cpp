@@ -393,16 +393,16 @@ std::shared_ptr<CVideoFileIO> CVideoFileIO::openFileTypeByExt
         std::shared_ptr<CMkvFileIO> pMkvFileIO =
             std::make_shared<CMkvFileIO>();
 
+        pMkvFileIO->setBitsPerPixel(bitsPerPixel);
+
         if (width > 0 || height > 0)
-            pMkvFileIO->setFrameSize(width, height);
+            pMkvFileIO->setFrameSize(width, height, bitsPerPixel);
 
         if (frameRate > 0)
             pMkvFileIO->setFrameRate(frameRate);
 
         //if (blockSize > 0)
         //    pMkvFileIO->setIoBlockSize(blockSize);
-
-        pMkvFileIO->setBitsPerPixel(bitsPerPixel);
 
         if (sFourCC != "")
         {
@@ -2074,6 +2074,40 @@ void CMkvFileIO::setAudioConfig
 }
 
 
+/// Layout mirrors the Windows VFW/AVI BITMAPINFOHEADER structure (40 bytes, no
+/// padding). Matroska's "V_MS/VFW/FOURCC" CodecID requires CodecPrivate to contain
+/// exactly this structure, with the video FourCC packed into biCompression - players
+/// (VLC, ffmpeg/Matroska demuxers, etc.) read biCompression from this fixed struct to
+/// determine the actual pixel/codec format; they do NOT accept a bare 4-byte FourCC.
+/// Defined locally (rather than relying on <windows.h>) so it is portable to Linux.
+#if defined(_MSC_VER)
+#pragma pack(push, 1)
+#endif
+struct MkvBitmapInfoHeader
+{
+    std::uint32_t biSize;
+    std::uint32_t biWidth;
+    std::uint32_t biHeight;
+    std::uint16_t biPlanes;
+    std::uint16_t biBitCount;
+    std::uint32_t biCompression;
+    std::uint32_t biSizeImage;
+    std::uint32_t biXPelsPerMeter;
+    std::uint32_t biYPelsPerMeter;
+    std::uint32_t biClrUsed;
+    std::uint32_t biClrImportant;
+}
+#if !defined(_MSC_VER)
+__attribute__((packed))
+#endif
+;
+#if defined(_MSC_VER)
+#pragma pack(pop)
+#endif
+
+static_assert(sizeof(MkvBitmapInfoHeader) == 40, "MkvBitmapInfoHeader must be exactly 40 bytes (VFW BITMAPINFOHEADER layout)");
+
+
 /// Map an internal video format (and/or a raw FourCC) to a Matroska CodecID string.
 ///
 /// Well known compressed formats are mapped to their official Matroska CodecID.
@@ -2117,6 +2151,61 @@ std::string CMkvFileIO::codecIdFromVideoFormat(const eVideoDataIoFormat_def fmt,
     // raw/uncompressed (or unrecognized) formats: identify them using the
     // Video-for-Windows FourCC based CodecID
     return "V_MS/VFW/FOURCC";
+}
+
+
+/// Determine the internal video format from a track's actual CodecID/CodecPrivate
+/// data - i.e. the video format is read FROM the input file itself, mirroring
+/// codecIdFromVideoFormat()'s write-side mapping, rather than being guessed/left
+/// at its default (eVideoDataIoFormat_unknown).
+eVideoDataIoFormat_def CMkvFileIO::videoFormatFromTrackEntry(KaxTrackEntry &trackEntry)
+{
+    auto *pCodecId = static_cast<KaxCodecID *>(trackEntry.FindFirstElt(EBML_INFO(KaxCodecID), false));
+
+    if (pCodecId == nullptr)
+        return eVideoDataIoFormat_def::eVideoDataIoFormat_unknown;
+
+    std::string sCodecId = pCodecId->GetValue();
+
+    if (sCodecId == "V_MS/VFW/FOURCC")
+    {
+        // the actual pixel format FourCC (e.g. "YUY2") is packed into the
+        // biCompression field of a BITMAPINFOHEADER stored as CodecPrivate
+        auto *pPrivate = static_cast<KaxCodecPrivate *>(trackEntry.FindFirstElt(EBML_INFO(KaxCodecPrivate), false));
+
+        if (pPrivate == nullptr || pPrivate->GetSize() < sizeof(MkvBitmapInfoHeader))
+        {
+            LogDebug("V_MS/VFW/FOURCC track has no/undersized CodecPrivate BITMAPINFOHEADER");
+            return eVideoDataIoFormat_def::eVideoDataIoFormat_unknown;
+        }
+
+        MkvBitmapInfoHeader bih {};
+        memcpy(&bih, pPrivate->GetBuffer(), sizeof(bih));
+
+        m_bitsPerPixel = bih.biBitCount;
+
+        if (m_width > 0 && m_height > 0 && m_bitsPerPixel > 0)
+            m_nFrameSize = (m_width * m_height * (m_bitsPerPixel / 8));
+
+        return fourCcToVideoFormat(FourCC2String(bih.biCompression));
+    }
+
+    // known compressed formats: reverse of codecIdFromVideoFormat()
+    static const std::map<std::string, eVideoDataIoFormat_def> map =
+    {
+        {"V_MPEG4/ISO/AVC",  eVideoDataIoFormat_def::eVideoDataIoFormat_h264},
+        {"V_MPEGH/ISO/HEVC", eVideoDataIoFormat_def::eVideoDataIoFormat_h265},
+        {"V_MPEG1",          eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg1},
+        {"V_MPEG2",          eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg2},
+        {"V_MPEG4/ISO/ASP",  eVideoDataIoFormat_def::eVideoDataIoFormat_mpeg4},
+        {"V_VP8",            eVideoDataIoFormat_def::eVideoDataIoFormat_vp8},
+        {"V_VP9",            eVideoDataIoFormat_def::eVideoDataIoFormat_vp9},
+        {"V_MJPEG",          eVideoDataIoFormat_def::eVideoDataIoFormat_mjpeg},
+    };
+
+    auto it = map.find(sCodecId);
+
+    return (it != map.end()) ? it->second : eVideoDataIoFormat_def::eVideoDataIoFormat_unknown;
 }
 
 
@@ -2273,6 +2362,22 @@ bool CMkvFileIO::parseFile()
                         auto nDurationNs = (uint64) *pDuration;
                         if (nDurationNs > 0)
                             m_frameRate = (unsigned int) (1000000000ULL / nDurationNs);
+                    }
+
+                    // determine the actual video format (FourCC/codec) from the
+                    // track's CodecID/CodecPrivate - per-file input info always
+                    // takes priority over any caller-supplied hint (hints exist
+                    // only for output mode / as a fallback if the file is missing
+                    // or has unrecognized codec info)
+                    auto eParsedFormat = videoFormatFromTrackEntry(*pEntry);
+
+                    if (eParsedFormat != eVideoDataIoFormat_def::eVideoDataIoFormat_unknown)
+                    {
+                        m_eVideoFormat = eParsedFormat;
+                    }
+                    else
+                    {
+                        LogDebug("unable to determine video format from track CodecID/CodecPrivate - keeping existing/hinted format");
                     }
                 }
                 else if (trackType == track_audio && m_nAudioTrackNumber == 0)
@@ -2438,10 +2543,27 @@ bool CMkvFileIO::openForWrite(const std::string& sFilePath)
             auto sFourCC = videoFormatToFourCC(m_eVideoFormat);
             if (!sFourCC.empty())
             {
+                // "V_MS/VFW/FOURCC" requires CodecPrivate to be a full VFW
+                // BITMAPINFOHEADER with the FourCC packed into biCompression -
+                // players ignore/reject a bare 4-byte FourCC here.
+                MkvBitmapInfoHeader bih {};
+
+                bih.biSize          = sizeof(MkvBitmapInfoHeader);
+                bih.biWidth         = m_width;
+                bih.biHeight        = m_height;
+                bih.biPlanes        = 1;
+                bih.biBitCount      = (std::uint16_t) m_bitsPerPixel;
+                bih.biCompression   = String2FourCC(sFourCC);
+                bih.biSizeImage     = m_nFrameSize;
+                bih.biXPelsPerMeter = 0;
+                bih.biYPelsPerMeter = 0;
+                bih.biClrUsed       = 0;
+                bih.biClrImportant  = 0;
+
                 GetChild<KaxCodecPrivate>(*m_pVideoTrack).CopyBuffer
                 (
-                    (const binary *) sFourCC.c_str(),
-                    (std::uint32_t) sFourCC.size()
+                    (const binary *) &bih,
+                    (std::uint32_t) sizeof(bih)
                 );
             }
         }
@@ -2689,6 +2811,27 @@ bool CMkvFileIO::readVideoBlock(void* pData, const unsigned int numFrames)
 }
 
 
+uint64 CMkvFileIO::resolveNextTimestampNs(const uint64 timestampMs, const uint64 nInternalNextTimestampNs) const
+{
+    if (timestampMs == 0)
+        return nInternalNextTimestampNs;
+
+    const uint64 nCandidateNs = timestampMs * 1000000ULL;
+
+    // Only trust the supplied timestamp if it is actually ahead of the last
+    // timestamp written to the file. A coarse clock source (e.g. one with only
+    // whole-second resolution) will periodically report a value that, once scaled
+    // to nanoseconds, is far BEHIND where our own frame-rate-paced clock already
+    // is - using it as-is would corrupt the timeline (duplicate/backwards/way too
+    // close together timestamps), which is exactly what previously made written
+    // MKV files appear to play back at a far higher frame rate than configured.
+    if (nCandidateNs <= m_nPrevClusterTimestampNs)
+        return nInternalNextTimestampNs;
+
+    return nCandidateNs;
+}
+
+
 bool CMkvFileIO::writeFrame
     (
         KaxTrackEntry *pTrack,
@@ -2719,19 +2862,30 @@ bool CMkvFileIO::writeFrame
 
         KaxBlockGroup *pBlock = nullptr;
 
-        bool status = cluster.AddFrame(*pTrack, timestampNs, *pBuffer, pBlock, LACING_NONE);
+        // NOTE: AddFrame()'s return value only indicates whether MORE frames may
+        // still be appended to the SAME block (lacing). Since we always pass
+        // LACING_NONE (one frame per block), it always returns false here even
+        // though the frame was successfully added - it must NOT be treated as an
+        // error. The buffer is now owned by the block (stored internally), so it
+        // must not be deleted here; it is released later via cluster.ReleaseFrames().
+        // The only real failure indicator is a null pBlock (no block was created).
+        cluster.AddFrame(*pTrack, timestampNs, *pBuffer, pBlock, LACING_NONE);
 
-        if (!status || pBlock == nullptr)
+        if (pBlock == nullptr)
         {
             delete pBuffer;
             return false;
         }
 
-        auto *pBlob = new KaxBlockBlob(BLOCK_BLOB_NO_SIMPLE);
-        pBlob->SetBlockGroup(*pBlock);
-        m_pCues->AddBlockBlob(*pBlob);
-
         m_nWrittenClusterBytes += (uint64) cluster.Render(*m_pIoCallback, *m_pCues, EbmlElement::WriteSkipDefault);
+
+        // Add a cue (seek index) entry for this block directly, rather than via a
+        // heap-allocated KaxBlockBlob wrapper: KaxBlockBlob's destructor deletes its
+        // wrapped KaxBlockGroup, but pBlock is already owned/deleted by cluster (as
+        // an EbmlMaster child) - wrapping it in a KaxBlockBlob would either leak the
+        // wrapper (if never deleted) or double-free pBlock (if it were).
+        auto &cuePoint = AddNewChild<KaxCuePoint>(*m_pCues);
+        cuePoint.PositionSet(*pBlock, m_pCues->GlobalTimestampScale());
 
         m_pSeekHead->IndexThis(cluster, *m_pSegment);
 
@@ -2752,7 +2906,7 @@ bool CMkvFileIO::writeFrame
 bool CMkvFileIO::writeVideoFrame(const void* pData, const uint64 timestamp)
 {
     uint64 nDurationNs  = (m_frameRate > 0) ? (1000000000ULL / m_frameRate) : 1000000ULL;
-    uint64 nTimestampNs = (timestamp != 0) ? (timestamp * 1000000ULL) : m_nNextVideoTimestampNs;
+    uint64 nTimestampNs = resolveNextTimestampNs(timestamp, m_nNextVideoTimestampNs);
 
     if (!writeFrame(m_pVideoTrack, pData, m_nFrameSize, nTimestampNs))
         return false;
@@ -2768,7 +2922,7 @@ bool CMkvFileIO::writeVideoFrame(const void* pData, const uint64 timestamp)
 bool CMkvFileIO::writeVideoFrame(const void* pData, const unsigned int frameLen, const uint64 timestamp)
 {
     uint64 nDurationNs  = (m_frameRate > 0) ? (1000000000ULL / m_frameRate) : 1000000ULL;
-    uint64 nTimestampNs = (timestamp != 0) ? (timestamp * 1000000ULL) : m_nNextVideoTimestampNs;
+    uint64 nTimestampNs = resolveNextTimestampNs(timestamp, m_nNextVideoTimestampNs);
 
     if (!writeFrame(m_pVideoTrack, pData, frameLen, nTimestampNs))
         return false;
@@ -2868,7 +3022,7 @@ bool CMkvFileIO::writeAudioFrame(const void* pData, const uint64 timestamp)
         return false;
 
     uint64 nDurationNs  = (m_audioFormatInfo.sampleRate > 0) ? (1000000000ULL / m_audioFormatInfo.sampleRate) : 1000000ULL;
-    uint64 nTimestampNs = (timestamp != 0) ? (timestamp * 1000000ULL) : m_nNextAudioTimestampNs;
+    uint64 nTimestampNs = resolveNextTimestampNs(timestamp, m_nNextAudioTimestampNs);
 
     if (!writeFrame(m_pAudioTrack, pData, nFrameLen, nTimestampNs))
         return false;
